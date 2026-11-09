@@ -390,10 +390,10 @@ class _CollectorOverallReportsPageState
   }
 
   static const _tabLabels = [
-    'Who pay\ncashless',
-    'Who pay\ncash',
-    'Who did\nnot pay',
-    'Who paid\nin\nadvance',
+    'Paid via\nGCash',
+    'Paid with\ncash',
+    'Not yet\npaid',
+    'Paid in\nadvance',
   ];
 
   List<_ReportMember> get _currentMembers {
@@ -442,74 +442,515 @@ class _CollectorOverallReportsPageState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(
-                        width: 1000,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _tabHeaderRow(),
-                            Container(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                  left: BorderSide(color: Color(0xFF111827)),
-                                  right: BorderSide(color: Color(0xFF111827)),
-                                  bottom: BorderSide(color: Color(0xFF111827)),
-                                ),
-                              ),
-                              child:
-                                  _activeTab == 0 && _loadingCashlessMembers ||
-                                      _activeTab == 1 && _loadingCashMembers ||
-                                      _activeTab == 2 &&
-                                          _loadingNotPaidMembers ||
-                                      _activeTab == 3 && _loadingAdvanceMembers
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(24),
-                                      child: Center(
-                                        child: CircularProgressIndicator(),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth < 680) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _mobileTabSelector(constraints.maxWidth),
+                              const SizedBox(height: 16),
+                              if (_isActiveTabLoading)
+                                const Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else if (_activeTabError != null)
+                                _mobileErrorCard(_activeTabError!)
+                              else ...[
+                                _mobileSummary(members, total),
+                                const SizedBox(height: 12),
+                                if (members.isEmpty)
+                                  _mobileEmptyState()
+                                else
+                                  ...members.map(_mobileMemberCard),
+                                const SizedBox(height: 12),
+                                _totalCard(total),
+                                const SizedBox(height: 12),
+                                _uploadButton(compact: true),
+                              ],
+                            ],
+                          );
+                        }
+
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: 1000,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _tabHeaderRow(),
+                                Container(
+                                  decoration: const BoxDecoration(
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: Color(0xFF111827),
                                       ),
-                                    )
-                                  : _activeTab == 0 &&
-                                            _cashlessMembersError != null ||
-                                        _activeTab == 1 &&
-                                            _cashMembersError != null ||
-                                        _activeTab == 2 &&
-                                            _notPaidMembersError != null ||
-                                        _activeTab == 3 &&
-                                            _advanceMembersError != null
-                                  ? Padding(
-                                      padding: const EdgeInsets.all(24),
-                                      child: Text(
-                                        _activeTab == 1
-                                            ? _cashMembersError!
-                                            : _activeTab == 2
-                                            ? _notPaidMembersError!
-                                            : _activeTab == 3
-                                            ? _advanceMembersError!
-                                            : _cashlessMembersError!,
+                                      right: BorderSide(
+                                        color: Color(0xFF111827),
                                       ),
-                                    )
-                                  : Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        _contentHeader(),
-                                        ..._rowsForActiveTab(members),
-                                        _totalRow(total),
-                                        _uploadButton(),
-                                      ],
+                                      bottom: BorderSide(
+                                        color: Color(0xFF111827),
+                                      ),
                                     ),
+                                  ),
+                                  child: _isActiveTabLoading
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(24),
+                                          child: Center(
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        )
+                                      : _activeTabError != null
+                                      ? Padding(
+                                          padding: const EdgeInsets.all(24),
+                                          child: Text(_activeTabError!),
+                                        )
+                                      : Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            _contentHeader(),
+                                            ..._rowsForActiveTab(members),
+                                            _totalRow(total),
+                                            _uploadButton(),
+                                          ],
+                                        ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  bool get _isActiveTabLoading {
+    switch (_activeTab) {
+      case 0:
+        return _loadingCashlessMembers;
+      case 1:
+        return _loadingCashMembers;
+      case 2:
+        return _loadingNotPaidMembers;
+      default:
+        return _loadingAdvanceMembers;
+    }
+  }
+
+  String? get _activeTabError {
+    switch (_activeTab) {
+      case 0:
+        return _cashlessMembersError;
+      case 1:
+        return _cashMembersError;
+      case 2:
+        return _notPaidMembersError;
+      default:
+        return _advanceMembersError;
+    }
+  }
+
+  Widget _mobileTabSelector(double width) {
+    final columns = width < 360 ? 1 : 2;
+    final gap = 10.0;
+    final itemWidth = (width - gap * (columns - 1)) / columns;
+
+    return Wrap(
+      spacing: gap,
+      runSpacing: gap,
+      children: List.generate(_tabLabels.length, (index) {
+        final selected = _activeTab == index;
+        return SizedBox(
+          width: itemWidth,
+          child: Semantics(
+            button: true,
+            selected: selected,
+            label: _tabLabels[index].replaceAll('\n', ' '),
+            child: Material(
+              color: selected ? const Color(0xFF0D47A1) : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                onTap: () => setState(() => _activeTab = index),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 56),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFF0D47A1)
+                          : const Color(0xFFD1D5DB),
+                      width: selected ? 2 : 1,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    _tabLabels[index].replaceAll('\n', ' '),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: selected ? Colors.white : const Color(0xFF111827),
+                      height: 1.15,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _mobileSummary(List<_ReportMember> members, double total) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.groups_rounded, color: Color(0xFF0D47A1), size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${members.length} ${members.length == 1 ? 'member' : 'members'}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Total reported amount',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF4B5563),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                '₱${total.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0D47A1),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileMemberCard(_ReportMember member) {
+    final isUnpaid = _activeTab == 2;
+    final statusLabel = switch (_activeTab) {
+      0 => 'Paid via GCash',
+      1 => 'Paid with cash',
+      2 => 'Not yet paid',
+      _ => 'Paid in advance',
+    };
+    final statusColor = isUnpaid
+        ? const Color(0xFFB91C1C)
+        : const Color(0xFF166534);
+    final statusBackground = isUnpaid
+        ? const Color(0xFFFEE2E2)
+        : const Color(0xFFDCFCE7);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFDCE3EC)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  member.name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    height: 1.25,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 36),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusBackground,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F7FC),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Amount',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4B5563),
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '₱${member.amount.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0D47A1),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (_activeTab == 0) ...[
+            _mobileDetailRow('Payment method', 'GCash'),
+            if (member.reference.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _mobileDetailRow('Reference number', member.reference),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showReceiptDetails(member),
+                icon: const Icon(Icons.receipt_long_rounded),
+                label: const Text('View GCash transaction'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0D47A1),
+                  minimumSize: const Size.fromHeight(52),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ] else if (_activeTab == 1) ...[
+            _mobileDetailRow('Payment method', 'Cash'),
+          ] else if (_activeTab == 2) ...[
+            _mobileDetailRow(
+              'Unpaid deceased payments',
+              '${(member.amount / 100).round()}',
+            ),
+          ] else if (_activeTab == 3) ...[
+            _mobileDetailRow(
+              'Deceased payments covered',
+              '${member.advanceDeathCount}',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileDetailRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF4B5563),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _totalCard(double total) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2F4DF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF9CCB94)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Total amount',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '₱${total.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_activeTab == 2) ...[
+            const Divider(height: 22),
+            _mobileDetailRow(
+              'Unpaid deceased payments',
+              '${_unpaidDeceasedCount(_notPaidMembers)}',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.inbox_outlined, size: 40, color: Color(0xFF6B7280)),
+          SizedBox(height: 10),
+          Text(
+            'No members to show',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileErrorCard(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          fontSize: 15,
+          color: Color(0xFF991B1B),
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -848,18 +1289,18 @@ class _CollectorOverallReportsPageState
     );
   }
 
-  Widget _uploadButton() {
+  Widget _uploadButton({bool compact = false}) {
     return Container(
-      width: 460,
-      height: 110,
+      width: compact ? double.infinity : 460,
+      height: compact ? 56 : 110,
       color: const Color(0xFFB9D9B4),
       alignment: Alignment.center,
-      child: const Text(
+      child: Text(
         'Upload report',
         textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'Montserrat',
-          fontSize: 32,
+          fontSize: compact ? 18 : 32,
           fontWeight: FontWeight.w800,
           color: Color(0xFF111827),
           height: 1.05,

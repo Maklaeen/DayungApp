@@ -910,6 +910,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   Widget _overviewSection() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: dayungSectionCardDecoration(context),
@@ -926,66 +927,67 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                    height: 180,
-                    child: _modernStatCard(
-                      icon: Icons.groups_rounded,
-                      title: 'Active Members',
-                      value: _loadingActiveMembers
-                          ? '—'
-                          : _activeMembersCount.toString(),
-                      color: const Color(0xFF3B82F6),
-                      bgColor: const Color(0xFFEFF6FF),
-                    ),
-                  ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 320
+                  ? 1
+                  : constraints.maxWidth < 840
+                  ? 2
+                  : 3;
+              const spacing = 12.0;
+              final cardWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              final cards = [
+                _modernStatCard(
+                  icon: Icons.groups_rounded,
+                  title: 'Active Members',
+                  value: _loadingActiveMembers
+                      ? '—'
+                      : _activeMembersCount.toString(),
+                  color: const Color(0xFF3B82F6),
+                  bgColor: const Color(0xFFEFF6FF),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 180,
-                  child: InkWell(
-                    onTap: () {
-                      final id = _asInt(_selectedDayungUnitObj?['id']);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RecentDeathNotices(dayungUnitId: id),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: _recentDeathsCard(),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InkWell(
+                InkWell(
                   onTap: () {
-                    setState(() => _currentIndex = 1);
+                    final id = _asInt(_selectedDayungUnitObj?['id']);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => RecentDeathNotices(dayungUnitId: id),
+                      ),
+                    );
                   },
                   borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                    height: 180,
-                    child: _modernStatCard(
-                      icon: Icons.account_balance_wallet_rounded,
-                      title: 'Pending Amount',
-                      value: _loadingPending
-                          ? '—'
-                          : '₱${_pendingPaymentsAmount.toStringAsFixed(0)}',
-                      color: const Color(0xFFF59E0B),
-                      bgColor: const Color(0xFFFEF3C7),
-                    ),
+                  child: _recentDeathsCard(),
+                ),
+                InkWell(
+                  onTap: () => setState(() => _currentIndex = 1),
+                  borderRadius: BorderRadius.circular(16),
+                  child: _modernStatCard(
+                    icon: Icons.account_balance_wallet_rounded,
+                    title: 'Pending Amount',
+                    value: _loadingPending
+                        ? '—'
+                        : '₱${_pendingPaymentsAmount.toStringAsFixed(0)}',
+                    color: const Color(0xFFF59E0B),
+                    bgColor: const Color(0xFFFEF3C7),
                   ),
                 ),
-              ),
-            ],
+              ];
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: cards
+                    .map(
+                      (card) => SizedBox(
+                        width: cardWidth,
+                        height: isMobile ? 170 : 180,
+                        child: card,
+                      ),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),
@@ -1024,7 +1026,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             title,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w600,
               color: color.withValues(alpha: 0.8),
             ),
@@ -1034,7 +1036,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             value,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: FontWeight.w800,
               color: color,
             ),

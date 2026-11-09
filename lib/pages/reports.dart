@@ -2,6 +2,7 @@ import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:capstone_app/shared/president_secretary_member_reports.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
@@ -1822,61 +1823,44 @@ Widget _reportTable({
   required List<DataRow> rows,
   required double minWidth,
 }) {
-  return Container(
-    clipBehavior: Clip.antiAlias,
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: kBorderColor),
+  return RecordDataTable(
+    headingRowHeight: 64,
+    dataRowMinHeight: 68,
+    dataRowMaxHeight: 112,
+    minWidth: minWidth,
+    headingRowColor: const Color(0xFFEAF2FC),
+    headingTextStyle: const TextStyle(
+      color: Color(0xFF0D47A1),
+      fontSize: 16,
+      fontWeight: FontWeight.w800,
+      fontFamily: 'Montserrat',
     ),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minWidth: minWidth),
-        child: DataTable(
-          headingRowHeight: 64,
-          dataRowMinHeight: 68,
-          dataRowMaxHeight: 112,
-          headingRowColor: WidgetStatePropertyAll(const Color(0xFFEAF2FC)),
-          headingTextStyle: const TextStyle(
-            color: Color(0xFF0D47A1),
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Montserrat',
-          ),
-          dataTextStyle: const TextStyle(
-            color: Color(0xFF1F2937),
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            fontFamily: 'OpenSans',
-          ),
-          dividerThickness: 1,
-          border: const TableBorder(
-            horizontalInside: BorderSide(color: Color(0xFFD7E0EA)),
-          ),
-          columnSpacing: 20,
-          horizontalMargin: 16,
-          columns: columns,
-          rows: rows.indexed
-              .map((entry) {
-                final (index, row) = entry;
-                return DataRow(
-                  key: row.key,
-                  selected: row.selected,
-                  onSelectChanged: row.onSelectChanged,
-                  onLongPress: row.onLongPress,
-                  color:
-                      row.color ??
-                      WidgetStatePropertyAll(
-                        index.isEven ? Colors.white : const Color(0xFFF5F8FC),
-                      ),
-                  cells: row.cells,
-                );
-              })
-              .toList(growable: false),
-        ),
-      ),
+    dataTextStyle: const TextStyle(
+      color: Color(0xFF1F2937),
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      fontFamily: 'OpenSans',
     ),
+    columnSpacing: 20,
+    horizontalMargin: 16,
+    columns: columns,
+    rows: rows.indexed
+        .map((entry) {
+          final (index, row) = entry;
+          return DataRow(
+            key: row.key,
+            selected: row.selected,
+            onSelectChanged: row.onSelectChanged,
+            onLongPress: row.onLongPress,
+            color:
+                row.color ??
+                WidgetStatePropertyAll(
+                  index.isEven ? Colors.white : const Color(0xFFF5F8FC),
+                ),
+            cells: row.cells,
+          );
+        })
+        .toList(growable: false),
   );
 }
 
@@ -2005,13 +1989,11 @@ class _DisbursementActivityTable extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: kBorderColor.withValues(alpha: 0.45)),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
+          child: RecordDataTable(
               headingRowHeight: 64,
               dataRowMinHeight: 72,
               dataRowMaxHeight: 120,
-              headingRowColor: WidgetStatePropertyAll(const Color(0xFFEAF2FC)),
+              headingRowColor: const Color(0xFFEAF2FC),
               headingTextStyle: const TextStyle(
                 color: Color(0xFF0D47A1),
                 fontSize: 16,
@@ -2056,7 +2038,6 @@ class _DisbursementActivityTable extends StatelessWidget {
                   ],
                 );
               }).toList(),
-            ),
           ),
         );
       },

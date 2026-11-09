@@ -106,15 +106,12 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('System Snapshot'),
-          content: SizedBox(
-            width: 640,
-            child: SingleChildScrollView(
+          content: SingleChildScrollView(
               child: SelectableText(
                 formatted,
                 style: const TextStyle(fontSize: 12.5, height: 1.4),
               ),
             ),
-          ),
           actions: [
             TextButton(
               onPressed: () async {

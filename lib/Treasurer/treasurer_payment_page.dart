@@ -1,3 +1,4 @@
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -501,87 +502,79 @@ class _TreasurerPaymentPageState extends State<TreasurerPaymentPage> {
                                           ),
                                         ),
                                       )
-                                    : SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        child: DataTable(
-                                          columnSpacing: 20,
-                                          horizontalMargin: 18,
-                                          headingRowHeight: 64,
-                                          dataRowMinHeight: 68,
-                                          dataRowMaxHeight: 112,
-                                          headingRowColor:
-                                              const WidgetStatePropertyAll(
-                                                Color(0xFFEAF2FC),
-                                              ),
-                                          headingTextStyle: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            color: _kPrimary,
-                                            fontSize: 16,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                          dataTextStyle: const TextStyle(
-                                            color: Color(0xFF1F2937),
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            fontFamily: 'OpenSans',
-                                          ),
-                                          dividerThickness: 1,
-                                          border: const TableBorder(
-                                            horizontalInside: BorderSide(
-                                              color: Color(0xFFD7E0EA),
-                                            ),
-                                          ),
-                                          columns: const [
-                                            DataColumn(label: Text('Name')),
-                                            DataColumn(
-                                              label: Text('Advance Amount'),
-                                            ),
-                                            DataColumn(label: Text('Type')),
-                                            DataColumn(label: Text('Added By')),
-                                            DataColumn(label: Text('Date')),
-                                          ],
-                                          rows: _paymentRows.indexed.map((
-                                            entry,
-                                          ) {
-                                            final (index, row) = entry;
-                                            final name = _fullNameForRow(row);
-                                            final type = (row['type'] ?? 'cash')
-                                                .toString()
-                                                .toLowerCase();
-                                            return DataRow(
-                                              color: WidgetStatePropertyAll(
-                                                index.isEven
-                                                    ? Colors.white
-                                                    : const Color(0xFFF5F8FC),
-                                              ),
-                                              cells: [
-                                                DataCell(Text(name)),
-                                                DataCell(
-                                                  Text(
-                                                    _amountLabel(row['amount']),
-                                                  ),
-                                                ),
-                                                DataCell(
-                                                  Text(
-                                                    type == 'gcash'
-                                                        ? 'GCash'
-                                                        : 'Cash',
-                                                  ),
-                                                ),
-                                                DataCell(
-                                                  Text(_addedByNameForRow(row)),
-                                                ),
-                                                DataCell(
-                                                  Text(
-                                                    _dateLabel(
-                                                      row['created_at'],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            );
-                                          }).toList(),
+                                    : RecordDataTable(
+                                        columnSpacing: 20,
+                                        horizontalMargin: 18,
+                                        headingRowHeight: 64,
+                                        dataRowMinHeight: 68,
+                                        dataRowMaxHeight: 112,
+                                        headingRowColor: const Color(
+                                          0xFFEAF2FC,
                                         ),
+                                        headingTextStyle: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: _kPrimary,
+                                          fontSize: 16,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                        dataTextStyle: const TextStyle(
+                                          color: Color(0xFF1F2937),
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          fontFamily: 'OpenSans',
+                                        ),
+                                        dividerThickness: 1,
+                                        border: const TableBorder(
+                                          horizontalInside: BorderSide(
+                                            color: Color(0xFFD7E0EA),
+                                          ),
+                                        ),
+                                        columns: const [
+                                          DataColumn(label: Text('Name')),
+                                          DataColumn(
+                                            label: Text('Advance Amount'),
+                                          ),
+                                          DataColumn(label: Text('Type')),
+                                          DataColumn(label: Text('Added By')),
+                                          DataColumn(label: Text('Date')),
+                                        ],
+                                        rows: _paymentRows.indexed.map((entry) {
+                                          final (index, row) = entry;
+                                          final name = _fullNameForRow(row);
+                                          final type = (row['type'] ?? 'cash')
+                                              .toString()
+                                              .toLowerCase();
+                                          return DataRow(
+                                            color: WidgetStatePropertyAll(
+                                              index.isEven
+                                                  ? Colors.white
+                                                  : const Color(0xFFF5F8FC),
+                                            ),
+                                            cells: [
+                                              DataCell(Text(name)),
+                                              DataCell(
+                                                Text(
+                                                  _amountLabel(row['amount']),
+                                                ),
+                                              ),
+                                              DataCell(
+                                                Text(
+                                                  type == 'gcash'
+                                                      ? 'GCash'
+                                                      : 'Cash',
+                                                ),
+                                              ),
+                                              DataCell(
+                                                Text(_addedByNameForRow(row)),
+                                              ),
+                                              DataCell(
+                                                Text(
+                                                  _dateLabel(row['created_at']),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        }).toList(),
                                       ),
                               ],
                             ),

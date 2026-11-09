@@ -448,67 +448,102 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                         child: SingleChildScrollView(
                           child: Column(
                             children: members.map((member) {
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(
-                                  member['name']?.toString() ?? 'Member',
-                                  style: const TextStyle(fontSize: 14),
+                              final isReceived = member['is_received'] == true;
+                              return Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: const Color(0xFFE5E7EB),
+                                  ),
                                 ),
-                                subtitle: Column(
+                                child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    Text(
+                                      member['name']?.toString() ?? 'Member',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF111827),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
                                     Text(
                                       _formatCurrency(
                                         _asDouble(member['amount']),
                                       ),
                                       style: const TextStyle(
-                                        color: Color(0xFF6B7280),
-                                        fontSize: 12,
+                                        color: Color(0xFF374151),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                    if (member['is_received'] == true)
-                                      const Padding(
-                                        padding: EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          'Received by treasurer',
-                                          style: TextStyle(fontSize: 11),
+                                    const SizedBox(height: 10),
+                                    if (isReceived)
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFDCFCE7),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                                trailing: TextButton(
-                                  onPressed: member['is_received'] == true
-                                      ? null
-                                      : () async {
-                                          await _confirmReceipt(
-                                            member,
-                                            onConfirmed: () {
-                                              member['is_received'] = true;
-                                              member['received_date'] =
-                                                  _normalizeReceivedDate(
-                                                    DateTime.now(),
-                                                  );
-                                              setDialogState(() {});
-                                            },
-                                          );
-                                        },
-                                  style: TextButton.styleFrom(
-                                    foregroundColor:
-                                        member['is_received'] == true
-                                        ? Colors.grey
-                                        : const Color(0xFF10B981),
-                                  ),
-                                  child: Text(
-                                    member['is_received'] == true
-                                        ? (member['received_date'] != null &&
+                                        child: Text(
+                                          member['received_date'] != null &&
                                                   member['received_date']
                                                       .toString()
                                                       .isNotEmpty
-                                              ? 'Received • ${member['received_date']}'
-                                              : 'Received')
-                                        : 'Receive',
-                                  ),
+                                              ? 'Received by treasurer • ${member['received_date']}'
+                                              : 'Received by treasurer',
+                                          style: const TextStyle(
+                                            color: Color(0xFF166534),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton.icon(
+                                          onPressed: () async {
+                                            await _confirmReceipt(
+                                              member,
+                                              onConfirmed: () {
+                                                member['is_received'] = true;
+                                                member['received_date'] =
+                                                    _normalizeReceivedDate(
+                                                      DateTime.now(),
+                                                    );
+                                                setDialogState(() {});
+                                              },
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.check_circle_outline_rounded,
+                                          ),
+                                          label: const Text('Confirm received'),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF15803D,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            minimumSize: const Size.fromHeight(
+                                              52,
+                                            ),
+                                            textStyle: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               );
                             }).toList(),
@@ -551,16 +586,20 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
             style: TextStyle(
               color: accent,
               fontWeight: FontWeight.w700,
-              fontSize: 12,
+              fontSize: 14,
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Color(0xFF111827),
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF111827),
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
             ),
           ),
         ],
@@ -628,22 +667,22 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
                             Text(
-                              'Ledger Balance',
+                              'Contribution Confirmation',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 24,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            // SizedBox(height: 6),
-                            // Text(
-                            //   'Confirm remitted funds before posting to the ledger.',
-                            //   style: TextStyle(
-                            //     color: Colors.white70,
-                            //     fontSize: 13,
-                            //     height: 1.5,
-                            //   ),
-                            // ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Review and confirm collector contributions',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 15,
+                                height: 1.3,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -696,14 +735,23 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  '',
+                                  'Quick summary',
                                   style: TextStyle(
-                                    fontSize: 18,
+                                    fontSize: 20,
                                     fontWeight: FontWeight.w800,
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Review collected contributions and confirm the funds you have received.',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    height: 1.4,
+                                    color: Color(0xFF4B5563),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
                                 Wrap(
                                   spacing: 10,
                                   runSpacing: 10,
@@ -786,64 +834,91 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                     ),
                                   ],
                                 ),
-                                child: Row(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: GestureDetector(
-                                        onTap: () =>
-                                            _showCollectorDetailsDialog(
-                                              collector,
-                                            ),
-                                        child: Column(
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                collector['name']?.toString() ??
+                                                    'Collector',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 17,
+                                                  color: Color(0xFF111827),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'}',
+                                                style: const TextStyle(
+                                                  color: Color(0xFF6B7280),
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Column(
                                           crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                              CrossAxisAlignment.end,
                                           children: [
                                             Text(
-                                              collector['name']?.toString() ??
-                                                  'Collector',
+                                              _formatCurrency(
+                                                _asDouble(collector['amount']),
+                                              ),
                                               style: const TextStyle(
+                                                fontSize: 18,
                                                 fontWeight: FontWeight.w800,
-                                                fontSize: 15,
-                                                color: Color(0xFF111827),
+                                                color: Color(0xFF0D47A1),
                                               ),
                                             ),
                                             const SizedBox(height: 4),
-                                            Text(
-                                              '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'} • tap to view members',
-                                              style: const TextStyle(
-                                                color: Color(0xFF6B7280),
-                                                fontSize: 12,
+                                            const Text(
+                                              'Collected',
+                                              style: TextStyle(
+                                                color: Color(0xFF10B981),
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          _formatCurrency(
-                                            _asDouble(collector['amount']),
-                                          ),
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w800,
-                                            color: Color(0xFF0D47A1),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        const Text(
-                                          'Collected',
-                                          style: TextStyle(
-                                            color: Color(0xFF10B981),
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
                                       ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _showCollectorDetailsDialog(
+                                              collector,
+                                            ),
+                                        icon: const Icon(
+                                          Icons.fact_check_outlined,
+                                        ),
+                                        label: const Text(
+                                          'Review member contributions',
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: const Color(
+                                            0xFF0D47A1,
+                                          ),
+                                          minimumSize: const Size.fromHeight(
+                                            52,
+                                          ),
+                                          textStyle: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),

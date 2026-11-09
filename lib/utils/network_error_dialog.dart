@@ -209,7 +209,7 @@ class NetworkMonitor {
                     child: Material(
                       color: Colors.transparent,
                       child: Container(
-                        width: 420,
+                        width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFDFDFD),

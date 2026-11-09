@@ -118,7 +118,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
             final width = constraints.maxWidth;
             final columns = width >= 1080
                 ? 3
-                : width >= 700
+                : width >= 320
                 ? 2
                 : 1;
             final tileWidth =

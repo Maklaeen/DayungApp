@@ -728,6 +728,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     required Color color,
     VoidCallback? onTap,
   }) {
+    final isMobile = MediaQuery.of(context).size.width < 840;
     final card = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -747,19 +748,27 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         children: [
           Text(
             title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: isMobile ? 15 : 13,
+              height: 1.25,
               fontWeight: FontWeight.w700,
               color: color.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 14),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: color,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: isMobile ? 30 : 26,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -2457,6 +2466,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   }
 
   Widget _buildOverviewSection() {
+    final isMobile = MediaQuery.of(context).size.width < 840;
     final cards = [
       _buildStatCard(
         title: 'Active Members',
@@ -2513,12 +2523,30 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             ),
           ),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: cards
-                .map((card) => SizedBox(width: 170, height: 130, child: card))
-                .toList(),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 320
+                  ? 1
+                  : constraints.maxWidth < 840
+                  ? 2
+                  : 3;
+              const spacing = 12.0;
+              final cardWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: cards
+                    .map(
+                      (card) => SizedBox(
+                        width: cardWidth,
+                        height: isMobile ? 150 : 130,
+                        child: card,
+                      ),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),

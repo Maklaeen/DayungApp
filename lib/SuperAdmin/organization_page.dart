@@ -208,36 +208,46 @@ class _SuperAdminOrganizationPageState
                                 DataColumn(label: Text('Applications')),
                               ],
                               rows: pageUnits.map((unit) {
-                              final location =
-                                  [
-                                        unit['barangay'],
-                                        unit['city'],
-                                        unit['province'],
-                                      ]
-                                      .where((value) {
-                                        return value != null &&
-                                            value.toString().trim().isNotEmpty;
-                                      })
-                                      .join(', ');
-                              final coordinates =
-                                  '${unit['latitude'] ?? '-'}, ${unit['longitude'] ?? '-'}';
-                              return DataRow(
-                                onSelectChanged: (_) => _showUnitApplications(
-                                  (unit['id'] ?? '').toString(),
-                                ),
-                                cells: [
-                                  DataCell(Text(
-                                    unit['name']?.toString() ?? 'Unnamed unit',
-                                  )),
-                                  DataCell(Text(
-                                    location.isEmpty ? 'Location not set' : location,
-                                  )),
-                                  DataCell(Text(coordinates)),
-                                  const DataCell(
-                                    Icon(Icons.chevron_right_rounded),
+                                final location =
+                                    [
+                                          unit['barangay'],
+                                          unit['city'],
+                                          unit['province'],
+                                        ]
+                                        .where((value) {
+                                          return value != null &&
+                                              value
+                                                  .toString()
+                                                  .trim()
+                                                  .isNotEmpty;
+                                        })
+                                        .join(', ');
+                                final coordinates =
+                                    '${unit['latitude'] ?? '-'}, ${unit['longitude'] ?? '-'}';
+                                return DataRow(
+                                  onSelectChanged: (_) => _showUnitApplications(
+                                    (unit['id'] ?? '').toString(),
                                   ),
-                                ],
-                              );
+                                  cells: [
+                                    DataCell(
+                                      Text(
+                                        unit['name']?.toString() ??
+                                            'Unnamed unit',
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        location.isEmpty
+                                            ? 'Location not set'
+                                            : location,
+                                      ),
+                                    ),
+                                    DataCell(Text(coordinates)),
+                                    const DataCell(
+                                      Icon(Icons.chevron_right_rounded),
+                                    ),
+                                  ],
+                                );
                               }).toList(),
                             ),
                             if (pageCount > 1) ...[
@@ -314,7 +324,9 @@ class _SuperAdminOrganizationPageState
     try {
       final response = await sb
           .from('applications')
-          .select('id, user_id, status, dayung_unit_id, user:users(id, full_name, email)')
+          .select(
+            'id, user_id, status, dayung_unit_id, user:users(id, full_name, email)',
+          )
           .eq('dayung_unit_id', dayungUnitId)
           .order('applied_at', ascending: true);
 
@@ -586,11 +598,14 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final mapHeight = (MediaQuery.sizeOf(context).height * 0.48).clamp(
+      220.0,
+      430.0,
+    );
     return AlertDialog(
       title: const Text('Choose Organization Location'),
       content: SizedBox(
-        width: 700,
-        height: 430,
+        height: mapHeight,
         child: Column(
           children: [
             Expanded(
@@ -804,7 +819,8 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
     );
 
     if (confirmed == true) {
-      final enteredAmount = double.tryParse(
+      final enteredAmount =
+          double.tryParse(
             amountController.text.trim().replaceAll(RegExp(r'[^0-9.-]'), ''),
           ) ??
           0.0;

@@ -73,39 +73,58 @@ class SetAmountsTab extends StatelessWidget {
             if (selectedMember != null)
               Padding(
                 padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Member: ${selectedMember!['full_name']}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0D47A1), // kAccent
-                          fontSize: 18,
-                        ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final memberLabel = Text(
+                      'Member: ${selectedMember!['full_name']}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0D47A1),
+                        fontSize: 18,
                       ),
-                    ),
-                    SizedBox(
-                      width: 800,
-                      child: TextField(
-                        controller: searchController,
-                        decoration: const InputDecoration(
-                          hintText: 'Search',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            vertical: 15,
-                            horizontal: 17,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                    final searchField = TextField(
+                      controller: searchController,
+                      decoration: const InputDecoration(
+                        hintText: 'Search',
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 15,
+                          horizontal: 17,
+                        ),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        setState(() => searchQuery = value);
+                      },
+                    );
+
+                    if (constraints.maxWidth < 600) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          memberLabel,
+                          const SizedBox(height: 10),
+                          searchField,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: memberLabel),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 800),
+                            child: searchField,
                           ),
-                          border: OutlineInputBorder(),
                         ),
-                        onChanged: (value) {
-                          setState(() {
-                            searchQuery = value;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
               ),
             Expanded(

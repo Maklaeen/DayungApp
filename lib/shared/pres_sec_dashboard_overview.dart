@@ -445,158 +445,222 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
             ),
           ],
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 220;
+            final iconContainer = Container(
+              padding: EdgeInsets.all(compact ? 8 : 10),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+              child: Icon(icon, color: color, size: compact ? 20 : 22),
+            );
+            final stats = Column(
+              crossAxisAlignment: compact
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: compact ? Alignment.center : Alignment.centerLeft,
+                  child: Text(
                     value,
                     style: TextStyle(
-                      fontSize: 22,
+                      fontSize: compact ? 26 : 22,
                       fontWeight: FontWeight.w900,
                       color: color,
                       fontFamily: 'Montserrat',
                     ),
                   ),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _kSubText,
-                      fontFamily: 'OpenSans',
-                    ),
+                ),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: compact ? TextAlign.center : TextAlign.start,
+                  style: TextStyle(
+                    fontSize: compact ? 13 : 11,
+                    fontWeight: FontWeight.w600,
+                    color: _kSubText,
+                    fontFamily: 'OpenSans',
                   ),
-                ],
-              ),
-            ),
-            if (onTap != null)
-              Icon(
-                Icons.chevron_right_rounded,
-                color: color.withValues(alpha: 0.5),
-                size: 20,
-              ),
-          ],
+                ),
+              ],
+            );
+
+            if (compact) {
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [iconContainer, const SizedBox(height: 8), stats],
+              );
+            }
+
+            return Row(
+              children: [
+                iconContainer,
+                const SizedBox(width: 12),
+                Expanded(child: stats),
+                if (onTap != null)
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: color.withValues(alpha: 0.5),
+                    size: 20,
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
   Widget _fundsCard() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: _fundsCardDecoration(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Funds Summary',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _fundsBalanceTile(
+                  'Current Funds Balance',
+                  '₱${_currentFunds.toStringAsFixed(2)}',
+                ),
+                const SizedBox(height: 10),
+                _fundsBalanceTile(
+                  'Membership Funds',
+                  '₱${_membershipFunds.toStringAsFixed(2)}',
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: _fundsCardDecoration(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _fundsBalanceTile(
+                  'Current Funds Balance',
+                  '₱${_currentFunds.toStringAsFixed(2)}',
+                ),
+              ),
+              const SizedBox(width: 16),
+              Container(width: 1, height: 120, color: Colors.white24),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _fundsBalanceTile(
+                  'Membership Funds',
+                  '₱${_membershipFunds.toStringAsFixed(2)}',
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  BoxDecoration _fundsCardDecoration() {
+    return BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF0D47A1), Color(0xFF1565C0)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: _kPrimary.withValues(alpha: 0.3),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    );
+  }
+
+  Widget _fundsBalanceTile(String title, String value) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0D47A1), Color(0xFF1565C0)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: _kPrimary.withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        border: Border.all(color: Colors.white24),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.account_balance_wallet_rounded,
-              color: Colors.white,
-              size: 26,
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white70,
+              fontFamily: 'OpenSans',
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Current Funds Balance',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white70,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '₱${_currentFunds.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Container(width: 1, height: 120, color: Colors.white24),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Membership Funds',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white70,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '₱${_membershipFunds.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                ],
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                fontFamily: 'Montserrat',
               ),
             ),
           ),

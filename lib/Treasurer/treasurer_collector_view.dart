@@ -154,7 +154,7 @@ class _TreasurerCollectorListPageState
       onChanged: (value) => setState(() => _searchQuery = value),
       style: const TextStyle(fontSize: 16, color: _collectorText),
       decoration: InputDecoration(
-        hintText: 'Search collector name',
+        hintText: '',
         hintStyle: const TextStyle(fontSize: 16, color: _collectorSubText),
         prefixIcon: const Icon(Icons.search_rounded, size: 25, color: kPrimary),
         suffixIcon: _searchQuery.isEmpty
@@ -289,8 +289,8 @@ class _TreasurerCollectorListPageState
                                   MaterialPageRoute(
                                     builder: (_) =>
                                         TreasurerCollectorDetailPage(
-                                      collector: collector,
-                                    ),
+                                          collector: collector,
+                                        ),
                                   ),
                                 ),
                                 cells: [
@@ -568,42 +568,52 @@ class _TreasurerCollectorDetailPageState
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: _sectionLabel(widget.collector.name),
-                          ),
-                          ScrollConfiguration(
-                            behavior: ScrollConfiguration.of(context).copyWith(
-                              dragDevices: {
-                                PointerDeviceKind.touch,
-                                PointerDeviceKind.mouse,
-                                PointerDeviceKind.trackpad,
-                                PointerDeviceKind.stylus,
-                              },
-                            ),
-                            child: Scrollbar(
-                              controller: _tableScrollController,
-                              thumbVisibility: true,
-                              notificationPredicate: (notification) =>
-                                  notification.metrics.axis == Axis.horizontal,
-                              child: SingleChildScrollView(
-                                controller: _tableScrollController,
-                                scrollDirection: Axis.horizontal,
-                                child: SizedBox(
-                                  width: 820,
-                                  child: _tableWithTabs(),
-                                ),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isMobile = constraints.maxWidth < 840;
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _sectionLabel(widget.collector.name),
                               ),
-                            ),
+                              if (isMobile)
+                                _mobileTabsAndContent()
+                              else
+                                ScrollConfiguration(
+                                  behavior: ScrollConfiguration.of(context)
+                                      .copyWith(
+                                        dragDevices: {
+                                          PointerDeviceKind.touch,
+                                          PointerDeviceKind.mouse,
+                                          PointerDeviceKind.trackpad,
+                                          PointerDeviceKind.stylus,
+                                        },
+                                      ),
+                                  child: Scrollbar(
+                                    controller: _tableScrollController,
+                                    thumbVisibility: true,
+                                    notificationPredicate: (notification) =>
+                                        notification.metrics.axis ==
+                                        Axis.horizontal,
+                                    child: SingleChildScrollView(
+                                      controller: _tableScrollController,
+                                      scrollDirection: Axis.horizontal,
+                                      child: SizedBox(
+                                        width: 820,
+                                        child: _tableWithTabs(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 24),
+                            ],
                           ),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
+                        );
+                      },
                     ),
             ),
           ],
@@ -625,6 +635,438 @@ class _TreasurerCollectorDetailPageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [_tabHeaderRow(), _tabContent()],
+      ),
+    );
+  }
+
+  Widget _mobileTabsAndContent() {
+    final columns = MediaQuery.sizeOf(context).width < 380 ? 1 : 2;
+    const gap = 10.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: List.generate(_tabLabels.length, (index) {
+                final selected = _activeTab == index;
+                return SizedBox(
+                  width: itemWidth,
+                  child: Semantics(
+                    button: true,
+                    selected: selected,
+                    label: _tabLabels[index]
+                        .replaceAll('\n', ' ')
+                        .toLowerCase(),
+                    child: Material(
+                      color: selected ? const Color(0xFF0D47A1) : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        onTap: () => setState(() => _activeTab = index),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 68),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: selected
+                                  ? const Color(0xFF0D47A1)
+                                  : const Color(0xFFD1D5DB),
+                              width: selected ? 2 : 1,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            _tabLabels[index].replaceAll('\n', ' '),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: selected
+                                  ? Colors.white
+                                  : const Color(0xFF111827),
+                              fontFamily: 'Montserrat',
+                              fontSize: 14,
+                              height: 1.2,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        if (_activeTab == 3)
+          _mobileTotalsTab()
+        else
+          _mobileRecordTab(
+            _activeTab == 0
+                ? _cashRows
+                : _activeTab == 1
+                ? _notPaidRows
+                : _cashlessRows,
+            showProof: _activeTab == 2,
+          ),
+      ],
+    );
+  }
+
+  Widget _mobileRecordTab(
+    List<_CollectorMemberRow> rows, {
+    required bool showProof,
+  }) {
+    if (rows.isEmpty) {
+      return Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _collectorBorder),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.inbox_outlined, size: 40, color: Color(0xFF6B7280)),
+                SizedBox(height: 10),
+                Text(
+                  'No records',
+                  style: TextStyle(
+                    color: Color(0xFF111827),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _mobileUploadButton(),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        ...rows.map((row) => _mobileMemberCard(row, showProof: showProof)),
+        _mobileUploadButton(),
+      ],
+    );
+  }
+
+  Widget _mobileMemberCard(_CollectorMemberRow row, {required bool showProof}) {
+    final statusColor = row.suggestedDropStatus == 'NO'
+        ? const Color(0xFF166534)
+        : row.suggestedDropStatus == 'WARNING'
+        ? const Color(0xFF92400E)
+        : const Color(0xFF991B1B);
+    final statusBackground = row.suggestedDropStatus == 'NO'
+        ? const Color(0xFFDCFCE7)
+        : row.suggestedDropStatus == 'WARNING'
+        ? const Color(0xFFFEF3C7)
+        : const Color(0xFFFEE2E2);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _collectorBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            row.memberName,
+            style: const TextStyle(
+              color: Color(0xFF111827),
+              fontSize: 18,
+              height: 1.25,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _mobileDetail(
+            'Payment method',
+            row.paymentMethod,
+            valueColor: _methodColor(row.paymentMethod),
+          ),
+          const SizedBox(height: 8),
+          _mobileDetail(
+            'Amount paid / needed',
+            '₱${row.amountPaid.toStringAsFixed(0)} / ₱${row.amountNeeded.toStringAsFixed(0)}',
+            emphasizeValue: true,
+          ),
+          const SizedBox(height: 8),
+          _mobileDetail(
+            'Advance payment',
+            '₱${row.advanceAmount.toStringAsFixed(0)}',
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Suggested to drop',
+                  style: TextStyle(
+                    color: Color(0xFF4B5563),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Container(
+                constraints: const BoxConstraints(minHeight: 36),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: statusBackground,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  row.suggestedDropStatus,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (showProof) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: row.proofUrl == null
+                  ? OutlinedButton.icon(
+                      onPressed: null,
+                      icon: Icon(Icons.receipt_long_rounded),
+                      label: Text('No transaction proof'),
+                    )
+                  : OutlinedButton.icon(
+                      onPressed: () => _viewTransaction(row.proofUrl!),
+                      icon: const Icon(Icons.receipt_long_rounded),
+                      label: const Text('View transaction proof'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0D47A1),
+                        minimumSize: const Size.fromHeight(52),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileDetail(
+    String label,
+    String value, {
+    Color? valueColor,
+    bool emphasizeValue = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF4B5563),
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: valueColor ?? const Color(0xFF111827),
+              fontSize: emphasizeValue ? 16 : 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _mobileTotalsTab() {
+    final totals = [
+      ('Cash received', _totalCash, const Color(0xFF059669)),
+      ('Cashless received', _totalCashless, const Color(0xFF2563EB)),
+      ('Advance payment', _totalAdvance, const Color(0xFFB45309)),
+      ('Overall without advance', _overallWithout, kPrimary),
+      ('Overall with advance', _overallWith, kPrimary),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _collectorBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Collection totals',
+            style: TextStyle(
+              color: Color(0xFF111827),
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 340 ? 1 : 2;
+              const gap = 10.0;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final (label, amount, color) in totals)
+                    _mobileTotalMetric(
+                      width: width,
+                      label: label,
+                      amount: amount,
+                      color: color,
+                      includeNeeded: label.startsWith('Overall '),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+          _mobileUploadButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileTotalMetric({
+    required double width,
+    required String label,
+    required double amount,
+    required Color color,
+    bool includeNeeded = false,
+  }) {
+    return Container(
+      width: width,
+      constraints: const BoxConstraints(minHeight: 92),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF4B5563),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              includeNeeded
+                  ? '₱${amount.toStringAsFixed(0)} / ₱${_totalNeeded.toStringAsFixed(0)}'
+                  : '₱${amount.toStringAsFixed(0)}',
+              style: TextStyle(
+                color: color,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileUploadButton() {
+    final recorded = _recordedTabs.contains(_activeTab);
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: () {
+          setState(() => _recordedTabs.add(_activeTab));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                recorded
+                    ? 'This report is already recorded.'
+                    : 'Collector report recorded in Overall Reports.',
+              ),
+            ),
+          );
+        },
+        icon: Icon(
+          recorded ? Icons.check_circle_rounded : Icons.upload_rounded,
+        ),
+        label: Text(recorded ? 'Report recorded' : 'Upload to record'),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF15803D),
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(56),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
       ),
     );
   }

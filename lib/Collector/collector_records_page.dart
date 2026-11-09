@@ -247,12 +247,22 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
   }
 
   double get _totalCash => _records
-      .where((m) => m.paymentMethod == 'Cash')
-      .fold(0.0, (s, m) => s + m.amountPaid);
+      .where(
+        (member) =>
+            (_paymentMethodOverrides[member.memberId] ??
+                member.paymentMethod) ==
+            'Cash',
+      )
+      .fold(0.0, (sum, member) => sum + member.amountPaid);
 
   double get _totalCashless => _records
-      .where((m) => m.paymentMethod == 'GCash')
-      .fold(0.0, (s, m) => s + m.amountPaid);
+      .where(
+        (member) =>
+            (_paymentMethodOverrides[member.memberId] ??
+                member.paymentMethod) ==
+            'GCash',
+      )
+      .fold(0.0, (sum, member) => sum + member.amountPaid);
 
   double get _totalAdvance => _records.fold(0.0, (s, m) => s + m.advanceAmount);
 
@@ -288,17 +298,35 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
                     if (_loading)
                       const Center(child: CircularProgressIndicator())
                     else if (_error != null)
-                      Text(
-                        _error!,
-                        style: const TextStyle(
-                          fontFamily: 'OpenSans',
-                          color: Color(0xFFB91C1C),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFFECACA)),
+                        ),
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(
+                            fontFamily: 'OpenSans',
+                            fontSize: 15,
+                            color: Color(0xFF991B1B),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       )
                     else
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: _buildTable(),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          if (constraints.maxWidth < 840) {
+                            return _buildMobileRecords();
+                          }
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: _buildTable(),
+                          );
+                        },
                       ),
                     const SizedBox(height: 14),
                   ],
@@ -306,6 +334,445 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileRecords() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFBFDBFE)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Collection summary',
+                style: TextStyle(
+                  color: Color(0xFF111827),
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth < 330 ? 1 : 2;
+                  const spacing = 10.0;
+                  final itemWidth =
+                      (constraints.maxWidth - spacing * (columns - 1)) /
+                      columns;
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: [
+                      _mobileTotalCard(
+                        width: itemWidth,
+                        label: 'Cash received',
+                        value: _totalCash,
+                        color: const Color(0xFF059669),
+                      ),
+                      _mobileTotalCard(
+                        width: itemWidth,
+                        label: 'GCash received',
+                        value: _totalCashless,
+                        color: const Color(0xFF2563EB),
+                      ),
+                      _mobileTotalCard(
+                        width: itemWidth,
+                        label: 'Advance received',
+                        value: _totalAdvance,
+                        color: const Color(0xFFB45309),
+                      ),
+                      _mobileTotalCard(
+                        width: itemWidth,
+                        label: 'Total needed',
+                        value: _totalNeeded,
+                        color: const Color(0xFF4B5563),
+                      ),
+                      _mobileTotalCard(
+                        width: itemWidth,
+                        label: 'Total without advance',
+                        value: _overallWithoutAdvance,
+                        color: const Color(0xFF0D47A1),
+                        secondaryValue: _totalNeeded,
+                      ),
+                      _mobileTotalCard(
+                        width: itemWidth,
+                        label: 'Total with advance',
+                        value: _overallWithAdvance,
+                        color: const Color(0xFF0D47A1),
+                        secondaryValue: _totalNeeded,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Member records',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                  color: Color(0xFF111827),
+                ),
+              ),
+            ),
+            Text(
+              '${_records.length} ${_records.length == 1 ? 'member' : 'members'}',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF4B5563),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (_records.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: const Text(
+              'No member records available.',
+              style: TextStyle(color: Color(0xFF4B5563), fontSize: 15),
+            ),
+          )
+        else
+          ..._records.map(_mobileMemberRecordCard),
+        const SizedBox(height: 4),
+        _mobileUploadButton(),
+      ],
+    );
+  }
+
+  Widget _mobileTotalCard({
+    required double width,
+    required String label,
+    required double value,
+    required Color color,
+    double? secondaryValue,
+  }) {
+    return Container(
+      width: width,
+      constraints: const BoxConstraints(minHeight: 88),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDCE3EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF4B5563),
+            ),
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              secondaryValue == null
+                  ? '₱${value.toStringAsFixed(0)}'
+                  : '₱${value.toStringAsFixed(0)} / ₱${secondaryValue.toStringAsFixed(0)}',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileMemberRecordCard(_MemberRecord member) {
+    final method =
+        _paymentMethodOverrides[member.memberId] ?? member.paymentMethod;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFDCE3EC)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            member.memberName,
+            style: const TextStyle(
+              fontSize: 18,
+              height: 1.25,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F7FC),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Amount paid / needed',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4B5563),
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '₱${member.amountPaid.toStringAsFixed(0)} / ₱${member.amountNeeded.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0D47A1),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Payment status by notice',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._notices.map((notice) {
+            final checked = _isNoticePaid(member, notice.id);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Semantics(
+                button: true,
+                toggled: checked,
+                label:
+                    '${notice.name.replaceAll('\n', ' ')}: ${checked ? 'paid' : 'unpaid'}',
+                child: Material(
+                  color: checked
+                      ? const Color(0xFFDCFCE7)
+                      : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    onTap: () => _toggleNoticePaid(
+                      memberId: member.memberId,
+                      noticeId: notice.id,
+                      checked: checked,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 52),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 9,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              notice.name.replaceAll('\n', ' '),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF374151),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            checked
+                                ? Icons.check_circle_rounded
+                                : Icons.cancel_rounded,
+                            size: 22,
+                            color: checked
+                                ? const Color(0xFF15803D)
+                                : const Color(0xFFB91C1C),
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            checked ? 'Paid' : 'Unpaid',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: checked
+                                  ? const Color(0xFF166534)
+                                  : const Color(0xFF991B1B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+          const Text(
+            'Payment method',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
+            ),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: method,
+            isExpanded: true,
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+              ),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'Cash', child: Text('Cash')),
+              DropdownMenuItem(value: 'GCash', child: Text('GCash')),
+              DropdownMenuItem(value: 'N/Y', child: Text('Not yet paid')),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _paymentMethodOverrides[member.memberId] = value);
+            },
+          ),
+          const SizedBox(height: 14),
+          _mobileRecordDetail(
+            'Advance payment',
+            '₱${member.advanceAmount.toStringAsFixed(0)}',
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleNoticePaid({
+    required String memberId,
+    required String noticeId,
+    required bool checked,
+  }) {
+    final key = '$memberId:$noticeId';
+    setState(() {
+      if (checked) {
+        _paidNoticeOverrides.remove(key);
+        _paidNoticeOverrides.add('$memberId:!$noticeId');
+      } else {
+        _paidNoticeOverrides.remove('$memberId:!$noticeId');
+        _paidNoticeOverrides.add(key);
+      }
+    });
+  }
+
+  Widget _mobileRecordDetail(String label, String value) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF4B5563),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _mobileUploadButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: () {
+          setState(() => _uploaded = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Collector record uploaded.')),
+          );
+        },
+        icon: Icon(
+          _uploaded ? Icons.check_circle_rounded : Icons.upload_rounded,
+        ),
+        label: Text(_uploaded ? 'Record uploaded' : 'Upload record'),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF15803D),
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(56),
+          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );
@@ -493,18 +960,11 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
     required bool checked,
   }) {
     return GestureDetector(
-      onTap: () {
-        final key = '$memberId:$noticeId';
-        setState(() {
-          if (checked) {
-            _paidNoticeOverrides.remove(key);
-            _paidNoticeOverrides.add('$memberId:!$noticeId');
-          } else {
-            _paidNoticeOverrides.remove('$memberId:!$noticeId');
-            _paidNoticeOverrides.add(key);
-          }
-        });
-      },
+      onTap: () => _toggleNoticePaid(
+        memberId: memberId,
+        noticeId: noticeId,
+        checked: checked,
+      ),
       child: Container(
         height: 58,
         alignment: Alignment.center,

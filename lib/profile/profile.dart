@@ -488,106 +488,102 @@ class _ProfilePageState extends State<ProfilePage>
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              content: SizedBox(
-                width: 420,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (genErr != null)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: kDanger.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.error_outline,
-                                color: kDanger,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  genErr ?? '',
-                                  style: const TextStyle(
-                                    color: kDanger,
-                                    fontSize: 13,
-                                  ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (genErr != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: kDanger.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: kDanger,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                genErr ?? '',
+                                style: const TextStyle(
+                                  color: kDanger,
+                                  fontSize: 13,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      TextField(
-                        controller: _currentPwController,
-                        obscureText: _obscureCur,
-                        decoration: fieldDecoration(
-                          'Current password',
-                          error: curErr != null,
-                          isPw: true,
-                          toggle: () =>
-                              setStateDialog(() => _obscureCur = !_obscureCur),
-                          obscure: _obscureCur,
+                            ),
+                          ],
                         ),
                       ),
-                      if (curErr != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            curErr ?? '',
-                            style: const TextStyle(color: kWarn, fontSize: 12),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _newPwController,
-                        obscureText: _obscureNew,
-                        decoration: fieldDecoration(
-                          'New password',
-                          error: newErr != null,
-                          isPw: true,
-                          toggle: () =>
-                              setStateDialog(() => _obscureNew = !_obscureNew),
-                          obscure: _obscureNew,
+                    TextField(
+                      controller: _currentPwController,
+                      obscureText: _obscureCur,
+                      decoration: fieldDecoration(
+                        'Current password',
+                        error: curErr != null,
+                        isPw: true,
+                        toggle: () =>
+                            setStateDialog(() => _obscureCur = !_obscureCur),
+                        obscure: _obscureCur,
+                      ),
+                    ),
+                    if (curErr != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          curErr ?? '',
+                          style: const TextStyle(color: kWarn, fontSize: 12),
                         ),
                       ),
-                      if (newErr != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            newErr ?? '',
-                            style: const TextStyle(color: kWarn, fontSize: 12),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _confirmPwController,
-                        obscureText: _obscureConf,
-                        decoration: fieldDecoration(
-                          'Confirm password',
-                          error: confErr != null,
-                          isPw: true,
-                          toggle: () => setStateDialog(
-                            () => _obscureConf = !_obscureConf,
-                          ),
-                          obscure: _obscureConf,
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _newPwController,
+                      obscureText: _obscureNew,
+                      decoration: fieldDecoration(
+                        'New password',
+                        error: newErr != null,
+                        isPw: true,
+                        toggle: () =>
+                            setStateDialog(() => _obscureNew = !_obscureNew),
+                        obscure: _obscureNew,
+                      ),
+                    ),
+                    if (newErr != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          newErr ?? '',
+                          style: const TextStyle(color: kWarn, fontSize: 12),
                         ),
                       ),
-                      if (confErr != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            confErr ?? '',
-                            style: const TextStyle(color: kWarn, fontSize: 12),
-                          ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _confirmPwController,
+                      obscureText: _obscureConf,
+                      decoration: fieldDecoration(
+                        'Confirm password',
+                        error: confErr != null,
+                        isPw: true,
+                        toggle: () =>
+                            setStateDialog(() => _obscureConf = !_obscureConf),
+                        obscure: _obscureConf,
+                      ),
+                    ),
+                    if (confErr != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          confErr ?? '',
+                          style: const TextStyle(color: kWarn, fontSize: 12),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
               actions: [

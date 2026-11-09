@@ -652,18 +652,23 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           Text(
             title,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: MediaQuery.of(context).size.width < 840 ? 15 : 14,
+              height: 1.2,
               fontWeight: FontWeight.w700,
-              color: color.withValues(alpha: 0.9),
+              color: color,
             ),
           ),
           const SizedBox(height: 14),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: color,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: MediaQuery.of(context).size.width < 840 ? 28 : 26,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -671,7 +676,19 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
 
     if (onTap == null) return card;
-    return GestureDetector(onTap: onTap, child: card);
+    return Semantics(
+      button: true,
+      label: '$title: $value',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: card,
+        ),
+      ),
+    );
   }
 
   String _formatAmount(dynamic amount) {
@@ -1426,9 +1443,10 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   Widget _homePage() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1446,6 +1464,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   Widget _overviewSection() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final cards = [
       _buildStatCard(
         title: 'Active Members',
@@ -1496,19 +1515,37 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           const Text(
             'Overview',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.w800,
               color: Color(0xFF1E40AF),
               fontFamily: 'Montserrat',
             ),
           ),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: cards
-                .map((card) => SizedBox(width: 170, height: 130, child: card))
-                .toList(),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 320
+                  ? 1
+                  : constraints.maxWidth < 840
+                  ? 2
+                  : 3;
+              const spacing = 12.0;
+              final cardWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: cards
+                    .map(
+                      (card) => SizedBox(
+                        width: cardWidth,
+                        height: isMobile ? 138 : 130,
+                        child: card,
+                      ),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),

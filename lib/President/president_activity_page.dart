@@ -1,4 +1,5 @@
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -399,42 +400,37 @@ class _ActivityLogSection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowHeight: 64,
-                dataRowMinHeight: 56,
-                dataRowMaxHeight: 80,
-                columnSpacing: 24,
-                horizontalMargin: 18,
-                dividerThickness: 1,
-                headingRowColor: WidgetStatePropertyAll(
-                  dayungSoftSurface(context),
-                ),
-                headingTextStyle: TextStyle(
-                  color: dayungTextColor(context),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  fontFamily: 'Montserrat',
-                ),
-                border: TableBorder(
-                  horizontalInside: BorderSide(color: dayungBorder(context)),
-                ),
-                columns: [
-                  for (final column in columns)
-                    DataColumn(
-                      label: Text(
-                        column,
-                        style: TextStyle(
-                          color: dayungTextColor(context),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
+            RecordDataTable(
+              headingRowHeight: 64,
+              dataRowMinHeight: 56,
+              dataRowMaxHeight: 80,
+              columnSpacing: 24,
+              horizontalMargin: 18,
+              dividerThickness: 1,
+              headingRowColor: dayungSoftSurface(context),
+              headingTextStyle: TextStyle(
+                color: dayungTextColor(context),
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                fontFamily: 'Montserrat',
+              ),
+              border: TableBorder(
+                horizontalInside: BorderSide(color: dayungBorder(context)),
+              ),
+              columns: [
+                for (final column in columns)
+                  DataColumn(
+                    label: Text(
+                      column,
+                      style: TextStyle(
+                        color: dayungTextColor(context),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
                       ),
                     ),
-                ],
-                rows: const [],
-              ),
+                  ),
+              ],
+              rows: const [],
             ),
           ],
           const SizedBox(height: 18),
