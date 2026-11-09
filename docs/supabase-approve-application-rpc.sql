@@ -1,7 +1,12 @@
 begin;
 
+drop function if exists public.approve_application(bigint, uuid);
+drop function if exists public.approve_application(bigint, uuid, timestamptz);
+drop function if exists public.approve_application(bigint, timestamptz, uuid);
+
 create or replace function public.approve_application(
   p_application_id bigint,
+  p_approved_at timestamptz,
   p_approved_by uuid
 )
 returns public.applications
@@ -43,7 +48,7 @@ begin
   update public.applications a
   set
     status = 'approved',
-    approved_at = now(),
+    approved_at = p_approved_at,
     approved_by = p_approved_by,
     updated_at = now()
   where a.id = p_application_id
@@ -58,7 +63,11 @@ begin
 end;
 $$;
 
-revoke all on function public.approve_application(bigint, uuid) from public;
-grant execute on function public.approve_application(bigint, uuid) to authenticated;
+revoke all on function public.approve_application(bigint, timestamptz, uuid)
+  from public;
+grant execute on function public.approve_application(bigint, timestamptz, uuid)
+  to authenticated;
+
+notify pgrst, 'reload schema';
 
 commit;

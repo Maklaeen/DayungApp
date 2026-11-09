@@ -21,8 +21,10 @@ class PaymentMember {
   final String id;
   final String userId;
   final String fullName;
+  final String collectedBy;
   final String status;
   final double amount;
+  final String userDeceasedId;
   final String? date;
   final String? deceasedName;
 
@@ -30,8 +32,10 @@ class PaymentMember {
     required this.id,
     required this.userId,
     required this.fullName,
+    this.collectedBy = '—',
     required this.status,
     required this.amount,
+    this.userDeceasedId = '',
     this.date,
     this.deceasedName,
   });
@@ -65,6 +69,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
   List<PaymentMember> _unpaidMembers = [];
   final Set<String> _updatingPaymentIds = {};
   String _search = '';
+  String? _selectedDeceasedId;
 
   @override
   void initState() {
@@ -103,8 +108,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
         final unpaid = await widget.memberLoader!('pending');
         if (!mounted) return;
         setState(() {
-          _paidMembers = paid;
-          _unpaidMembers = unpaid;
+          _setMembers(paid, unpaid);
           _loading = false;
         });
         return;
@@ -123,7 +127,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
       final rows = await client
           .from('payments')
           .select(
-            'id, user_id, amount, status, paid_at, created_at, deceased_name, users!payments_user_id_fkey(full_name)',
+            'id, user_id, userdeceased, amount, status, paid_at, created_at, deceased_name, users!payments_user_id_fkey(full_name), collector:users!payments_collected_by_fkey(full_name)',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .inFilter('status', ['paid', 'pending', 'unpaid'])
@@ -138,14 +142,18 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
         final userName =
             ((row['users'] as Map?)?['full_name']?.toString() ?? 'Member')
                 .trim();
+        final collectorName =
+            ((row['collector'] as Map?)?['full_name']?.toString() ?? '').trim();
         final member = PaymentMember(
           id: (row['id'] ?? '').toString(),
           userId: (row['user_id'] ?? '').toString(),
           fullName: userName.isEmpty ? 'Member' : userName,
+          collectedBy: collectorName.isEmpty ? '—' : collectorName,
           status: status,
           amount: (row['amount'] is num)
               ? (row['amount'] as num).toDouble()
               : double.tryParse('${row['amount']}') ?? 0,
+          userDeceasedId: (row['userdeceased'] ?? '').toString().trim(),
           date: (row['paid_at'] ?? row['created_at'])?.toString(),
           deceasedName: row['deceased_name']?.toString().trim(),
         );
@@ -159,8 +167,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
 
       if (!mounted) return;
       setState(() {
-        _paidMembers = paid;
-        _unpaidMembers = unpaid;
+        _setMembers(paid, unpaid);
         _loading = false;
       });
     } catch (e) {
@@ -172,14 +179,50 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
     }
   }
 
+  void _setMembers(List<PaymentMember> paid, List<PaymentMember> unpaid) {
+    _paidMembers = paid;
+    _unpaidMembers = unpaid;
+    final deceasedIds = {
+      for (final member in [...paid, ...unpaid])
+        if (member.userDeceasedId.isNotEmpty) member.userDeceasedId,
+    };
+    if (_selectedDeceasedId != null &&
+        !deceasedIds.contains(_selectedDeceasedId)) {
+      _selectedDeceasedId = null;
+    }
+  }
+
+  Map<String, String> get _deceasedOptions {
+    final options = <String, String>{};
+    for (final member in [..._paidMembers, ..._unpaidMembers]) {
+      final id = member.userDeceasedId;
+      if (id.isEmpty) continue;
+      final name = member.deceasedName?.trim();
+      options.putIfAbsent(id, () => name?.isNotEmpty == true ? name! : id);
+    }
+    return options;
+  }
+
   List<PaymentMember> _filteredMembers(List<PaymentMember> members) {
-    if (_search.trim().isEmpty) return members;
+    if (_selectedDeceasedId == null) return [];
     final query = _search.trim().toLowerCase();
-    return members.where((member) {
-      return member.fullName.toLowerCase().contains(query) ||
-          member.userId.toLowerCase().contains(query) ||
-          member.status.toLowerCase().contains(query);
-    }).toList();
+    return members
+        .where(
+          (member) =>
+              member.userDeceasedId == _selectedDeceasedId &&
+              (query.isEmpty ||
+                  member.fullName.toLowerCase().contains(query) ||
+                  member.userId.toLowerCase().contains(query) ||
+                  member.status.toLowerCase().contains(query)),
+        )
+        .toList();
+  }
+
+  int _memberCountForSelectedDeceased(List<PaymentMember> members) {
+    if (_selectedDeceasedId == null) return 0;
+    return members
+        .where((member) => member.userDeceasedId == _selectedDeceasedId)
+        .length;
   }
 
   Future<void> _confirmMarkPaid(PaymentMember member) async {
@@ -216,6 +259,16 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
       return;
     }
 
+    final collectorId = client.auth.currentUser?.id;
+    if (collectorId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You must be signed in to record payment.'),
+        ),
+      );
+      return;
+    }
+
     setState(() => _updatingPaymentIds.add(member.id));
     try {
       final now = DateTime.now().toUtc().toIso8601String();
@@ -224,7 +277,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
           .update({
             'status': 'paid',
             'paid_at': now,
-            'collected_by': client.auth.currentUser?.id,
+            'collected_by': collectorId,
             'iscollectedbytreasurer': true,
             'iscollectedbytreasurer_date': now,
           })
@@ -232,15 +285,50 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
           .inFilter('status', ['pending', 'unpaid'])
           .select('id');
 
-      if (!mounted) return;
       if (updated.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This payment was already updated. Refreshing...'),
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This payment was already updated. Refreshing...'),
+            ),
+          );
+        }
+      } else {
+        try {
+          final collector = await client
+              .from('users')
+              .select('full_name')
+              .eq('id', collectorId)
+              .maybeSingle();
+          final collectorName = (collector?['full_name'] ?? 'Collector')
+              .toString();
+
+          await client.from('notifications').insert({
+            'recipient_id': member.userId,
+            'sender_id': collectorId,
+            'dayung_unit_id': widget.dayungUnitId,
+            'type': 'announcement',
+            'title': 'Contribution Payment Recorded',
+            'body':
+                'You have paid ₱${member.amount.toStringAsFixed(2)} for the deceased member '
+                '$deceased. Collected by $collectorName.',
+            'announcement_id': null,
+            'read_at': null,
+            'created_at': now,
+          });
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Payment recorded, but notification could not be sent: $e',
+                ),
+              ),
+            );
+          }
+        }
       }
-      await _loadMembers();
+      if (mounted) await _loadMembers();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -267,6 +355,19 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
             _error!,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.redAccent),
+          ),
+        ),
+      );
+    }
+
+    if (_selectedDeceasedId == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text(
+            'Choose a deceased member to view paid and unpaid users.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF4B5563), fontSize: 16),
           ),
         ),
       );
@@ -302,7 +403,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             RecordDataTable(
-              minWidth: 920,
+              minWidth: 1180,
               showCheckboxColumn: false,
               columnSpacing: 28,
               columns: const [
@@ -311,6 +412,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                 DataColumn(label: Text('Date')),
                 DataColumn(label: Text('Amount')),
                 DataColumn(label: Text('Status')),
+                DataColumn(label: Text('Collected By')),
                 DataColumn(label: Text('Action')),
               ],
               rows: filtered.map((member) {
@@ -334,6 +436,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                     ),
                     DataCell(Text('₱${member.amount.toStringAsFixed(0)}')),
                     DataCell(Text(member.status.toUpperCase())),
+                    DataCell(Text(member.collectedBy)),
                     DataCell(
                       isPaid
                           ? const Text('—')
@@ -367,6 +470,8 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
         ? const Color(0xFF047857)
         : const Color(0xFFB45309);
     final details = <(String, String)>[
+      ('User ID', member.userId),
+      ('Collected By', member.collectedBy),
       (
         'Deceased Name',
         member.deceasedName?.isNotEmpty == true ? member.deceasedName! : '—',
@@ -529,10 +634,128 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
     );
   }
 
+  Future<void> _selectDeceased() async {
+    final options = _deceasedOptions;
+    if (options.isEmpty) return;
+
+    final selectedId = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        var query = '';
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final normalizedQuery = query.trim().toLowerCase();
+            final filteredOptions = options.entries.where((entry) {
+              return entry.value.toLowerCase().contains(normalizedQuery) ||
+                  entry.key.toLowerCase().contains(normalizedQuery);
+            }).toList();
+
+            return AlertDialog(
+              title: const Text('Select deceased member'),
+              content: SizedBox(
+                width: 420,
+                height: 380,
+                child: Column(
+                  children: [
+                    TextField(
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Search deceased member',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Clear search',
+                                onPressed: () {
+                                  setDialogState(() => query = '');
+                                },
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        isDense: true,
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() => query = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filteredOptions.isEmpty
+                          ? const Center(
+                              child: Text('No deceased members found.'),
+                            )
+                          : ListView.builder(
+                              itemCount: filteredOptions.length,
+                              itemBuilder: (context, index) {
+                                final entry = filteredOptions[index];
+                                return ListTile(
+                                  title: Text(entry.value),
+                                  selected: entry.key == _selectedDeceasedId,
+                                  onTap: () {
+                                    Navigator.of(dialogContext).pop(entry.key);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedId != null && mounted) {
+      setState(() => _selectedDeceasedId = selectedId);
+    }
+  }
+
+  Widget _buildDeceasedSelector() {
+    final selectedName = _deceasedOptions[_selectedDeceasedId];
+    final isEnabled = _deceasedOptions.isNotEmpty;
+    return InkWell(
+      onTap: isEnabled ? _selectDeceased : null,
+      borderRadius: BorderRadius.circular(14),
+      child: InputDecorator(
+        isEmpty: selectedName == null,
+        decoration: InputDecoration(
+          labelText: 'Select deceased member',
+          filled: true,
+          fillColor: Colors.white,
+          enabled: isEnabled,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+          suffixIcon: const Icon(Icons.arrow_drop_down_rounded),
+        ),
+        child: Text(
+          selectedName ?? 'Choose deceased member',
+          style: TextStyle(
+            color: selectedName == null
+                ? const Color(0xFF64748B)
+                : const Color(0xFF111827),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final paidCount = _paidMembers.length;
-    final unpaidCount = _unpaidMembers.length;
+    final paidCount = _memberCountForSelectedDeceased(_paidMembers);
+    final unpaidCount = _memberCountForSelectedDeceased(_unpaidMembers);
 
     return Scaffold(
       backgroundColor: _kPageBg,
@@ -618,6 +841,8 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                     ],
                   ),
                   const SizedBox(height: 18),
+                  _buildDeceasedSelector(),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       _buildSummaryCard(

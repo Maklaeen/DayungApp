@@ -6,6 +6,24 @@ const int minimumRecommendationPreferenceCount = 5;
 bool hasEnoughRecommendationPreferences(int selectedCount) =>
     selectedCount >= minimumRecommendationPreferenceCount;
 
+bool isAmountInRange(Object? amount, String range) {
+  final value = amount is num
+      ? amount.toDouble()
+      : double.tryParse(amount?.toString().trim() ?? '');
+  if (value == null || !value.isFinite) return false;
+
+  if (range.trim().toLowerCase() == '400 plus') return value >= 400;
+
+  final bounds = RegExp(
+    r'^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$',
+  ).firstMatch(range.trim());
+  if (bounds == null) return false;
+
+  final minimum = double.parse(bounds.group(1)!);
+  final maximum = double.parse(bounds.group(2)!);
+  return value >= minimum && value <= maximum;
+}
+
 class HybridScoreResult {
   const HybridScoreResult({
     required this.cosineSimilarity,

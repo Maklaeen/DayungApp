@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/philippine_time.dart';
 
 class SuperAdminOrganizationPage extends StatefulWidget {
   const SuperAdminOrganizationPage({super.key});
@@ -725,11 +726,7 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
   }
 
   String _formatApprovedAt(DateTime value) {
-    return value
-        .toUtc()
-        .toIso8601String()
-        .replaceFirst('T', ' ')
-        .replaceFirst('Z', '+00');
+    return toPhilippineTimestamp(value);
   }
 
   Future<double> _getMembershipAmount(int dayungUnitId) async {
@@ -866,6 +863,7 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
         'approve_application',
         params: {
           'p_application_id': applicationIdValue,
+          'p_approved_at': approvedAt,
           'p_approved_by': approverId,
         },
       );

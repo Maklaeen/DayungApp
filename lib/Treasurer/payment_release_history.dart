@@ -361,9 +361,7 @@ class _PaymentReleaseHistoryPageState extends State<PaymentReleaseHistoryPage> {
                               DataCell(Text(_formatDate(release['date']))),
                               DataCell(
                                 Text(
-                                  _formatCurrency(
-                                    release['amount'] as double,
-                                  ),
+                                  _formatCurrency(release['amount'] as double),
                                   style: const TextStyle(
                                     color: Color(0xFF0D9488),
                                     fontWeight: FontWeight.w800,

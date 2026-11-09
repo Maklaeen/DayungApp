@@ -32,8 +32,8 @@ class AppTheme extends ChangeNotifier {
       mode == ThemeMode.dark
           ? 'dark'
           : mode == ThemeMode.light
-              ? 'light'
-              : 'system',
+          ? 'light'
+          : 'system',
     );
   }
 

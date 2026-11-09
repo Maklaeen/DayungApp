@@ -689,176 +689,6 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     return signedUrl;
   }
 
-  Widget _advancePaymentCard(Map<String, dynamic> payment) {
-    final isPaid =
-        payment['status']?.toString().toLowerCase() == 'paid';
-    final receiptUrl = payment['image_url']?.toString();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Advance payment',
-                  style: TextStyle(
-                    color: kText,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: isPaid
-                      ? const Color(0xFFDCFCE7)
-                      : const Color(0xFFFFEDD5),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  isPaid ? 'Paid' : 'Pending',
-                  style: TextStyle(
-                    color: isPaid
-                        ? const Color(0xFF166534)
-                        : const Color(0xFF9A3412),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _advancePaymentDetail(
-            'Amount',
-            '₱${payment['amount'] ?? '0'}',
-          ),
-          const SizedBox(height: 8),
-          _advancePaymentDetail(
-            'Reference number',
-            (payment['refno'] ?? 'Not provided').toString(),
-          ),
-          const SizedBox(height: 12),
-          if (receiptUrl == null || receiptUrl.isEmpty)
-            const Text(
-              'No receipt uploaded.',
-              style: TextStyle(
-                color: kSubText,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            )
-          else
-            SizedBox(
-              width: double.infinity,
-              child: _advanceReceiptButton(receiptUrl),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _advancePaymentDetail(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: kSubText,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: const TextStyle(
-              color: kText,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _advanceReceiptButton(String receiptUrl) {
-    return FutureBuilder<String?>(
-      future: getSignedQrImageUrl(receiptUrl),
-      builder: (context, imageSnapshot) {
-        if (imageSnapshot.hasError) {
-          return const Text(
-            'Unable to load receipt image.',
-            style: TextStyle(
-              color: Color(0xFF991B1B),
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          );
-        }
-        if (!imageSnapshot.hasData || imageSnapshot.data == null) {
-          return const SizedBox(
-            height: 48,
-            child: Center(
-              child: CircularProgressIndicator(strokeWidth: 2, color: kAccent),
-            ),
-          );
-        }
-        return OutlinedButton.icon(
-          onPressed: () {
-            showDialog<void>(
-              context: context,
-              builder: (context) => Dialog(
-                child: InteractiveViewer(
-                  child: Image.network(
-                    imageSnapshot.data!,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            );
-          },
-          icon: const Icon(Icons.receipt_long_rounded),
-          label: const Text('View receipt'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: kAccent,
-            minimumSize: const Size.fromHeight(52),
-            textStyle: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -1258,64 +1088,91 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                     refNo.contains(_searchQuery);
                               }).toList();
 
-                              return LayoutBuilder(
-                                builder: (context, constraints) {
-                                  if (constraints.maxWidth < 640) {
-                                    return Column(
-                                      children: advancePayments
-                                          .map(_advancePaymentCard)
-                                          .toList(),
-                                    );
-                                  }
+                              return RecordDataTable(
+                                minWidth: 850,
+                                columns: const [
+                                  DataColumn(label: Text('Payment')),
+                                  DataColumn(label: Text('Amount')),
+                                  DataColumn(label: Text('Reference')),
+                                  DataColumn(label: Text('Status')),
+                                  DataColumn(label: Text('Receipt')),
+                                ],
+                                rows: advancePayments.map((payment) {
+                                  final status =
+                                      payment['status']
+                                          ?.toString()
+                                          .toLowerCase() ??
+                                      'unpaid';
+                                  final isPaid = status == 'paid';
+                                  final receiptUrl = payment['image_url']
+                                      ?.toString();
 
-                                  return RecordDataTable(
-                                    minWidth: 850,
-                                    columns: const [
-                                      DataColumn(label: Text('Payment')),
-                                      DataColumn(label: Text('Amount')),
-                                      DataColumn(label: Text('Reference')),
-                                      DataColumn(label: Text('Status')),
-                                      DataColumn(label: Text('Receipt')),
+                                  return DataRow(
+                                    cells: [
+                                      const DataCell(Text('Advance payment')),
+                                      DataCell(Text('₱ ${payment['amount']}')),
+                                      DataCell(
+                                        Text(
+                                          (payment['refno'] ?? '—').toString(),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(isPaid ? 'Paid' : 'Pending'),
+                                      ),
+                                      DataCell(
+                                        receiptUrl == null || receiptUrl.isEmpty
+                                            ? const Text('—')
+                                            : FutureBuilder<String?>(
+                                                future: getSignedQrImageUrl(
+                                                  receiptUrl,
+                                                ),
+                                                builder: (context, imageSnapshot) {
+                                                  if (imageSnapshot.hasError) {
+                                                    return const Text(
+                                                      'Unable to load receipt image.',
+                                                    );
+                                                  }
+                                                  if (!imageSnapshot.hasData ||
+                                                      imageSnapshot.data ==
+                                                          null) {
+                                                    return const SizedBox(
+                                                      height: 24,
+                                                      width: 24,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: kAccent,
+                                                          ),
+                                                    );
+                                                  }
+                                                  return TextButton.icon(
+                                                    onPressed: () {
+                                                      showDialog<void>(
+                                                        context: context,
+                                                        builder: (context) => Dialog(
+                                                          child: InteractiveViewer(
+                                                            child:
+                                                                Image.network(
+                                                                  imageSnapshot
+                                                                      .data!,
+                                                                  fit: BoxFit
+                                                                      .contain,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                    icon: const Icon(
+                                                      Icons.receipt_long,
+                                                    ),
+                                                    label: const Text('View'),
+                                                  );
+                                                },
+                                              ),
+                                      ),
                                     ],
-                                    rows: advancePayments.map((payment) {
-                                      final isPaid =
-                                          payment['status']
-                                              ?.toString()
-                                              .toLowerCase() ==
-                                          'paid';
-                                      final receiptUrl =
-                                          payment['image_url']?.toString();
-
-                                      return DataRow(
-                                        cells: [
-                                          const DataCell(
-                                            Text('Advance payment'),
-                                          ),
-                                          DataCell(
-                                            Text('₱ ${payment['amount']}'),
-                                          ),
-                                          DataCell(
-                                            Text(
-                                              (payment['refno'] ?? '—')
-                                                  .toString(),
-                                            ),
-                                          ),
-                                          DataCell(
-                                            Text(isPaid ? 'Paid' : 'Pending'),
-                                          ),
-                                          DataCell(
-                                            receiptUrl == null ||
-                                                    receiptUrl.isEmpty
-                                                ? const Text('—')
-                                                : _advanceReceiptButton(
-                                                    receiptUrl,
-                                                  ),
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
                                   );
-                                },
+                                }).toList(),
                               );
                             },
                           ),
@@ -2254,10 +2111,3 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     );
   }
 }
-
-
-
-
-
-
-

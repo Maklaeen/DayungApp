@@ -6,7 +6,7 @@ import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
-import 'package:capstone_app/utils/dayung_recommendations.dart';
+import 'package:capstone_app/screens/dayungquestion.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,6 +21,27 @@ const kSettingsAccent = Color(0xFF059669);
 const kSettingsCardBg = Color(0xFFFFFFFF);
 const kSettingsBorder = Color(0xFFE5E7EB);
 
+Future<void> openDayungRecommendations(BuildContext context) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Please sign in first.')));
+    return;
+  }
+
+  await Navigator.push<void>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => QuestionnaireScreen(
+        userId: user.id,
+        role: 'member',
+        returnToCaller: true,
+      ),
+    ),
+  );
+}
+
 class DayungSettingsPage extends StatefulWidget {
   const DayungSettingsPage({super.key});
 
@@ -32,35 +53,62 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
   String? _currentDayungName;
   Map<String, dynamic>? _currentDayungData;
   bool _loadingDayung = false;
-  bool _loadingPrefs = false;
-  bool _savingPrefs = false;
-  bool _prefsSaveSuccess = false;
-  bool _loadingRecs = false;
+  bool _loadingUserLocation = true;
+  String _userLocation = 'Loading location...';
   bool _changingDayung = false;
   bool _changeDayungSuccess = false;
-
-  String? _prefMeetingFrequency;
-  String? _prefContributionAmount;
-  String? _prefMembershipPayment;
-  String? _prefPenaltyPayment;
-  String? _prefPenaltyPolicy;
-  String? _prefPaymentMethod;
-  bool? _prefOpenForAll;
-  String? _prefLocation;
-  Map<String, bool> _prefServiceTags = {};
-
-  double? _userLat;
-  double? _userLng;
-
-  List<Map<String, dynamic>> _recommendedUnits = [];
 
   @override
   void initState() {
     super.initState();
     _loadCurrentDayung();
-    _loadPreferences().then((_) async {
-      await _loadRecommendations();
-    });
+    _loadUserLocation();
+  }
+
+  Future<void> _loadUserLocation() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _loadingUserLocation = false;
+          _userLocation = 'No signed-in user';
+        });
+      }
+      return;
+    }
+
+    setState(() => _loadingUserLocation = true);
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('address, latitude, longitude')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      String? valueFor(Object? value) {
+        final valueString = value?.toString().trim();
+        return valueString == null || valueString.isEmpty ? null : valueString;
+      }
+
+      final address = valueFor(response?['address']);
+      final latitude = valueFor(response?['latitude']);
+      final longitude = valueFor(response?['longitude']);
+      final locationDetails = <String>[if (address != null) address];
+
+      if (!mounted) return;
+      setState(() {
+        _userLocation = locationDetails.isEmpty
+            ? 'No location details available'
+            : locationDetails.join('\n');
+      });
+    } catch (error) {
+      debugPrint('Failed to load user location: $error');
+      if (mounted) {
+        setState(() => _userLocation = 'Unable to load location');
+      }
+    } finally {
+      if (mounted) setState(() => _loadingUserLocation = false);
+    }
   }
 
   Future<void> _loadCurrentDayung() async {
@@ -104,163 +152,6 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
     return parts.join(', ');
   }
 
-  List<String> get _prefsTags {
-    final tags = DayungPreferencesData(
-      meetingFrequency: _prefMeetingFrequency,
-      contributionAmount: _prefContributionAmount,
-      membershipPayment: _prefMembershipPayment,
-      penaltyPayment: _prefPenaltyPayment,
-      penaltyPolicy: _prefPenaltyPolicy,
-      paymentMethod: _prefPaymentMethod,
-      openForAll: _prefOpenForAll,
-      location: _prefLocation,
-      userLat: _userLat,
-      userLng: _userLng,
-    ).tags;
-    return tags.isEmpty ? ['No preferences set'] : tags;
-  }
-
-  Future<void> _loadPreferences() async {
-    setState(() => _loadingPrefs = true);
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      setState(() => _loadingPrefs = false);
-      return;
-    }
-
-    try {
-      final preferences = await DayungRecommendationService.loadPreferences(
-        supabase,
-        userId: user.id,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _prefMeetingFrequency = preferences.meetingFrequency;
-        _prefContributionAmount = preferences.contributionAmount;
-        _prefMembershipPayment = preferences.membershipPayment;
-        _prefPenaltyPayment = preferences.penaltyPayment;
-        _prefPenaltyPolicy = preferences.penaltyPolicy;
-        _prefPaymentMethod = preferences.paymentMethod;
-        _prefOpenForAll = preferences.openForAll;
-        _prefLocation = preferences.location;
-        _prefServiceTags = preferences.serviceTags;
-        _userLat = preferences.userLat;
-        _userLng = preferences.userLng;
-        _loadingPrefs = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _loadingPrefs = false);
-    }
-  }
-
-  Future<void> _savePreferences() async {
-    setState(() => _savingPrefs = true);
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      setState(() => _savingPrefs = false);
-      return;
-    }
-
-    try {
-      final preferences = DayungPreferencesData(
-        meetingFrequency: _prefMeetingFrequency,
-        contributionAmount: _prefContributionAmount,
-        membershipPayment: _prefMembershipPayment,
-        penaltyPayment: _prefPenaltyPayment,
-        penaltyPolicy: _prefPenaltyPolicy,
-        paymentMethod: _prefPaymentMethod,
-        openForAll: _prefOpenForAll,
-        location: _prefLocation,
-        userLat: _userLat,
-        userLng: _userLng,
-        serviceTags: _prefServiceTags,
-      );
-      await DayungRecommendationService.savePreferences(
-        supabase,
-        userId: user.id,
-        preferences: preferences,
-      );
-      if (!mounted) return;
-      setState(() {
-        _savingPrefs = false;
-        _prefsSaveSuccess = true;
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Preferences updated')));
-      await _loadPreferences();
-      await _loadRecommendations();
-      await Future<void>.delayed(const Duration(milliseconds: 850));
-      if (!mounted) return;
-      Navigator.of(context).maybePop();
-      setState(() => _prefsSaveSuccess = false);
-    } on PostgrestException catch (error) {
-      if (!mounted) return;
-      setState(() => _prefsSaveSuccess = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: ${error.message}')),
-      );
-    } finally {
-      if (mounted && !_prefsSaveSuccess) {
-        setState(() => _savingPrefs = false);
-      }
-    }
-  }
-
-  Future<void> _loadRecommendations() async {
-    setState(() => _loadingRecs = true);
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-
-    if (user == null) {
-      setState(() {
-        _recommendedUnits = [];
-        _loadingRecs = false;
-      });
-      return;
-    }
-
-    try {
-      final excludedIds =
-          await DayungRecommendationService.loadPendingApplicationDayungIds(
-            supabase,
-            userId: user.id,
-          );
-      final preferences = DayungPreferencesData(
-        meetingFrequency: _prefMeetingFrequency,
-        contributionAmount: _prefContributionAmount,
-        membershipPayment: _prefMembershipPayment,
-        penaltyPayment: _prefPenaltyPayment,
-        penaltyPolicy: _prefPenaltyPolicy,
-        paymentMethod: _prefPaymentMethod,
-        openForAll: _prefOpenForAll,
-        location: _prefLocation,
-        userLat: _userLat,
-        userLng: _userLng,
-        serviceTags: _prefServiceTags,
-      );
-      final recommendations =
-          await DayungRecommendationService.loadRecommendations(
-            supabase,
-            preferences: preferences,
-            currentDayungId: _currentDayungData?['id'] as int?,
-            excludedDayungIds: excludedIds,
-          );
-
-      if (!mounted) return;
-      setState(() => _recommendedUnits = recommendations);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _recommendedUnits = []);
-    } finally {
-      if (mounted) setState(() => _loadingRecs = false);
-    }
-  }
-
   Future<void> _showChangeDayungConfirmation() async {
     final next = await showDialog<bool>(
       context: context,
@@ -289,268 +180,6 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
     if (next == true) {
       await _changeDayung();
     }
-  }
-
-  void _showEditPreferencesSheet() {
-    _prefsSaveSuccess = false;
-    String? meetingFrequency = _prefMeetingFrequency ?? 'Any';
-    String? contributionAmount = _prefContributionAmount ?? 'Any';
-    String? membershipPayment = _prefMembershipPayment ?? 'Any';
-    String? penaltyPayment = _prefPenaltyPayment ?? 'Any';
-    String? paymentMethod = _prefPaymentMethod ?? 'Any';
-    String? openForAllStr = _prefOpenForAll == null
-        ? null
-        : (_prefOpenForAll! ? 'Yes' : 'No');
-    String? penaltyPolicy = _prefPenaltyPolicy;
-    String? location = _prefLocation;
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) {
-        final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomInset + 16),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  height: 4,
-                  width: 40,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: kSettingsSubText.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const Text(
-                  'Edit Preferences',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Montserrat',
-                    color: kSettingsText,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: meetingFrequency,
-                  decoration: const InputDecoration(
-                    labelText: 'Meeting Frequency',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const ['Any', 'Weekly', 'Monthly', 'Needed']
-                      .map(
-                        (value) =>
-                            DropdownMenuItem(value: value, child: Text(value)),
-                      )
-                      .toList(),
-                  onChanged: (value) => meetingFrequency = value,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: contributionAmount,
-                  decoration: const InputDecoration(
-                    labelText: 'Collection Fee Range',
-                    border: OutlineInputBorder(),
-                  ),
-                  items:
-                      const [
-                            'Any',
-                            '50-100',
-                            '100-150',
-                            '150-200',
-                            '200-250',
-                            '250-300',
-                            '300-350',
-                            '400 plus',
-                          ]
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (value) => contributionAmount = value,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: membershipPayment,
-                  decoration: const InputDecoration(
-                    labelText: 'Membership Payment',
-                    border: OutlineInputBorder(),
-                  ),
-                  items:
-                      const [
-                            'Any',
-                            '50-100',
-                            '100-150',
-                            '150-200',
-                            '200-250',
-                            '250-300',
-                            '300-350',
-                            '400 plus',
-                          ]
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (value) => membershipPayment = value,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: penaltyPayment,
-                  decoration: const InputDecoration(
-                    labelText: 'Penalty Payment',
-                    border: OutlineInputBorder(),
-                  ),
-                  items:
-                      const [
-                            'Any',
-                            '50-100',
-                            '100-150',
-                            '150-200',
-                            '200-250',
-                            '250-300',
-                            '300-350',
-                            '400 plus',
-                          ]
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (value) => penaltyPayment = value,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: paymentMethod,
-                  decoration: const InputDecoration(
-                    labelText: 'Preferred Payment Method',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const ['Any', 'Cash', 'GCash', 'Both']
-                      .map(
-                        (value) =>
-                            DropdownMenuItem(value: value, child: Text(value)),
-                      )
-                      .toList(),
-                  onChanged: (value) => paymentMethod = value,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: openForAllStr,
-                  decoration: const InputDecoration(
-                    labelText: 'Open for All?',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const ['Yes', 'No']
-                      .map(
-                        (value) =>
-                            DropdownMenuItem(value: value, child: Text(value)),
-                      )
-                      .toList(),
-                  onChanged: (value) => openForAllStr = value,
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  initialValue: penaltyPolicy,
-                  decoration: const InputDecoration(
-                    labelText: 'Penalty Policy (optional)',
-                    border: OutlineInputBorder(),
-                    hintText: 'Brief description of penalties',
-                  ),
-                  maxLines: 2,
-                  onChanged: (value) => penaltyPolicy = value.trim().isEmpty
-                      ? null
-                      : value.trim(),
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  initialValue: location,
-                  enabled: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Location (from your address)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: _savingPrefs
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Icon(
-                            _prefsSaveSuccess ? Icons.check_circle : Icons.save,
-                          ),
-                    label: Text(
-                      _savingPrefs
-                          ? 'Saving...'
-                          : (_prefsSaveSuccess ? 'Saved' : 'Save Preferences'),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kSettingsPrimary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    onPressed: _savingPrefs
-                        ? null
-                        : () async {
-                            setState(() {
-                              _prefMeetingFrequency = meetingFrequency == 'Any'
-                                  ? null
-                                  : meetingFrequency;
-                              _prefContributionAmount =
-                                  contributionAmount == 'Any'
-                                  ? null
-                                  : contributionAmount;
-                              _prefMembershipPayment =
-                                  membershipPayment == 'Any'
-                                  ? null
-                                  : membershipPayment;
-                              _prefPenaltyPayment = penaltyPayment == 'Any'
-                                  ? null
-                                  : penaltyPayment;
-                              _prefPaymentMethod = paymentMethod == 'Any'
-                                  ? null
-                                  : paymentMethod;
-                              _prefOpenForAll = openForAllStr == null
-                                  ? null
-                                  : openForAllStr == 'Yes';
-                              _prefPenaltyPolicy = penaltyPolicy;
-                              _prefLocation = location;
-                            });
-                            await _savePreferences();
-                          },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Future<void> _changeDayung() async {
@@ -625,7 +254,6 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
     }
 
     await _loadCurrentDayung();
-    await _loadRecommendations();
     if (didChange && mounted) {
       setState(() => _changeDayungSuccess = true);
       await Future<void>.delayed(const Duration(milliseconds: 1000));
@@ -649,7 +277,6 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
         ),
       );
       await _loadCurrentDayung();
-      await _loadRecommendations();
     }
   }
 
@@ -719,6 +346,10 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _openFullQuestionnaire() async {
+    await openDayungRecommendations(context);
   }
 
   Widget _buildSectionCard({required Widget child}) {
@@ -809,15 +440,6 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
         hasCurrentDayung &&
         _currentDayungData!['latitude'] != null &&
         _currentDayungData!['longitude'] != null;
-    final currentAddress = hasCurrentDayung
-        ? _address(_currentDayungData!)
-        : 'No location details yet';
-
-    final sectionTitleStyle = TextStyle(
-      fontSize: isWide ? 20 : 16,
-      fontWeight: FontWeight.w600,
-      fontFamily: 'Montserrat',
-    );
     final bodyTextStyle = TextStyle(
       fontSize: isWide ? 18 : 14,
       fontFamily: 'OpenSans',
@@ -954,7 +576,10 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                               ),
                               IconButton(
                                 tooltip: 'Refresh',
-                                onPressed: _loadCurrentDayung,
+                                onPressed: () {
+                                  _loadCurrentDayung();
+                                  _loadUserLocation();
+                                },
                                 icon: Icon(
                                   Icons.refresh_rounded,
                                   color: primaryColor,
@@ -1020,7 +645,9 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                             _buildSummaryInfoRow(
                               icon: Icons.location_on_outlined,
                               label: 'Location',
-                              value: currentAddress,
+                              value: _loadingUserLocation
+                                  ? 'Loading location...'
+                                  : _userLocation,
                             ),
                             _buildSummaryInfoRow(
                               icon: Icons.verified_user_outlined,
@@ -1062,7 +689,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                                   child: OutlinedButton.icon(
                                     onPressed: _applyForDayung,
                                     icon: const Icon(Icons.add_circle_outline),
-                                    label: const Text('Apply a Dayung'),
+                                    label: const Text('Finding a Dayung'),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: primaryColor,
                                       minimumSize: const Size.fromHeight(52),
@@ -1139,261 +766,14 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              AutoSizeText(
-                                'Filters',
-                                style: sectionTitleStyle.copyWith(
-                                  color: titleColor,
-                                ),
-                                maxLines: 1,
-                                minFontSize: 12,
-                              ),
-                              TextButton.icon(
-                                onPressed: _showEditPreferencesSheet,
-                                icon: Icon(
-                                  Icons.tune_rounded,
-                                  color: primaryColor,
-                                ),
-                                label: Text(
-                                  'Edit',
-                                  style: TextStyle(
-                                    color: primaryColor,
-                                    fontSize: isWide ? 16 : 13,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'These preferences influence what Dayung suggestions appear first.',
-                            style: mutedTextStyle,
-                          ),
-                          const SizedBox(height: 14),
-                          if (_loadingPrefs)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(12),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          else
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: _prefsTags.map((tag) {
-                                return Chip(
-                                  labelPadding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  label: Text(
-                                    tag,
-                                    style: TextStyle(
-                                      fontSize: isWide ? 15 : 13,
-                                      color: kSettingsAccent,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  backgroundColor: kSettingsAccent.withValues(
-                                    alpha: 0.08,
-                                  ),
-                                  side: BorderSide.none,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                );
-                              }).toList(),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _openFullQuestionnaire,
+                              icon: const Icon(Icons.quiz_outlined),
+                              label: const Text('Dayung Recommendations'),
                             ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildSectionCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: AutoSizeText(
-                                  'Recommended for you',
-                                  style: sectionTitleStyle.copyWith(
-                                    color: titleColor,
-                                  ),
-                                  maxLines: 1,
-                                  minFontSize: 12,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Refresh recommendations',
-                                onPressed: _loadRecommendations,
-                                icon: const Icon(
-                                  Icons.refresh_rounded,
-                                  size: 18,
-                                  color: kSettingsPrimary,
-                                ),
-                              ),
-                            ],
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Suggested Dayung units based on your filters and nearby matches.',
-                            style: mutedTextStyle,
-                          ),
-                          const SizedBox(height: 14),
-                          if (_loadingRecs)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(12),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          else if (_recommendedUnits.isEmpty)
-                            Text(
-                              'No recommendations yet. Edit your filters above.',
-                              style: mutedTextStyle,
-                            )
-                          else
-                            ..._recommendedUnits.map((dayungData) {
-                              final tags = List<String>.from(
-                                (dayungData['__tags'] as List?) ??
-                                    const <String>[],
-                              );
-                              return GestureDetector(
-                                onTap: () async {
-                                  final messenger = ScaffoldMessenger.of(
-                                    context,
-                                  );
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => DayungMapPage(
-                                        dayung: dayungData,
-                                        isApplied: false,
-                                        isMember: false,
-                                      ),
-                                    ),
-                                  );
-                                  if (!mounted) return;
-                                  if (result != null) {
-                                    messenger.showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Application sent to1 ${result['name']}!',
-                                        ),
-                                      ),
-                                    );
-                                    await _loadCurrentDayung();
-                                    await _loadRecommendations();
-                                  }
-                                },
-                                child: Container(
-                                  width: double.infinity,
-                                  margin: const EdgeInsets.only(bottom: 14),
-                                  padding: const EdgeInsets.all(18),
-                                  decoration: BoxDecoration(
-                                    color: kSettingsCardBg,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: kSettingsBorder.withValues(
-                                        alpha: 0.9,
-                                      ),
-                                    ),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Color(0x100B1F33),
-                                        blurRadius: 16,
-                                        offset: Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: AutoSizeText(
-                                              (dayungData['name'] ??
-                                                      'Unnamed Dayung')
-                                                  .toString(),
-                                              style: TextStyle(
-                                                fontSize: isWide ? 18 : 15,
-                                                fontWeight: FontWeight.bold,
-                                                fontFamily: 'Montserrat',
-                                                color: titleColor,
-                                              ),
-                                              maxLines: 1,
-                                              minFontSize: 12,
-                                            ),
-                                          ),
-                                          const Icon(
-                                            Icons.chevron_right_rounded,
-                                            color: Color(0xFF94A3B8),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _address(dayungData),
-                                        style: mutedTextStyle.copyWith(
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                      if ((dayungData['__score'] as num?) !=
-                                          null) ...[
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          'Match score: ${(((dayungData['__score'] as num?) ?? 0) * 100).toStringAsFixed(0)}%',
-                                          style: TextStyle(
-                                            color: primaryColor,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 13,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                        ),
-                                      ],
-                                      const SizedBox(height: 10),
-                                      Wrap(
-                                        spacing: 10,
-                                        runSpacing: 10,
-                                        children: tags.map((tag) {
-                                          return Chip(
-                                            labelPadding:
-                                                const EdgeInsets.symmetric(
-                                                  horizontal: 10,
-                                                  vertical: 4,
-                                                ),
-                                            label: Text(
-                                              tag,
-                                              style: TextStyle(
-                                                fontSize: isWide ? 15 : 13,
-                                              ),
-                                            ),
-                                            backgroundColor: const Color(
-                                              0xFFF1F5F9,
-                                            ),
-                                            side: BorderSide.none,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
                         ],
                       ),
                     ),

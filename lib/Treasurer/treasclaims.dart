@@ -243,7 +243,9 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            DataCell(Text(submitted.isEmpty ? '—' : submitted.split('T').first)),
+            DataCell(
+              Text(submitted.isEmpty ? '—' : submitted.split('T').first),
+            ),
             DataCell(
               Text(
                 _displayStatus(status),

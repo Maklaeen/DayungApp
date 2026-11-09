@@ -519,7 +519,9 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
                                     DataColumn(label: Text('Member')),
                                     DataColumn(label: Text('Method')),
                                     DataColumn(label: Text('Amount')),
-                                    DataColumn(label: Text('Collector / status')),
+                                    DataColumn(
+                                      label: Text('Collector / status'),
+                                    ),
                                     DataColumn(label: Text('Date')),
                                     DataColumn(label: Text('Reference')),
                                     DataColumn(label: Text('Receipt details')),
@@ -949,10 +951,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
         DataCell(
           Text(
             _formatAmount(receipt['amount']),
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: sourceTone,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w800, color: sourceTone),
           ),
         ),
         DataCell(

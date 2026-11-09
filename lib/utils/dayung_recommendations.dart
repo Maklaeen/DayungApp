@@ -11,7 +11,6 @@ class DayungPreferencesData {
     this.penaltyPayment,
     this.penaltyPolicy,
     this.paymentMethod,
-    this.openForAll,
     this.location,
     this.userLat,
     this.userLng,
@@ -24,7 +23,6 @@ class DayungPreferencesData {
   final String? penaltyPayment;
   final String? penaltyPolicy;
   final String? paymentMethod;
-  final bool? openForAll;
   final String? location;
   final double? userLat;
   final double? userLng;
@@ -39,7 +37,6 @@ class DayungPreferencesData {
       'Penalty Fee': penaltyPayment,
       'Penalty Policy': penaltyPolicy,
       'Payment': paymentMethod,
-      'Open For All': openForAll == null ? null : (openForAll! ? 'Yes' : 'No'),
       'Location': location,
     };
     fields.forEach((label, value) {
@@ -57,7 +54,6 @@ class DayungPreferencesData {
     String? penaltyPayment,
     String? penaltyPolicy,
     String? paymentMethod,
-    bool? openForAll,
     String? location,
     double? userLat,
     double? userLng,
@@ -70,7 +66,6 @@ class DayungPreferencesData {
       penaltyPayment: penaltyPayment ?? this.penaltyPayment,
       penaltyPolicy: penaltyPolicy ?? this.penaltyPolicy,
       paymentMethod: paymentMethod ?? this.paymentMethod,
-      openForAll: openForAll ?? this.openForAll,
       location: location ?? this.location,
       userLat: userLat ?? this.userLat,
       userLng: userLng ?? this.userLng,
@@ -87,7 +82,6 @@ class DayungPreferencesData {
       'penalty_payment': penaltyPayment,
       'penalty_policy': penaltyPolicy,
       'payment_method': paymentMethod,
-      'open_for_all': openForAll,
       'location': location,
       'fee_range': contributionAmount,
       'fund_support_range': membershipPayment,
@@ -112,7 +106,7 @@ class DayungRecommendationService {
         .from('user_preferences')
         .select(
           'meeting_frequency, contribution_amount, membership_payment, '
-          'penalty_payment, payment_method, open_for_all, penalty_policy, '
+          'penalty_payment, payment_method, penalty_policy, '
           'location, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}',
         )
         .eq('user_id', userId)
@@ -137,7 +131,6 @@ class DayungRecommendationService {
       penaltyPayment: (pref?['penalty_payment'] as String?)?.trim(),
       penaltyPolicy: (pref?['penalty_policy'] as String?)?.trim(),
       paymentMethod: (pref?['payment_method'] as String?)?.trim(),
-      openForAll: pref?['open_for_all'] as bool?,
       location:
           (pref?['location'] as String?)?.trim() ??
           (address.isEmpty ? null : address),
@@ -337,7 +330,7 @@ class DayungRecommendationService {
       ...bucket(prefs.contributionAmount),
       ...bucket(prefs.membershipPayment),
       ...bucket(prefs.penaltyPayment),
-      prefs.openForAll == true ? 1.0 : 0.0,
+      0.0,
       ...serviceTags,
     ];
   }

@@ -103,6 +103,15 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
     });
     try {
       _currentUserId = sb.auth.currentUser?.id;
+      if (!widget.allowManage &&
+          (_currentUserId == null || _currentUserId!.isEmpty)) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Please sign in to view Service Tracking records.';
+        });
+        return;
+      }
       if (_currentUserId != null) {
         final profile = await sb
             .from('users')
@@ -121,7 +130,28 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'Approved')
           .order('date_of_death', ascending: false);
-      final notices = List<Map<String, dynamic>>.from(response as List);
+      var notices = List<Map<String, dynamic>>.from(response as List);
+
+      if (!widget.allowManage) {
+        final payments = await sb
+            .from('payments')
+            .select('userdeceased')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .or('user_id.eq.$_currentUserId,userdeceased.eq.$_currentUserId');
+        final paymentDeceasedIds =
+            List<Map<String, dynamic>>.from(payments as List)
+                .map(
+                  (payment) =>
+                      (payment['userdeceased'] ?? '').toString().trim(),
+                )
+                .where((userId) => userId.isNotEmpty)
+                .toSet();
+        notices = notices.where((notice) {
+          final deceasedUserId = (notice['user_id'] ?? '').toString().trim();
+          return deceasedUserId == _currentUserId ||
+              paymentDeceasedIds.contains(deceasedUserId);
+        }).toList();
+      }
 
       // Collect user_ids and beneficiary_ids
       final userIds = notices
@@ -184,6 +214,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
         final services = await sb
             .from('service_checklist')
             .select()
+            .inFilter('claim_id', claimIds)
             .or('is_removed.is.null,is_removed.eq.false');
         debugPrint(
           '--- DEBUG: Raw services fetched from Supabase (is_removed = false) ---',
@@ -1186,8 +1217,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                 _buildEmptyState(
                                   icon: Icons.playlist_add_check_circle_rounded,
                                   title: 'No tracked services yet',
-                                  message:
-                                      'Recent death notices will appear here so you can schedule services and assign participation.',
+                                  message: widget.allowManage
+                                      ? 'Recent death notices will appear here so you can schedule services and assign participation.'
+                                      : 'Death notices linked to your payments, plus your own member claim, appear here.',
                                 ),
                               ],
                             )

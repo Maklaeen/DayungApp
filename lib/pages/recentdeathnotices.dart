@@ -37,6 +37,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   List<Map<String, dynamic>> _beneficiaries = [];
 
   // Map of user_id to full_name
+  // ignore: unused_field
   Map<String, String> _userNames = {};
 
   StreamSubscription<List<Map<String, dynamic>>>? _sub;

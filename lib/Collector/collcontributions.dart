@@ -118,9 +118,9 @@ class _CollectorContributionsPageState
         _users = {};
         _loading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading payments: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading payments: $e')));
     }
   }
 
@@ -164,9 +164,8 @@ class _CollectorContributionsPageState
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => GCashPaymentPage(
-                    dayungUnitId: widget.dayungUnitId,
-                  ),
+                  builder: (_) =>
+                      GCashPaymentPage(dayungUnitId: widget.dayungUnitId),
                 ),
               ).then((_) => _fetchContributions());
             },
@@ -189,8 +188,8 @@ class _CollectorContributionsPageState
     final userDeceased = (p['deceased_name']?.toString().isNotEmpty == true)
         ? p['deceased_name'].toString()
         : (userDeceasedId.isNotEmpty
-            ? _users[userDeceasedId] ?? userDeceasedId
-            : 'Membership Payment');
+              ? _users[userDeceasedId] ?? userDeceasedId
+              : 'Membership Payment');
     final amount = _amountOf(p['amount']);
 
     return DataRow(
@@ -211,10 +210,7 @@ class _CollectorContributionsPageState
         decoration: BoxDecoration(
           color: kCardBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: kBorderColor,
-            width: 1,
-          ),
+          border: Border.all(color: kBorderColor, width: 1),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),

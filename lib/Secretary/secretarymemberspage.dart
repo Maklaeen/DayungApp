@@ -432,14 +432,8 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                                     child: TabBarView(
                                       controller: _tabController,
                                       children: [
-                                        _memberList(
-                                          _approved,
-                                          mode: 'active',
-                                        ),
-                                        _memberList(
-                                          _pending,
-                                          mode: 'pending',
-                                        ),
+                                        _memberList(_approved, mode: 'active'),
+                                        _memberList(_pending, mode: 'pending'),
                                         _memberList(
                                           _deceased,
                                           mode: 'deceased',
@@ -502,7 +496,9 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
               DataColumn(label: Text('Dayung')),
               DataColumn(label: Text('Status')),
             ],
-            rows: filtered.map((row) => _memberDataRow(row, mode: mode)).toList(),
+            rows: filtered
+                .map((row) => _memberDataRow(row, mode: mode))
+                .toList(),
           ),
         ],
       ),

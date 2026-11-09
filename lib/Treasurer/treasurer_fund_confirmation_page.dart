@@ -305,6 +305,8 @@ class _TreasurerFundConfirmationPageState
   Future<void> _markPaymentReceived(
     List<String> paymentIds,
     String memberName,
+    String collectorId,
+    double amount,
   ) async {
     if (paymentIds.isEmpty) return;
 
@@ -319,17 +321,6 @@ class _TreasurerFundConfirmationPageState
           })
           .inFilter('id', paymentIds)
           .timeout(_queryTimeout);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Marked $memberName as received.'),
-          backgroundColor: const Color(0xFF10B981),
-        ),
-      );
-
-      await _loadCollectorTotals();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -338,11 +329,67 @@ class _TreasurerFundConfirmationPageState
           backgroundColor: Colors.redAccent,
         ),
       );
+      return;
     }
+
+    String? notificationError;
+    try {
+      final treasurerId = sb.auth.currentUser?.id;
+      if (treasurerId == null) {
+        throw StateError('The treasurer account could not be found.');
+      }
+
+      final treasurer = await sb
+          .from('users')
+          .select('full_name')
+          .eq('id', treasurerId)
+          .maybeSingle()
+          .timeout(_queryTimeout);
+      final treasurerName = treasurer?['full_name']?.toString().trim();
+      if (treasurerName == null || treasurerName.isEmpty) {
+        throw StateError('The treasurer name could not be found.');
+      }
+
+      final createdAt = DateTime.now().toUtc().toIso8601String();
+      await sb
+          .from('notifications')
+          .insert({
+            'recipient_id': collectorId,
+            'sender_id': treasurerId,
+            'dayung_unit_id': widget.dayungUnitId,
+            'type': 'announcement',
+            'title': 'Collection Received by Treasurer',
+            'body':
+                '$treasurerName has received ${_formatCurrency(amount)} from your collection, contributed by 1 member. Your collection has been successfully recorded.',
+            'announcement_id': null,
+            'read_at': null,
+            'created_at': createdAt,
+          })
+          .timeout(_queryTimeout);
+    } catch (e) {
+      notificationError = e.toString();
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          notificationError == null
+              ? 'Marked $memberName as received.'
+              : 'Marked $memberName as received, but the collector notification could not be sent: $notificationError',
+        ),
+        backgroundColor: notificationError == null
+            ? const Color(0xFF10B981)
+            : Colors.redAccent,
+      ),
+    );
+
+    await _loadCollectorTotals();
   }
 
   Future<void> _confirmReceipt(
     Map<String, dynamic> member, {
+    required String collectorId,
     VoidCallback? onConfirmed,
   }) async {
     final memberName = member['name']?.toString() ?? 'Member';
@@ -375,7 +422,12 @@ class _TreasurerFundConfirmationPageState
     );
 
     if (confirmed == true) {
-      await _markPaymentReceived(paymentIds, memberName);
+      await _markPaymentReceived(
+        paymentIds,
+        memberName,
+        collectorId,
+        _asDouble(member['amount']),
+      );
       onConfirmed?.call();
     }
   }
@@ -452,6 +504,8 @@ class _TreasurerFundConfirmationPageState
                                       : () async {
                                           await _confirmReceipt(
                                             member,
+                                            collectorId:
+                                                '${collector['id'] ?? ''}',
                                             onConfirmed: () {
                                               setDialogState(() {
                                                 final index = members

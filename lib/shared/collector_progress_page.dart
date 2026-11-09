@@ -360,13 +360,19 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                                         RecordDataTable(
                                           minWidth: 760,
                                           columns: const [
-                                            DataColumn(label: Text('Collection')),
+                                            DataColumn(
+                                              label: Text('Collection'),
+                                            ),
                                             DataColumn(label: Text('Status')),
                                             DataColumn(label: Text('Progress')),
                                             DataColumn(label: Text('Paid')),
-                                            DataColumn(label: Text('Remaining')),
+                                            DataColumn(
+                                              label: Text('Remaining'),
+                                            ),
                                           ],
-                                          rows: _items.map(_progressRow).toList(),
+                                          rows: _items
+                                              .map(_progressRow)
+                                              .toList(),
                                         ),
                                       ],
                                     ),

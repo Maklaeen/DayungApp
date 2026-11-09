@@ -252,30 +252,44 @@ class _MembersPageState extends State<MembersPage> {
                                   rows: _visiblePayments.map((payment) {
                                     final paid =
                                         (payment['status'] ?? 'pending')
-                                                .toString()
-                                                .toLowerCase() ==
-                                            'paid';
+                                            .toString()
+                                            .toLowerCase() ==
+                                        'paid';
                                     final date = paid
                                         ? payment['paid_at']
                                         : payment['created_at'];
-                                    return DataRow(cells: [
-                                      DataCell(Text(
-                                        (payment['full_name'] ?? 'Member')
-                                            .toString(),
-                                      )),
-                                      DataCell(Text(
-                                        _formatAmount(payment['amount']),
-                                      )),
-                                      DataCell(Text(paid ? 'Paid' : 'Pending')),
-                                      DataCell(Text(
-                                        (payment['collector_full_name'] ??
-                                                'Not assigned')
-                                            .toString(),
-                                      )),
-                                      DataCell(Text(_formatDate(
-                                        (date ?? '').toString(),
-                                      ))),
-                                    ]);
+                                    return DataRow(
+                                      cells: [
+                                        DataCell(
+                                          Text(
+                                            (payment['full_name'] ?? 'Member')
+                                                .toString(),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Text(
+                                            _formatAmount(payment['amount']),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Text(paid ? 'Paid' : 'Pending'),
+                                        ),
+                                        DataCell(
+                                          Text(
+                                            (payment['collector_full_name'] ??
+                                                    'Not assigned')
+                                                .toString(),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Text(
+                                            _formatDate(
+                                              (date ?? '').toString(),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
                                   }).toList(),
                                 ),
                               const SizedBox(height: 20),
@@ -665,6 +679,7 @@ class _MembersPageState extends State<MembersPage> {
     );
   }
 
+  //ignore: unused_element
   Widget _buildPaymentCard(Map<String, dynamic> payment) {
     final status = (payment['status'] ?? 'pending').toString().toLowerCase();
     final isPaid = status == 'paid';

@@ -10,23 +10,45 @@ void main() {
       expect(hasEnoughRecommendationPreferences(6), isTrue);
     });
 
+    test('matches exact contribution amounts to inclusive ranges', () {
+      expect(isAmountInRange('100', '50-100'), isTrue);
+      expect(isAmountInRange(100, '100-150'), isTrue);
+      expect(isAmountInRange('150', '100-150'), isTrue);
+      expect(isAmountInRange(150.01, '100-150'), isFalse);
+      expect(isAmountInRange('400', '400 plus'), isTrue);
+      expect(isAmountInRange(500, '400 plus'), isTrue);
+      expect(isAmountInRange(399.99, '400 plus'), isFalse);
+      expect(isAmountInRange(null, '100-150'), isFalse);
+      expect(isAmountInRange('invalid', '100-150'), isFalse);
+    });
+
+    test('matches exact membership amounts to inclusive ranges', () {
+      expect(isAmountInRange('50', '50-100'), isTrue);
+      expect(isAmountInRange(100, '100-150'), isTrue);
+      expect(isAmountInRange('150', '100-150'), isTrue);
+      expect(isAmountInRange(150.01, '100-150'), isFalse);
+      expect(isAmountInRange('400', '400 plus'), isTrue);
+    });
+
     test('builds the 37-dimension pgvector query in database column order', () {
-      final vector = DayungRecommendationService.preferenceVector(
-        const DayungPreferencesData(
-          meetingFrequency: 'Weekly',
-          contributionAmount: '100-150',
-          paymentMethod: 'Cash',
-          openForAll: true,
-          serviceTags: {'Prayer Support': true},
-        ),
+      const preferences = DayungPreferencesData(
+        meetingFrequency: 'Weekly',
+        contributionAmount: '100-150',
+        paymentMethod: 'Cash',
+        serviceTags: {'Prayer Support': true},
       );
+      final vector = DayungRecommendationService.preferenceVector(preferences);
 
       expect(vector, hasLength(37));
       expect(vector[0], 1.0);
       expect(vector[3], 1.0);
       expect(vector[7], 1.0);
-      expect(vector[27], 1.0);
+      expect(vector[27], 0.0);
       expect(vector[36], 1.0);
+      expect(
+        preferences.toUpsertPayload('user-id').containsKey('open_for_all'),
+        isFalse,
+      );
       expect(
         DayungRecommendationService.serializePreferenceVector(vector),
         startsWith('[1.0,0.0,0.0,1.0'),

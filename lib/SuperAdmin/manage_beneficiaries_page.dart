@@ -269,9 +269,7 @@ class _ManageBeneficiariesPageState extends State<ManageBeneficiariesPage> {
                                 DataCell(
                                   OutlinedButton.icon(
                                     onPressed: () => _showDetails(beneficiary),
-                                    icon: const Icon(
-                                      Icons.visibility_outlined,
-                                    ),
+                                    icon: const Icon(Icons.visibility_outlined),
                                     label: const Text('View details'),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: kSuperAdminPrimary,

@@ -65,7 +65,10 @@ void main() {
       const content = RequiredApplicationContent(
         mainTitle: 'Main Title',
         sections: [
-          RequiredApplicationSection(title: '', description: 'Emergency support'),
+          RequiredApplicationSection(
+            title: '',
+            description: 'Emergency support',
+          ),
         ],
       );
 

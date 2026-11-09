@@ -107,13 +107,21 @@ class _GcashQrPageState extends State<GcashQrPage> {
         .trim()
         .toLowerCase();
     if (_selectedPaymentTab == 2) {
-      final type = row['type']?.toString().trim().toLowerCase();
-      return paymentPurpose == 'membership_payment' || type == 'for_membership';
+      return _isMembershipPayment(row);
     }
     if (_selectedPaymentTab == 1) {
       return paymentPurpose == 'advance_payments';
     }
     return paymentPurpose == 'for_userdeceased';
+  }
+
+  bool _isMembershipPayment(Map<String, dynamic> row) {
+    final paymentPurpose = row['payment_purpose']
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    final type = row['type']?.toString().trim().toLowerCase();
+    return paymentPurpose == 'membership_payment' || type == 'for_membership';
   }
 
   void _refreshQrData() {
@@ -1790,6 +1798,42 @@ class _GcashQrPageState extends State<GcashQrPage> {
     await paymentUpdate;
   }
 
+  Future<void> _sendMembershipPaymentConfirmation(
+    Map<String, dynamic> row,
+    String? senderId,
+  ) async {
+    final recipientId = row['uploaded_by']?.toString().trim() ?? '';
+    if (recipientId.isEmpty) {
+      throw Exception(
+        'Unable to send membership confirmation: missing member identifier.',
+      );
+    }
+
+    final unit = await Supabase.instance.client
+        .from('dayung_units')
+        .select('name')
+        .eq('id', widget.dayungUnitId)
+        .maybeSingle();
+    final dayungName = unit?['name']?.toString().trim() ?? '';
+    if (dayungName.isEmpty) {
+      throw Exception(
+        'Unable to send membership confirmation: missing Dayung name.',
+      );
+    }
+
+    await Supabase.instance.client.from('notifications').insert({
+      'recipient_id': recipientId,
+      'sender_id': senderId,
+      'dayung_unit_id': widget.dayungUnitId,
+      'type': 'announcement',
+      'title': 'Membership Application Approved',
+      'body':
+          'You are now officially a member of $dayungName, and your membership fee payment has been confirmed.',
+      'read_at': null,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
   Widget _buildMarkPaidButton(Map<String, dynamic> row) {
     final isAdvancePayment =
         row['payment_purpose']?.toString().trim().toLowerCase() ==
@@ -1975,6 +2019,22 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                   currentUserId,
                                   paymentId,
                                 );
+                                if (_isMembershipPayment(row)) {
+                                  try {
+                                    await _sendMembershipPaymentConfirmation(
+                                      row,
+                                      currentUserId,
+                                    );
+                                  } catch (e) {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Payment was marked as paid, but the membership confirmation notification could not be saved: $e',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
                                 if (mounted) {
                                   this.setState(() {
                                     row['already_paid'] = true;

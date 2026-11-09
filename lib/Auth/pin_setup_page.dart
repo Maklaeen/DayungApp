@@ -85,10 +85,7 @@ class _PinSetupPageState extends State<PinSetupPage> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context, false),
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: Colors.white,
-                    ),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.white.withValues(alpha: 0.15),
                       shape: RoundedRectangleBorder(
@@ -135,9 +132,7 @@ class _PinSetupPageState extends State<PinSetupPage> {
                   Expanded(
                     child: Container(
                       height: 2,
-                      color: _isConfirming
-                          ? kPrimary
-                          : const Color(0xFFE2E8F0),
+                      color: _isConfirming ? kPrimary : const Color(0xFFE2E8F0),
                     ),
                   ),
                   _StepDot(active: _isConfirming, done: false, label: '2'),
@@ -229,7 +224,9 @@ class _StepLabel extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            isConfirming ? 'Step 2 of 2 — Confirm PIN' : 'Step 1 of 2 — Create PIN',
+            isConfirming
+                ? 'Step 2 of 2 — Confirm PIN'
+                : 'Step 1 of 2 — Create PIN',
             style: const TextStyle(
               color: kPrimary,
               fontSize: 13,

@@ -412,15 +412,14 @@ class _PresidentContributionsPageState
                                               .toString();
                                       final userDeceased =
                                           (payment['deceased_name']
-                                                      ?.toString()
-                                                      .isNotEmpty ==
-                                                  true)
-                                              ? payment['deceased_name']
-                                                    .toString()
-                                              : (userDeceasedId.isNotEmpty
-                                                    ? _users[userDeceasedId] ??
-                                                          userDeceasedId
-                                                    : 'Membership Payment');
+                                                  ?.toString()
+                                                  .isNotEmpty ==
+                                              true)
+                                          ? payment['deceased_name'].toString()
+                                          : (userDeceasedId.isNotEmpty
+                                                ? _users[userDeceasedId] ??
+                                                      userDeceasedId
+                                                : 'Membership Payment');
                                       final paidAtStr = _fmtDateTime(
                                         payment['paid_at'],
                                       );

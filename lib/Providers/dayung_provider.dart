@@ -91,7 +91,6 @@ class DayungUnitProvider extends ChangeNotifier {
 
   // ---------------- Existing persistence ----------------
   Future<void> loadDayungUnit() async {
-   
     final prefs = await SharedPreferences.getInstance();
     final unitJson =
         prefs.getString('selectedDayungUnitData') ??
@@ -132,7 +131,6 @@ class DayungUnitProvider extends ChangeNotifier {
       _currentUnitId = _asInt(normalized['id']);
       _currentName = _dayungUnit;
       _currentObj = Map<String, dynamic>.from(normalized);
-     
     } catch (e) {
       _dayungUnit = null;
       _dayungUnitObj = null;

@@ -1,3 +1,5 @@
+import 'package:capstone_app/widgets/record_data_table.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,6 +20,35 @@ bool _isTruthyFlag(dynamic value) {
 double _asDouble(dynamic value, {double fallback = 0.0}) {
   if (value is num) return value.toDouble();
   return double.tryParse('$value') ?? fallback;
+}
+
+double calculateDeceasedPaymentLedgerBalance(
+  Iterable<Map<String, dynamic>> paymentRows,
+) {
+  return paymentRows
+      .where((row) => row['type'] == 'deceased_payment')
+      .fold<double>(0.0, (balance, row) {
+        final received = _isTruthyFlag(row['iscollectedbytreasurer']);
+        final claimed = _isTruthyFlag(row['is_claimed']);
+
+        if (!received || claimed) return balance;
+        return balance + _asDouble(row['amount']);
+      });
+}
+
+List<Map<String, dynamic>> filterCollectorsCollectedPayments(
+  Iterable<Map<String, dynamic>> paymentRows,
+) {
+  return paymentRows.where((row) {
+    final typeValue = row['type']?.toString().toLowerCase();
+    final statusValue = '${row['status'] ?? ''}'.trim().toLowerCase();
+    final collectedBy = '${row['collected_by'] ?? ''}'.trim();
+
+    return typeValue == 'deceased_payment' &&
+        statusValue == 'paid' &&
+        collectedBy.isNotEmpty &&
+        _isTruthyFlag(row['iscollectedbytreasurer']);
+  }).toList();
 }
 
 String? _normalizeReceivedDate(dynamic value) {
@@ -70,6 +101,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
   List<Map<String, dynamic>> _collectorSummaries = [];
   double _treasurerCollectedTotal = 0.0;
   double _collectedCollectedTotal = 0.0;
+  bool _hasCollectorsCollectedPayments = false;
   double _currentCashCollected = 0.0;
   double _totalDeceasedPaymentAmount = 0.0;
 
@@ -120,13 +152,32 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         await sb
             .from('payments')
             .select(
-              'id, amount, collected_by, userdeceased, deceased_name, status, type, is_claimed, iscollectedbytreasurer, iscollectedbytreasurer_date',
+              'id, amount, collected_by, user_id, userdeceased, deceased_name, status, type, is_claimed, iscollectedbytreasurer, iscollectedbytreasurer_date',
             )
             .eq('dayung_unit_id', widget.dayungUnitId)
             .inFilter('status', ['paid', 'unpaid'])
             .order('paid_at', ascending: false)
             .timeout(_queryTimeout),
       );
+
+      if (kDebugMode) {
+        final deceasedPaymentRows = rawPaymentRows
+            .where((row) => row['type'] == 'deceased_payment')
+            .toList();
+        final collectedRows = deceasedPaymentRows
+            .where((row) => _isTruthyFlag(row['iscollectedbytreasurer']))
+            .toList();
+        final collectedRowsWithDate = collectedRows.where((row) {
+          final date = row['iscollectedbytreasurer_date'];
+          return date != null && date.toString().isNotEmpty;
+        }).length;
+        debugPrint(
+          '[LedgerBalance] payments=${rawPaymentRows.length}, '
+          'deceasedPayments=${deceasedPaymentRows.length}, '
+          'treasurerCollected=${collectedRows.length}, '
+          'collectedWithDate=$collectedRowsWithDate',
+        );
+      }
 
       final paymentRows = rawPaymentRows.where((row) {
         final claimedValue = row['is_claimed'];
@@ -141,17 +192,9 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         return true;
       }).toList();
 
-      final totalDeceasedPaymentAmount = rawPaymentRows
-          .where((row) => row['type'] == 'deceased_payment')
-          .fold<double>(0.0, (balance, row) {
-            final amount = _asDouble(row['amount']);
-            final received = _isTruthyFlag(row['iscollectedbytreasurer']);
-            final claimed = _isTruthyFlag(row['is_claimed']);
-
-            return balance +
-                (received ? amount : 0.0) -
-                (claimed ? amount : 0.0);
-          });
+      final totalDeceasedPaymentAmount = calculateDeceasedPaymentLedgerBalance(
+        rawPaymentRows,
+      );
 
       final currentCashCollected = paymentRows.fold<double>(0.0, (sum, row) {
         final typeValue = row['type']?.toString().toLowerCase();
@@ -164,30 +207,21 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         return sum + _asDouble(row['amount']);
       });
 
-      final collectedCollectedTotal = paymentRows.fold<double>(0.0, (sum, row) {
-        final typeValue = row['type']?.toString().toLowerCase();
-        final statusValue = '${row['status'] ?? ''}'.trim().toLowerCase();
-        final collectedBy = '${row['collected_by'] ?? ''}'.trim();
-        final isTreasurerCollected = _isTruthyFlag(
-          row['iscollectedbytreasurer'],
-        );
+      final collectedPayments = filterCollectorsCollectedPayments(paymentRows);
 
-        if (typeValue != 'deceased_payment' || statusValue != 'paid') {
-          return sum;
-        }
-        if (collectedBy.isEmpty) {
-          return sum;
-        }
-        if (isTreasurerCollected) {
-          return sum;
-        }
-
-        return sum + _asDouble(row['amount']);
-      });
+      final collectedCollectedTotal = collectedPayments.fold<double>(
+        0.0,
+        (sum, row) => sum + _asDouble(row['amount']),
+      );
 
       final memberNamesById = <String, String>{};
       final memberIds = paymentRows
-          .map((row) => '${row['userdeceased'] ?? ''}')
+          .expand(
+            (row) => [
+              '${row['userdeceased'] ?? ''}',
+              '${row['user_id'] ?? ''}',
+            ],
+          )
           .where((id) => id.isNotEmpty && id != 'null')
           .toSet()
           .toList();
@@ -241,7 +275,12 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         summary['count'] = (summary['count'] as int) + 1;
 
         final memberId = '${row['userdeceased'] ?? ''}'.trim();
-        final memberKey = memberId.isEmpty ? '__unknown__' : memberId;
+        final noticeId = '${row['death_notice_id'] ?? ''}'.trim();
+        final memberKey = noticeId.isNotEmpty
+            ? 'notice:$noticeId'
+            : memberId.isEmpty
+            ? '__unknown__'
+            : 'member:$memberId';
         final memberTotals = summary['member_totals'] as Map<String, dynamic>;
 
         final receivedDate = _normalizeReceivedDate(
@@ -256,6 +295,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                     .toString(),
             'amount': 0.0,
             'payment_ids': <String>[],
+            'contributors': <String, Map<String, dynamic>>{},
             'is_received': isTreasurerCollected,
             'received_date': receivedDate,
           };
@@ -263,7 +303,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
 
         final memberEntry = memberTotals[memberKey] as Map<String, dynamic>;
         memberEntry['amount'] =
-            _asDouble(memberEntry['amount']) + amountContribution;
+            _asDouble(memberEntry['amount']) + _asDouble(row['amount']);
         memberEntry['is_received'] =
             (memberEntry['is_received'] as bool? ?? true) &&
             isTreasurerCollected;
@@ -281,6 +321,48 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
             memberEntry['payment_ids'] = paymentIds;
           }
         }
+
+        final contributorId = '${row['user_id'] ?? ''}'.trim();
+        final contributorKey = contributorId.isNotEmpty
+            ? contributorId
+            : 'unknown:$paymentId';
+        final contributors =
+            memberEntry['contributors'] as Map<String, Map<String, dynamic>>;
+        contributors.putIfAbsent(
+          contributorKey,
+          () => {
+            'name': contributorId.isEmpty
+                ? 'Unknown contributor'
+                : memberNamesById[contributorId] ?? 'Unknown contributor',
+            'amount': 0.0,
+            'payment_count': 0,
+            'collected_payment_count': 0,
+            'received_at': null,
+          },
+        );
+        final contributor = contributors[contributorKey]!;
+        contributor['amount'] =
+            _asDouble(contributor['amount']) + _asDouble(row['amount']);
+        contributor['payment_count'] =
+            (contributor['payment_count'] as int) + 1;
+        final collectedAtValue = isTreasurerCollected
+            ? row['iscollectedbytreasurer_date']
+            : null;
+        final collectedAt = collectedAtValue == null
+            ? null
+            : collectedAtValue is DateTime
+            ? collectedAtValue
+            : DateTime.tryParse(collectedAtValue.toString());
+        final previousCollectedAt = contributor['received_at'] as DateTime?;
+        if (collectedAt != null &&
+            (previousCollectedAt == null ||
+                collectedAt.isAfter(previousCollectedAt))) {
+          contributor['received_at'] = collectedAt;
+        }
+        if (isTreasurerCollected) {
+          contributor['collected_payment_count'] =
+              (contributor['collected_payment_count'] as int) + 1;
+        }
       }
 
       final collectorSummaries =
@@ -296,6 +378,11 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                 'payment_ids': List<String>.from(
                   memberEntry['payment_ids'] ?? [],
                 ),
+                'contributors':
+                    (memberEntry['contributors']
+                            as Map<String, Map<String, dynamic>>)
+                        .values
+                        .toList(),
                 'is_received': (memberEntry)['is_received'] == true,
                 'received_date': (memberEntry)['received_date']?.toString(),
               });
@@ -321,6 +408,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         _collectorSummaries = collectorSummaries;
         _treasurerCollectedTotal = treasurerCollectedTotal;
         _collectedCollectedTotal = collectedCollectedTotal;
+        _hasCollectorsCollectedPayments = collectedPayments.isNotEmpty;
         _currentCashCollected = currentCashCollected;
         _totalDeceasedPaymentAmount = totalDeceasedPaymentAmount;
         _loading = false;
@@ -341,16 +429,103 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
     if (paymentIds.isEmpty) return false;
 
     try {
-      await sb
-          .from('payments')
-          .update({
-            'iscollectedbytreasurer': true,
-            'iscollectedbytreasurer_date': DateTime.now()
-                .toUtc()
-                .toIso8601String(),
-          })
-          .inFilter('id', paymentIds)
-          .timeout(_queryTimeout);
+      final now = DateTime.now().toUtc().toIso8601String();
+      final pendingPayments =
+          List<Map<String, dynamic>>.from(
+            await sb
+                .from('payments')
+                .select('id, user_id, amount, iscollectedbytreasurer')
+                .inFilter('id', paymentIds)
+                .timeout(_queryTimeout),
+          ).where((payment) {
+            return !_isTruthyFlag(payment['iscollectedbytreasurer']);
+          }).toList();
+      final pendingPaymentIds = pendingPayments
+          .map((payment) => '${payment['id'] ?? ''}')
+          .where((id) => id.isNotEmpty && id != 'null')
+          .toList();
+      var newlyReceivedPayments = <Map<String, dynamic>>[];
+
+      if (pendingPaymentIds.isNotEmpty) {
+        final updatedPayments = List<Map<String, dynamic>>.from(
+          await sb
+              .from('payments')
+              .update({
+                'iscollectedbytreasurer': true,
+                'iscollectedbytreasurer_date': now,
+              })
+              .inFilter('id', pendingPaymentIds)
+              .select('id')
+              .timeout(_queryTimeout),
+        );
+        final updatedIds = updatedPayments
+            .map((payment) => '${payment['id']}')
+            .toSet();
+        newlyReceivedPayments = pendingPayments
+            .where((payment) => updatedIds.contains('${payment['id']}'))
+            .toList();
+      }
+
+      String? notificationError;
+      if (newlyReceivedPayments.isNotEmpty) {
+        try {
+          final treasurerId = sb.auth.currentUser?.id;
+          if (treasurerId == null) {
+            throw StateError(
+              'The signed-in treasurer could not be identified.',
+            );
+          }
+
+          final treasurer = await sb
+              .from('users')
+              .select('full_name')
+              .eq('id', treasurerId)
+              .maybeSingle()
+              .timeout(_queryTimeout);
+          final treasurerName = (treasurer?['full_name'] ?? '')
+              .toString()
+              .trim();
+          final senderName = treasurerName.isEmpty
+              ? 'Treasurer'
+              : treasurerName;
+          final amountsByContributor = <String, double>{};
+
+          for (final payment in newlyReceivedPayments) {
+            final contributorId = '${payment['user_id'] ?? ''}'.trim();
+            if (contributorId.isEmpty || contributorId == 'null') {
+              throw StateError(
+                'A contributor could not be identified for a receipt notification.',
+              );
+            }
+            amountsByContributor[contributorId] =
+                (amountsByContributor[contributorId] ?? 0) +
+                _asDouble(payment['amount']);
+          }
+
+          await sb
+              .from('notifications')
+              .insert(
+                amountsByContributor.entries.map((entry) {
+                  return {
+                    'recipient_id': entry.key,
+                    'sender_id': treasurerId,
+                    'dayung_unit_id': widget.dayungUnitId,
+                    'type': 'announcement',
+                    'title': 'Collection Successfully Received',
+                    'body':
+                        '$senderName has received ${_formatCurrency(entry.value)} '
+                        'from your collected contributions.',
+                    'announcement_id': null,
+                    'read_at': null,
+                    'created_at': now,
+                  };
+                }).toList(),
+              )
+              .timeout(_queryTimeout);
+        } catch (e) {
+          notificationError = e.toString();
+        }
+      }
 
       if (!mounted) return false;
 
@@ -360,6 +535,16 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
           backgroundColor: const Color(0xFF10B981),
         ),
       );
+
+      if (notificationError != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Receipt marked, but notification could not be sent: $notificationError',
+            ),
+          ),
+        );
+      }
 
       await _loadCollectorTotals();
       return true;
@@ -418,151 +603,354 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
     final members = List<Map<String, dynamic>>.from(
       collector['member_totals'] ?? [],
     );
+    final screenSize = MediaQuery.sizeOf(context);
 
     showDialog<void>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(collector['name']?.toString() ?? 'Collector'),
-              contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              content: SizedBox(
-                width: double.maxFinite,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            insetPadding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: screenSize.width < 1050 ? screenSize.width - 32 : 1000,
+              height: screenSize.height * 0.8,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${members.length} member${members.length == 1 ? '' : 's'} • ${_formatCurrency(_asDouble(collector['amount']))}',
-                      style: const TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (members.isEmpty)
-                      const Text('No member available yet.')
-                    else
-                      Flexible(
-                        child: SingleChildScrollView(
-                          child: Column(
-                            children: members.map((member) {
-                              final isReceived = member['is_received'] == true;
-                              return Container(
-                                width: double.infinity,
-                                margin: const EdgeInsets.only(bottom: 10),
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: const Color(0xFFE5E7EB),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      member['name']?.toString() ?? 'Member',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF111827),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _formatCurrency(
-                                        _asDouble(member['amount']),
-                                      ),
-                                      style: const TextStyle(
-                                        color: Color(0xFF374151),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    if (isReceived)
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFDCFCE7),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          member['received_date'] != null &&
-                                                  member['received_date']
-                                                      .toString()
-                                                      .isNotEmpty
-                                              ? 'Received by treasurer • ${member['received_date']}'
-                                              : 'Received by treasurer',
-                                          style: const TextStyle(
-                                            color: Color(0xFF166534),
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: FilledButton.icon(
-                                          onPressed: () async {
-                                            await _confirmReceipt(
-                                              member,
-                                              onConfirmed: () {
-                                                member['is_received'] = true;
-                                                member['received_date'] =
-                                                    _normalizeReceivedDate(
-                                                      DateTime.now(),
-                                                    );
-                                                setDialogState(() {});
-                                              },
-                                            );
-                                          },
-                                          icon: const Icon(
-                                            Icons.check_circle_outline_rounded,
-                                          ),
-                                          label: const Text('Confirm received'),
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFF15803D,
-                                            ),
-                                            foregroundColor: Colors.white,
-                                            minimumSize: const Size.fromHeight(
-                                              52,
-                                            ),
-                                            textStyle: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            collector['name']?.toString() ?? 'Collector',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                      ),
+                        IconButton(
+                          tooltip: 'Close details',
+                          onPressed: () => Navigator.pop(dialogContext),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '${members.length} member${members.length == 1 ? '' : 's'} · Current Collected: ${_formatCurrency(_asDouble(collector['amount']))}',
+                      style: const TextStyle(color: Color(0xFF6B7280)),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: members.isEmpty
+                          ? const Center(
+                              child: Text('No member available yet.'),
+                            )
+                          : Scrollbar(
+                              child: SingleChildScrollView(
+                                child: RecordDataTable(
+                                  minWidth: 960,
+                                  showCheckboxColumn: false,
+                                  headingRowColor: const Color(0xFFF9FAFB),
+                                  columns: const [
+                                    DataColumn(label: Text('Deceased Member')),
+                                    DataColumn(label: Text('Contributors')),
+                                    DataColumn(label: Text('Total')),
+                                    DataColumn(label: Text('Members')),
+                                    DataColumn(label: Text('Action')),
+                                    DataColumn(label: Text('Status')),
+                                    DataColumn(label: Text('Date Collected')),
+                                  ],
+                                  rows: members.map((member) {
+                                    final contributors =
+                                        List<Map<String, dynamic>>.from(
+                                          member['contributors'] ?? [],
+                                        );
+                                    final contributorsToCollect = contributors
+                                        .where((contributor) {
+                                          final paymentCount =
+                                              contributor['payment_count']
+                                                  as int? ??
+                                              0;
+                                          final collectedPaymentCount =
+                                              contributor['collected_payment_count']
+                                                  as int? ??
+                                              0;
+                                          return collectedPaymentCount <
+                                              paymentCount;
+                                        })
+                                        .length;
+                                    final isReceived =
+                                        member['is_received'] == true;
+                                    final isCollecting =
+                                        member['is_collecting'] == true;
+                                    final receivedDate = member['received_date']
+                                        ?.toString();
+
+                                    return DataRow(
+                                      cells: [
+                                        DataCell(
+                                          SizedBox(
+                                            width: 160,
+                                            child: Text(
+                                              member['name']?.toString() ??
+                                                  'Member',
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Text('${contributors.length}'),
+                                        ),
+                                        DataCell(
+                                          Text(
+                                            _formatCurrency(
+                                              _asDouble(member['amount']),
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          TextButton(
+                                            onPressed: () =>
+                                                _showContributorDetails(member),
+                                            child: const Text('View Details'),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          FilledButton(
+                                            onPressed:
+                                                isReceived ||
+                                                    isCollecting ||
+                                                    contributorsToCollect == 0
+                                                ? null
+                                                : () async {
+                                                    setDialogState(() {
+                                                      member['is_collecting'] =
+                                                          true;
+                                                    });
+                                                    await _confirmReceipt(
+                                                      member,
+                                                      onConfirmed: () {
+                                                        member['is_received'] =
+                                                            true;
+                                                        member['received_date'] =
+                                                            _normalizeReceivedDate(
+                                                              DateTime.now(),
+                                                            );
+                                                      },
+                                                    );
+                                                    setDialogState(() {
+                                                      member.remove(
+                                                        'is_collecting',
+                                                      );
+                                                    });
+                                                  },
+                                            child: Text(
+                                              isCollecting
+                                                  ? 'Collecting...'
+                                                  : isReceived
+                                                  ? 'Collected'
+                                                  : 'Collect $contributorsToCollect ${contributorsToCollect == 1 ? 'Member' : 'Members'}',
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Text(
+                                            isReceived ? 'Received' : 'Pending',
+                                            style: TextStyle(
+                                              color: isReceived
+                                                  ? const Color(0xFF15803D)
+                                                  : const Color(0xFFB45309),
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Text(
+                                            isReceived && receivedDate != null
+                                                ? receivedDate
+                                                : '—',
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                    ),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Close'),
-                ),
-              ],
-            );
-          },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showContributorDetails(Map<String, dynamic> member) {
+    final contributors = List<Map<String, dynamic>>.from(
+      member['contributors'] ?? [],
+    );
+    var searchQuery = '';
+
+    if (kDebugMode) {
+      debugPrint(
+        '[LedgerBalance] Opening contributor table: '
+        'rows=${contributors.length}, columns=4, '
+        'viewportWidth=${MediaQuery.sizeOf(context).width}',
+      );
+      for (var index = 0; index < contributors.length; index++) {
+        final contributor = contributors[index];
+        final rawDate = contributor['received_at'];
+        final displayedDate = _normalizeReceivedDate(rawDate) ?? '—';
+        debugPrint(
+          '[LedgerBalance] row[$index]: '
+          'collectedPayments=${contributor['collected_payment_count']}, '
+          'totalPayments=${contributor['payment_count']}, '
+          'received_at=$rawDate, displayedDate=$displayedDate',
         );
-      },
+      }
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final filteredContributors = contributors.where((contributor) {
+            final name =
+                contributor['name']?.toString() ?? 'Unknown contributor';
+            return name.toLowerCase().contains(
+              searchQuery.trim().toLowerCase(),
+            );
+          }).toList();
+
+          final screenWidth = MediaQuery.sizeOf(context).width;
+
+          return AlertDialog(
+            title: Text(member['name']?.toString() ?? 'Member details'),
+            content: SizedBox(
+              width: screenWidth < 760 ? screenWidth - 80 : 680,
+              child: contributors.isEmpty
+                  ? const Text('No contributor details are available.')
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          decoration: const InputDecoration(
+                            hintText: 'Search contributors',
+                            prefixIcon: Icon(Icons.search),
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          onChanged: (value) {
+                            setDialogState(() => searchQuery = value);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: MediaQuery.sizeOf(context).height * 0.5,
+                          ),
+                          child: filteredContributors.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Text(
+                                    'No contributors match your search.',
+                                  ),
+                                )
+                              : SingleChildScrollView(
+                                  child: RecordDataTable(
+                                    minWidth: 600,
+                                    showCheckboxColumn: false,
+                                    headingRowHeight: 40,
+                                    dataRowMinHeight: 44,
+                                    dataRowMaxHeight: 52,
+                                    columns: const [
+                                      DataColumn(label: Text('Contributor')),
+                                      DataColumn(label: Text('Status')),
+                                      DataColumn(label: Text('Date Collected')),
+                                      DataColumn(
+                                        label: Text('Amount'),
+                                        numeric: true,
+                                      ),
+                                    ],
+                                    rows: filteredContributors.map((
+                                      contributor,
+                                    ) {
+                                      final paymentCount =
+                                          contributor['payment_count']
+                                              as int? ??
+                                          0;
+                                      final collectedPaymentCount =
+                                          contributor['collected_payment_count']
+                                              as int? ??
+                                          0;
+                                      final isCollected =
+                                          paymentCount > 0 &&
+                                          collectedPaymentCount == paymentCount;
+                                      final hasCollectedPayments =
+                                          collectedPaymentCount > 0;
+                                      final receivedDate =
+                                          _normalizeReceivedDate(
+                                            contributor['received_at'],
+                                          );
+                                      final status = isCollected
+                                          ? 'Collected'
+                                          : hasCollectedPayments
+                                          ? 'Partially collected'
+                                          : 'Pending';
+                                      final statusColor = isCollected
+                                          ? const Color(0xFF15803D)
+                                          : hasCollectedPayments
+                                          ? const Color(0xFF1D4ED8)
+                                          : const Color(0xFFB45309);
+
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(
+                                            Text(
+                                              contributor['name']?.toString() ??
+                                                  'Unknown contributor',
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              status,
+                                              style: TextStyle(
+                                                color: statusColor,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(Text(receivedDate ?? '—')),
+                                          DataCell(
+                                            Text(
+                                              _formatCurrency(
+                                                _asDouble(
+                                                  contributor['amount'],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -586,20 +974,16 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
             style: TextStyle(
               color: accent,
               fontWeight: FontWeight.w700,
-              fontSize: 14,
+              fontSize: 12,
             ),
           ),
           const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Color(0xFF111827),
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
-              ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF111827),
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
             ),
           ),
         ],
@@ -667,22 +1051,22 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
                             Text(
-                              'Contribution Confirmation',
+                              'Ledger Balance',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 22,
+                                fontSize: 24,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Review and confirm collector contributions',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 15,
-                                height: 1.3,
-                              ),
-                            ),
+                            // SizedBox(height: 6),
+                            // Text(
+                            //   'Confirm remitted funds before posting to the ledger.',
+                            //   style: TextStyle(
+                            //     color: Colors.white70,
+                            //     fontSize: 13,
+                            //     height: 1.5,
+                            //   ),
+                            // ),
                           ],
                         ),
                       ),
@@ -735,23 +1119,14 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Quick summary',
+                                  '',
                                   style: TextStyle(
-                                    fontSize: 20,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.w800,
                                     color: Color(0xFF111827),
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Review collected contributions and confirm the funds you have received.',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    height: 1.4,
-                                    color: Color(0xFF4B5563),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 12),
                                 Wrap(
                                   spacing: 10,
                                   runSpacing: 10,
@@ -761,13 +1136,14 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                       value: '${_collectorSummaries.length}',
                                       accent: const Color(0xFFF59E0B),
                                     ),
-                                    _summaryCard(
-                                      title: 'Collectors Collected',
-                                      value: _formatCurrency(
-                                        _collectedCollectedTotal,
+                                    if (_hasCollectorsCollectedPayments)
+                                      _summaryCard(
+                                        title: 'Collectors Collected',
+                                        value: _formatCurrency(
+                                          _collectedCollectedTotal,
+                                        ),
+                                        accent: const Color(0xFF10B981),
                                       ),
-                                      accent: const Color(0xFF10B981),
-                                    ),
                                     _summaryCard(
                                       title: 'Total Collected',
                                       value: _formatCurrency(totalCollected),
@@ -816,114 +1192,52 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                               ),
                             )
                           else
-                            ..._collectorSummaries.map((collector) {
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: _kCard,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: _kBorder),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.03,
-                                      ),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
+                            RecordDataTable(
+                              minWidth: 520,
+                              showCheckboxColumn: false,
+                              columns: const [
+                                DataColumn(label: Text('Collector')),
+                                DataColumn(
+                                  label: Text('Total Collected'),
+                                  numeric: true,
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                collector['name']?.toString() ??
-                                                    'Collector',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 17,
-                                                  color: Color(0xFF111827),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'}',
-                                                style: const TextStyle(
-                                                  color: Color(0xFF6B7280),
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              _formatCurrency(
-                                                _asDouble(collector['amount']),
-                                              ),
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w800,
-                                                color: Color(0xFF0D47A1),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            const Text(
-                                              'Collected',
-                                              style: TextStyle(
-                                                color: Color(0xFF10B981),
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                DataColumn(label: Text('Actions')),
+                              ],
+                              rows: _collectorSummaries.map((collector) {
+                                return DataRow(
+                                  cells: [
+                                    DataCell(
+                                      Text(
+                                        collector['name']?.toString() ??
+                                            'Collector',
+                                      ),
                                     ),
-                                    const SizedBox(height: 14),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: OutlinedButton.icon(
+                                    DataCell(
+                                      Text(
+                                        _formatCurrency(
+                                          _asDouble(collector['amount']),
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      IconButton(
+                                        tooltip: 'View collector details',
                                         onPressed: () =>
                                             _showCollectorDetailsDialog(
                                               collector,
                                             ),
                                         icon: const Icon(
-                                          Icons.fact_check_outlined,
+                                          Icons.visibility_outlined,
+                                          size: 20,
                                         ),
-                                        label: const Text(
-                                          'Review member contributions',
-                                        ),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: const Color(
-                                            0xFF0D47A1,
-                                          ),
-                                          minimumSize: const Size.fromHeight(
-                                            52,
-                                          ),
-                                          textStyle: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
+                                        color: const Color(0xFF0D47A1),
+                                        visualDensity: VisualDensity.compact,
                                       ),
                                     ),
                                   ],
-                                ),
-                              );
-                            }),
+                                );
+                              }).toList(),
+                            ),
                         ],
                       ),
                     ),

@@ -66,9 +66,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   int _activeMembers = 0;
   int _removedMembers = 0;
   int _todayDeceased = 0;
+  // ignore: unused_field
   int _pendingMembers = 0;
   int _unreadNotifCount = 0;
   double _currentFunds = 0;
+  // ignore: unused_field
   double _collectorCollected = 0;
   double _todayCollected = 0;
   List<Map<String, dynamic>> _recentCollections = [];

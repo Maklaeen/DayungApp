@@ -183,9 +183,7 @@ class _NamesOnlyMembersPageState extends State<NamesOnlyMembersPage> {
                           rows: _filteredMembers.map((member) {
                             return DataRow(
                               cells: [
-                                DataCell(
-                                  Text(member['full_name'] ?? 'Member'),
-                                ),
+                                DataCell(Text(member['full_name'] ?? 'Member')),
                                 DataCell(Text('${member['user_id']}')),
                               ],
                             );

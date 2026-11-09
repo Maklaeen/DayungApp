@@ -71,7 +71,9 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     return roleUnitId ?? selectedUnitId ?? _dayungUnitId ?? _primaryUnitId;
   }
 
+  // ignore: unused_field
   String _fullName = '';
+  // ignore: unused_field
   String _selectedDayungUnit = 'Dayung Unit';
 
   @override

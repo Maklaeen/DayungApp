@@ -94,10 +94,31 @@ class ReportsService {
     if (unitId != null) claimsQuery = claimsQuery.eq('dayung_unit_id', unitId);
 
     final claims = List<Map<String, dynamic>>.from(await claimsQuery);
+    final secretaryIds = claims
+        .map((claim) => (claim['secretary_id'] ?? '').toString().trim())
+        .where((id) => id.isNotEmpty && id != 'null')
+        .toSet()
+        .toList();
+    final secretaryNamesById = <String, String>{};
+    if (secretaryIds.isNotEmpty) {
+      final secretaries = List<Map<String, dynamic>>.from(
+        await sb
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', secretaryIds),
+      );
+      for (final secretary in secretaries) {
+        secretaryNamesById[(secretary['id'] ?? '').toString()] =
+            (secretary['full_name'] ?? '').toString().trim();
+      }
+    }
+
     final activities = claims
         .where((claim) => _isTruthyFlag(claim['claimedmoney']))
-        .map(
-          (claim) => {
+        .map((claim) {
+          final secretaryId = (claim['secretary_id'] ?? '').toString().trim();
+          final secretaryName = secretaryNamesById[secretaryId];
+          return {
             'beneficiary_name':
                 (claim['claimant_name'] ?? '').toString().trim().isEmpty
                 ? 'Unknown beneficiary'
@@ -106,14 +127,15 @@ class ReportsService {
                 ? 'Unknown member'
                 : claim['title'],
             'amount': claim['amount_released'],
-            'released_by':
-                (claim['secretary_id'] ?? '').toString().trim().isEmpty
+            'released_by': secretaryId.isEmpty || secretaryId == 'null'
                 ? 'Not recorded'
-                : claim['secretary_id'],
+                : secretaryName == null || secretaryName.isEmpty
+                ? 'Unknown secretary'
+                : secretaryName,
             'released_at': claim['date_released'],
             'status': claim['status'],
-          },
-        )
+          };
+        })
         .toList();
 
     activities.sort((a, b) {
@@ -380,7 +402,6 @@ class _ReportsPageState extends State<ReportsPage> {
   String? disbursementActivityError;
   String? collectionReportError;
   String? _selectedIndividualMemberId;
-  final Set<String> _selectedConsolidatedMemberIds = {};
   bool loading = true;
   pw.ThemeData? _pdfTheme;
 
@@ -433,11 +454,6 @@ class _ReportsPageState extends State<ReportsPage> {
             )) {
           _selectedIndividualMemberId = null;
         }
-        _selectedConsolidatedMemberIds.removeWhere(
-          (id) => !collectionRows.any(
-            (row) => row['userdeceased']?.toString() == id,
-          ),
-        );
         disbursementActivities = activities;
         memberActivitySummary = activitySummary;
         disbursementActivityError = null;
@@ -469,31 +485,20 @@ class _ReportsPageState extends State<ReportsPage> {
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
 
-  Future<void> _showMemberPicker({required bool multiSelect}) async {
-    final selectedIds = multiSelect
-        ? _selectedConsolidatedMemberIds.toList()
-        : [
-            if (_selectedIndividualMemberId != null)
-              _selectedIndividualMemberId!,
-          ];
+  Future<void> _showMemberPicker() async {
     final result = await showDialog<List<String>>(
       context: context,
       builder: (context) => _SearchableMemberPicker(
         members: _reportMembers,
-        selectedIds: selectedIds,
-        multiSelect: multiSelect,
-        title: multiSelect ? 'Select members' : 'Select deceased member',
+        selectedIds: [
+          if (_selectedIndividualMemberId != null) _selectedIndividualMemberId!,
+        ],
+        title: 'Select deceased member',
       ),
     );
     if (result == null || !mounted) return;
     setState(() {
-      if (multiSelect) {
-        _selectedConsolidatedMemberIds
-          ..clear()
-          ..addAll(result);
-      } else {
-        _selectedIndividualMemberId = result.isEmpty ? null : result.first;
-      }
+      _selectedIndividualMemberId = result.isEmpty ? null : result.first;
     });
   }
 
@@ -520,9 +525,7 @@ class _ReportsPageState extends State<ReportsPage> {
         _CollectionMemberSelector(
           label: 'Deceased member',
           selectedName: selectedMember?.name,
-          onTap: _reportMembers.isEmpty
-              ? null
-              : () => _showMemberPicker(multiSelect: false),
+          onTap: _reportMembers.isEmpty ? null : _showMemberPicker,
         ),
         const SizedBox(height: 16),
         if (collectionReportError != null)
@@ -552,74 +555,72 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Widget _buildConsolidatedCollectionReport() {
-    final selectedMembers = _reportMembers
-        .where((member) => _selectedConsolidatedMemberIds.contains(member.id))
-        .toList();
-    final summaryRows = selectedMembers.map((member) {
-      final payments = collectionReportRows
-          .where((row) => row['userdeceased']?.toString() == member.id)
-          .toList();
-      final paidPayments = payments
-          .where(
-            (row) => (row['status'] ?? '').toString().toLowerCase() == 'paid',
-          )
-          .toList();
-      DateTime? latestPaidDate;
-      for (final payment in paidPayments) {
-        final date = DateTime.tryParse(
-          '${payment['paid_at'] ?? payment['created_at'] ?? ''}',
-        );
-        if (date != null &&
-            (latestPaidDate == null || date.isAfter(latestPaidDate))) {
-          latestPaidDate = date;
-        }
-      }
-      final total = paidPayments.fold<double>(
-        0,
-        (sum, payment) => sum + _reportAmount(payment['amount']),
-      );
-      return <String, dynamic>{
-        'deceased_member': member.name,
-        'collected': total,
-        'date': latestPaidDate,
-        'status': paidPayments.isEmpty ? 'Pending' : 'Collected',
-        'claim_status': collectionClaimStatuses[member.id] == true
-            ? 'Released'
-            : collectionClaimStatuses.containsKey(member.id)
-            ? 'Pending'
-            : 'Not filed',
-      };
-    }).toList();
+    final summaryRows =
+        _reportMembers.map((member) {
+          final payments = collectionReportRows
+              .where((row) => row['userdeceased']?.toString() == member.id)
+              .toList();
+          final paidPayments = payments
+              .where(
+                (row) =>
+                    (row['status'] ?? '').toString().toLowerCase() == 'paid',
+              )
+              .toList();
+          DateTime? latestPaidDate;
+          for (final payment in paidPayments) {
+            final date = DateTime.tryParse(
+              '${payment['paid_at'] ?? payment['created_at'] ?? ''}',
+            );
+            if (date != null &&
+                (latestPaidDate == null || date.isAfter(latestPaidDate))) {
+              latestPaidDate = date;
+            }
+          }
+          final total = paidPayments.fold<double>(
+            0,
+            (sum, payment) => sum + _reportAmount(payment['amount']),
+          );
+          return <String, dynamic>{
+            'deceased_member': member.name,
+            'collected': total,
+            'date': latestPaidDate,
+            'status': paidPayments.isEmpty ? 'Pending' : 'Collected',
+            'claim_status': collectionClaimStatuses[member.id] == true
+                ? 'Released'
+                : collectionClaimStatuses.containsKey(member.id)
+                ? 'Pending'
+                : 'Not filed',
+          };
+        }).toList()..sort((a, b) {
+          final aDate = a['date'] as DateTime?;
+          final bDate = b['date'] as DateTime?;
+          if (aDate == null && bDate == null) {
+            return (a['deceased_member'] as String).compareTo(
+              b['deceased_member'] as String,
+            );
+          }
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          final dateOrder = bDate.compareTo(aDate);
+          return dateOrder != 0
+              ? dateOrder
+              : (a['deceased_member'] as String).compareTo(
+                  b['deceased_member'] as String,
+                );
+        });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _CollectionMemberSelector(
-          label: 'Members',
-          selectedName: selectedMembers.isEmpty
-              ? null
-              : '${selectedMembers.length} selected',
-          onTap: _reportMembers.isEmpty
-              ? null
-              : () => _showMemberPicker(multiSelect: true),
-          multiSelect: true,
-        ),
-        const SizedBox(height: 16),
         if (collectionReportError != null)
           const _CollectionReportNotice(
             icon: Icons.cloud_off_rounded,
             message: 'Collection details could not be loaded. Try refreshing.',
           )
-        else if (_selectedConsolidatedMemberIds.isEmpty)
-          const _CollectionReportNotice(
-            icon: Icons.search_rounded,
-            message:
-                'Choose one or more members to compare collection and claim status.',
-          )
         else if (summaryRows.isEmpty)
           const _CollectionReportNotice(
             icon: Icons.receipt_long_rounded,
-            message: 'No collection records are available for these members.',
+            message: 'No collection records are available.',
           )
         else
           _ConsolidatedCollectionRows(rows: summaryRows),
@@ -1239,13 +1240,11 @@ class _ReportMember {
 class _SearchableMemberPicker extends StatefulWidget {
   final List<_ReportMember> members;
   final List<String> selectedIds;
-  final bool multiSelect;
   final String title;
 
   const _SearchableMemberPicker({
     required this.members,
     required this.selectedIds,
-    required this.multiSelect,
     required this.title,
   });
 
@@ -1299,15 +1298,9 @@ class _SearchableMemberPickerState extends State<_SearchableMemberPicker> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
-                widget.multiSelect
-                    ? 'Search names and select all that apply.'
-                    : 'Search by name to find the right member.',
-                style: const TextStyle(
-                  color: kSubText,
-                  fontSize: 14,
-                  height: 1.4,
-                ),
+              const Text(
+                'Search by name to find the right member.',
+                style: TextStyle(color: kSubText, fontSize: 14, height: 1.4),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -1379,58 +1372,22 @@ class _SearchableMemberPickerState extends State<_SearchableMemberPicker> {
                                 color: Color(0xFF1F2937),
                               ),
                             ),
-                            trailing: widget.multiSelect
-                                ? Checkbox(
-                                    value: isSelected,
-                                    onChanged: (_) => _toggle(member.id),
-                                  )
-                                : isSelected
+                            trailing: isSelected
                                 ? const Icon(
                                     Icons.check_circle_rounded,
                                     color: kPrimary,
                                   )
                                 : null,
-                            onTap: () {
-                              if (widget.multiSelect) {
-                                _toggle(member.id);
-                              } else {
-                                Navigator.of(context).pop([member.id]);
-                              }
-                            },
+                            onTap: () => Navigator.of(context).pop([member.id]),
                           );
                         },
                       ),
               ),
-              if (widget.multiSelect) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () =>
-                        Navigator.of(context).pop(_selectedIds.toList()),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: kPrimary,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Text('Done (${_selectedIds.length} selected)'),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
       ),
     );
-  }
-
-  void _toggle(String memberId) {
-    setState(() {
-      if (!_selectedIds.add(memberId)) _selectedIds.remove(memberId);
-    });
   }
 }
 
@@ -1438,13 +1395,11 @@ class _CollectionMemberSelector extends StatelessWidget {
   final String label;
   final String? selectedName;
   final VoidCallback? onTap;
-  final bool multiSelect;
 
   const _CollectionMemberSelector({
     required this.label,
     required this.selectedName,
     required this.onTap,
-    this.multiSelect = false,
   });
 
   @override
@@ -1465,9 +1420,7 @@ class _CollectionMemberSelector extends StatelessWidget {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: onTap,
-            icon: Icon(
-              multiSelect ? Icons.group_add_rounded : Icons.search_rounded,
-            ),
+            icon: const Icon(Icons.search_rounded),
             label: Text(
               selectedName ??
                   (onTap == null ? 'No members available' : 'Search members'),
@@ -1582,46 +1535,161 @@ class _CollectedTotalCard extends StatelessWidget {
   }
 }
 
-class _IndividualCollectionRows extends StatelessWidget {
+class _IndividualCollectionRows extends StatefulWidget {
   final List<Map<String, dynamic>> rows;
 
   const _IndividualCollectionRows({required this.rows});
 
   @override
+  State<_IndividualCollectionRows> createState() =>
+      _IndividualCollectionRowsState();
+}
+
+class _IndividualCollectionRowsState extends State<_IndividualCollectionRows> {
+  static const _rowsPerPage = 20;
+  final _searchController = TextEditingController();
+  int _currentPage = 0;
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final query = _searchQuery.trim().toLowerCase();
+        final filteredRows = widget.rows.where((row) {
+          if (query.isEmpty) return true;
+          final searchableText = [
+            row['contributor_name'],
+            _formatReportDate(_paymentDate(row)),
+            'Not recorded',
+            _formatReportCurrency(_reportAmount(row['amount'])),
+            _paymentStatus(row),
+          ].join(' ').toLowerCase();
+          return searchableText.contains(query);
+        }).toList();
+
         if (constraints.maxWidth < 720) {
-          return Column(children: rows.map(_mobileCard).toList());
+          return Column(
+            children: [_searchField(), ...filteredRows.map(_mobileCard)],
+          );
         }
-        return _reportTable(
-          columns: const [
-            DataColumn(label: Text('Contributor')),
-            DataColumn(label: Text('Date')),
-            DataColumn(label: Text('Method')),
-            DataColumn(label: Text('Amount')),
-            DataColumn(label: Text('Status')),
-          ],
-          rows: rows
-              .map(
-                (row) => DataRow(
-                  cells: [
-                    DataCell(_reportCell(row['contributor_name'])),
-                    DataCell(_reportCell(_formatReportDate(_paymentDate(row)))),
-                    DataCell(_reportCell('Not recorded')),
-                    DataCell(
-                      _reportCell(
-                        _formatReportCurrency(_reportAmount(row['amount'])),
-                      ),
+        final pageCount = ((filteredRows.length - 1) ~/ _rowsPerPage) + 1;
+        final pageIndex = _currentPage < pageCount
+            ? _currentPage
+            : pageCount - 1;
+        final start = pageIndex * _rowsPerPage;
+        final end = (start + _rowsPerPage).clamp(0, filteredRows.length);
+        final pageRows = filteredRows.skip(start).take(_rowsPerPage);
+
+        return Column(
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(width: 380, child: _searchField()),
+            ),
+            const SizedBox(height: 12),
+            _reportTable(
+              columns: const [
+                DataColumn(label: Text('Contributor')),
+                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Method')),
+                DataColumn(label: Text('Amount')),
+                DataColumn(label: Text('Status')),
+              ],
+              rows: pageRows
+                  .map(
+                    (row) => DataRow(
+                      cells: [
+                        DataCell(_reportCell(row['contributor_name'])),
+                        DataCell(
+                          _reportCell(_formatReportDate(_paymentDate(row))),
+                        ),
+                        DataCell(_reportCell('Not recorded')),
+                        DataCell(
+                          _reportCell(
+                            _formatReportCurrency(_reportAmount(row['amount'])),
+                          ),
+                        ),
+                        DataCell(
+                          _CollectionStatusPill(label: _paymentStatus(row)),
+                        ),
+                      ],
                     ),
-                    DataCell(_CollectionStatusPill(label: _paymentStatus(row))),
-                  ],
-                ),
-              )
-              .toList(),
-          minWidth: 700,
+                  )
+                  .toList(),
+              minWidth: 700,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    filteredRows.isEmpty
+                        ? '0 of 0'
+                        : '${start + 1}-$end of ${filteredRows.length}',
+                    style: const TextStyle(
+                      color: kSubText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Previous page',
+                    onPressed: pageIndex > 0
+                        ? () => setState(() => _currentPage = pageIndex - 1)
+                        : null,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  IconButton(
+                    tooltip: 'Next page',
+                    onPressed: pageIndex < pageCount - 1
+                        ? () => setState(() => _currentPage = pageIndex + 1)
+                        : null,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _searchField() {
+    return TextField(
+      controller: _searchController,
+      onChanged: (value) => setState(() {
+        _searchQuery = value;
+        _currentPage = 0;
+      }),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.search_rounded),
+        hintText: 'Search contributors',
+        filled: true,
+        fillColor: const Color(0xFFF7F9FC),
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kBorderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kBorderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kPrimary, width: 1.5),
+        ),
+      ),
     );
   }
 
@@ -1638,46 +1706,111 @@ class _IndividualCollectionRows extends StatelessWidget {
   }
 }
 
-class _ConsolidatedCollectionRows extends StatelessWidget {
+class _ConsolidatedCollectionRows extends StatefulWidget {
   final List<Map<String, dynamic>> rows;
 
   const _ConsolidatedCollectionRows({required this.rows});
 
   @override
+  State<_ConsolidatedCollectionRows> createState() =>
+      _ConsolidatedCollectionRowsState();
+}
+
+class _ConsolidatedCollectionRowsState
+    extends State<_ConsolidatedCollectionRows> {
+  static const _rowsPerPage = 20;
+  int _currentPage = 0;
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final pageCount = ((widget.rows.length - 1) ~/ _rowsPerPage) + 1;
+        final pageIndex = _currentPage < pageCount
+            ? _currentPage
+            : pageCount - 1;
+        final start = pageIndex * _rowsPerPage;
+        final end = (start + _rowsPerPage).clamp(0, widget.rows.length);
+        final pageRows = widget.rows.skip(start).take(_rowsPerPage).toList();
+
         if (constraints.maxWidth < 720) {
-          return Column(children: rows.map(_mobileCard).toList());
+          return Column(
+            children: [
+              ...pageRows.map(_mobileCard),
+              _buildPagination(pageIndex, pageCount, start, end),
+            ],
+          );
         }
-        return _reportTable(
-          columns: const [
-            DataColumn(label: Text('Deceased Member')),
-            DataColumn(label: Text('Collected')),
-            DataColumn(label: Text('Collection Date')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Claim Status')),
+        return Column(
+          children: [
+            _reportTable(
+              columns: const [
+                DataColumn(label: Text('Deceased Member')),
+                DataColumn(label: Text('Collected')),
+                DataColumn(label: Text('Collection Date')),
+                DataColumn(label: Text('Status')),
+                DataColumn(label: Text('Claim Status')),
+              ],
+              rows: pageRows
+                  .map(
+                    (row) => DataRow(
+                      cells: [
+                        DataCell(_reportCell(row['deceased_member'])),
+                        DataCell(
+                          _reportCell(_formatReportCurrency(row['collected'])),
+                        ),
+                        DataCell(_reportCell(_formatReportDate(row['date']))),
+                        DataCell(
+                          _CollectionStatusPill(label: '${row['status']}'),
+                        ),
+                        DataCell(
+                          _CollectionStatusPill(
+                            label: '${row['claim_status']}',
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  .toList(),
+              minWidth: 720,
+            ),
+            _buildPagination(pageIndex, pageCount, start, end),
           ],
-          rows: rows
-              .map(
-                (row) => DataRow(
-                  cells: [
-                    DataCell(_reportCell(row['deceased_member'])),
-                    DataCell(
-                      _reportCell(_formatReportCurrency(row['collected'])),
-                    ),
-                    DataCell(_reportCell(_formatReportDate(row['date']))),
-                    DataCell(_CollectionStatusPill(label: '${row['status']}')),
-                    DataCell(
-                      _CollectionStatusPill(label: '${row['claim_status']}'),
-                    ),
-                  ],
-                ),
-              )
-              .toList(),
-          minWidth: 720,
         );
       },
+    );
+  }
+
+  Widget _buildPagination(int pageIndex, int pageCount, int start, int end) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            '${start + 1}-$end of ${widget.rows.length}',
+            style: const TextStyle(
+              color: kSubText,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Previous page',
+            onPressed: pageIndex > 0
+                ? () => setState(() => _currentPage = pageIndex - 1)
+                : null,
+            icon: const Icon(Icons.chevron_left),
+          ),
+          IconButton(
+            tooltip: 'Next page',
+            onPressed: pageIndex < pageCount - 1
+                ? () => setState(() => _currentPage = pageIndex + 1)
+                : null,
+            icon: const Icon(Icons.chevron_right),
+          ),
+        ],
+      ),
     );
   }
 

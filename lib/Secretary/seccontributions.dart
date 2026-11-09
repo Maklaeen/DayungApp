@@ -402,14 +402,14 @@ class _SecretaryContributionsPageState
                                           (p['userdeceased'] ?? '').toString();
                                       final userDeceased =
                                           (p['deceased_name']
-                                                      ?.toString()
-                                                      .isNotEmpty ==
-                                                  true)
-                                              ? p['deceased_name'].toString()
-                                              : (userDeceasedId.isNotEmpty
-                                                    ? _users[userDeceasedId] ??
-                                                          userDeceasedId
-                                                    : 'Membership Payment');
+                                                  ?.toString()
+                                                  .isNotEmpty ==
+                                              true)
+                                          ? p['deceased_name'].toString()
+                                          : (userDeceasedId.isNotEmpty
+                                                ? _users[userDeceasedId] ??
+                                                      userDeceasedId
+                                                : 'Membership Payment');
                                       final paidAtStr = _fmtDateTime(
                                         p['paid_at'],
                                       );

@@ -328,7 +328,7 @@ class SetAmountsTab extends StatelessWidget {
                                 ),
                               );
                             }
-                                                    },
+                          },
                   );
                 },
               ),

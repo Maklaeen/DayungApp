@@ -93,6 +93,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     return !approvedAt.isAfter(claimDate);
   }
 
+  // ignore: unused_element
   List<Map<String, dynamic>> get _filteredDeceasedOptions {
     if (_deceasedSearch.trim().isEmpty) return _deceasedOptions;
     final query = _deceasedSearch.trim().toLowerCase();
@@ -759,6 +760,45 @@ class _CollectCashPageState extends State<CollectCashPage> {
       payment['status'] = 'paid';
       payment['paid_at'] = now;
 
+      try {
+        final collector = await sb
+            .from('users')
+            .select('full_name')
+            .eq('id', collectorId)
+            .maybeSingle()
+            .timeout(_queryTimeout);
+        final collectorName = (collector?['full_name'] ?? 'Collector')
+            .toString();
+
+        await sb
+            .from('notifications')
+            .insert({
+              'recipient_id': userId,
+              'sender_id': collectorId,
+              'dayung_unit_id': widget.dayungUnitId,
+              'type': 'announcement',
+              'title': 'Contribution Payment Recorded',
+              'body':
+                  'You have paid ₱${amount.toStringAsFixed(2)} for the deceased member '
+                  '${(selected['display_name'] ?? 'Deceased').toString()}. '
+                  'Collected by $collectorName.',
+              'announcement_id': null,
+              'read_at': null,
+              'created_at': now,
+            })
+            .timeout(_queryTimeout);
+      } catch (e) {
+        if (mounted) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                'Payment recorded, but notification could not be sent: $e',
+              ),
+            ),
+          );
+        }
+      }
+
       // Mark that we made changes so callers can refresh when this page pops.
       _hasChanges = true;
 
@@ -944,6 +984,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     );
   }
 
+  // ignore: unused_element
   Future<void> _ensurePaymentRecordsForClaim(Map<String, dynamic> claim) async {
     final deceasedUserId = claim['user_id'].toString();
     final dayungUnitId = widget.dayungUnitId;
@@ -978,6 +1019,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     final width = MediaQuery.of(context).size.width;
     final wide = width >= 860;
 
+    // ignore: deprecated_member_use
     return WillPopScope(
       onWillPop: () async {
         if (_selectedDeceased != null) {
@@ -1162,9 +1204,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
               },
               cells: [
                 DataCell(Text(displayName)),
-                DataCell(Text(
-                  'PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}',
-                )),
+                DataCell(
+                  Text('PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}'),
+                ),
                 DataCell(Text(claimed ? 'Claimed money' : 'Unclaimed')),
               ],
             );
@@ -1173,6 +1215,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     ];
   }
 
+  // ignore: unused_element
   Widget _claimCard(Map<String, dynamic> claim) {
     final isClaimed = _isClaimedMoney(claim['claimedmoney']);
     final beneficiaryId = (claim['beneficiary_id'] ?? '').toString();
@@ -1224,7 +1267,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
                   Expanded(
                     child: Text(
                       (claim['beneficiary_id'] ?? '').toString().isNotEmpty
-                          ? displayName.isNotEmpty ? displayName : 'Beneficiary'
+                          ? displayName.isNotEmpty
+                                ? displayName
+                                : 'Beneficiary'
                           : (displayName.isNotEmpty
                                 ? displayName
                                 : _memberName(userId)),
@@ -1355,28 +1400,29 @@ class _CollectCashPageState extends State<CollectCashPage> {
                 ? _asDouble(payment?['amount'])
                 : _asDouble(_selectedDeceased?['amount']);
             final paidAt = (payment?['paid_at'] ?? '').toString();
-            return DataRow(cells: [
-              DataCell(Text((member['full_name'] ?? 'Member').toString())),
-              DataCell(Text('PHP ${amount.toStringAsFixed(2)}')),
-              DataCell(Text(isPaid ? 'Paid' : 'Pending')),
-              DataCell(Text(
-                paidAt.isEmpty ? '—' : paidAt.split('T').first,
-              )),
-              DataCell(
-                isCurrentUser
-                    ? const Text('Cannot collect for yourself')
-                    : ElevatedButton.icon(
-                        onPressed:
-                            isPaid ? null : () => _showCollectDialog(member),
-                        icon: Icon(
-                          isPaid
-                              ? Icons.check_circle_rounded
-                              : Icons.payments_rounded,
+            return DataRow(
+              cells: [
+                DataCell(Text((member['full_name'] ?? 'Member').toString())),
+                DataCell(Text('PHP ${amount.toStringAsFixed(2)}')),
+                DataCell(Text(isPaid ? 'Paid' : 'Pending')),
+                DataCell(Text(paidAt.isEmpty ? '—' : paidAt.split('T').first)),
+                DataCell(
+                  isCurrentUser
+                      ? const Text('Cannot collect for yourself')
+                      : ElevatedButton.icon(
+                          onPressed: isPaid
+                              ? null
+                              : () => _showCollectDialog(member),
+                          icon: Icon(
+                            isPaid
+                                ? Icons.check_circle_rounded
+                                : Icons.payments_rounded,
+                          ),
+                          label: Text(isPaid ? 'Paid' : 'Collect cash'),
                         ),
-                        label: Text(isPaid ? 'Paid' : 'Collect cash'),
-                      ),
-              ),
-            ]);
+                ),
+              ],
+            );
           }).toList(),
         ),
     ];
@@ -1678,6 +1724,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     );
   }
 
+  // ignore: unused_element
   Widget _deceasedCard(Map<String, dynamic> option) {
     final requiredAmount = _asDouble(option['required_amount']);
     final excludedUserId = (option['user_id'] ?? '').toString();
@@ -1813,6 +1860,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     );
   }
 
+  // ignore: unused_element
   Widget _memberCard(Map<String, dynamic> member) {
     final memberId = (member['id'] ?? '').toString();
     final payment = _paymentForMember(memberId);
@@ -1949,6 +1997,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                       icon: const Icon(Icons.block),
                       label: const Text('Cannot collect for yourself'),
                       style: ElevatedButton.styleFrom(
+                        // ignore: deprecated_member_use
                         backgroundColor: kWarn.withOpacity(0.7),
                         foregroundColor: Colors.white,
                         disabledBackgroundColor: const Color(0xFFFDE68A),
@@ -1966,6 +2015,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                     decoration: BoxDecoration(
                       color: kSurface,
                       borderRadius: BorderRadius.circular(12),
+                      // ignore: deprecated_member_use
                       border: Border.all(color: kWarn.withOpacity(0.3)),
                     ),
                     child: const Text(
