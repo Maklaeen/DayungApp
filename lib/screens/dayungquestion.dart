@@ -92,59 +92,15 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   followed by service tag positions*/
 
   List<double> _generatePreferenceVector() {
-    // Meeting Frequency (3 positions)
-    double meetWeekly = meeting_frequency == 'Weekly' ? 1.0 : 0.0;
-    double meetMonthly = meeting_frequency == 'Monthly' ? 1.0 : 0.0;
-    double meetNeeded = meeting_frequency == 'Needed' ? 1.0 : 0.0;
-
-    // Payment Method (3 positions)
-    double payCash = payment_method == 'Cash' ? 1.0 : 0.0;
-    double payGcash = payment_method == 'GCash' ? 1.0 : 0.0;
-    double payBoth = payment_method == 'Both' ? 1.0 : 0.0;
-
-    List<String> feeRanges = [
-      '50-100',
-      '100-150',
-      '150-200',
-      '200-250',
-      '250-300',
-      '300-350',
-      '400 plus',
-    ];
-    List<double> regFee = List.filled(feeRanges.length, 0.0);
-    for (int i = 0; i < feeRanges.length; i++) {
-      if (contribution_amount == feeRanges[i]) regFee[i] = 1.0;
-    }
-
-    // Membership Payment (same buckets)
-    List<double> memFee = List.filled(feeRanges.length, 0.0);
-    for (int i = 0; i < feeRanges.length; i++) {
-      if (membership_payment == feeRanges[i]) memFee[i] = 1.0;
-    }
-
-    // Penalty Payment (same buckets)
-    List<double> penFee = List.filled(feeRanges.length, 0.0);
-    for (int i = 0; i < feeRanges.length; i++) {
-      if (penalty_payment == feeRanges[i]) penFee[i] = 1.0;
-    }
-
-    final serviceTagVector = dayungServiceTagLabels.map((label) {
-      return selectedServiceTags[label] == true ? 1.0 : 0.0;
-    }).toList();
-
-    return [
-      meetWeekly,
-      meetMonthly,
-      meetNeeded,
-      payCash,
-      payGcash,
-      payBoth,
-      ...regFee,
-      ...memFee,
-      ...penFee,
-      0.0,
-      ...serviceTagVector,
-    ];
+    return generateDayungPreferenceVector({
+      'meeting_frequency': meeting_frequency,
+      'payment_method': payment_method,
+      'contribution_amount': contribution_amount,
+      'membership_payment': membership_payment,
+      'penalty_payment': penalty_payment,
+      for (final label in dayungServiceTagLabels)
+        dayungServiceTagColumns[label]!: selectedServiceTags[label] ?? false,
+    });
   }
 
   /// Nag-compute sa cosine similarity tali sa user preference vector `u`
@@ -178,81 +134,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   // Helper function para maghimo og vector gikan sa dayung_rules row.
   // Gigamit kini para sa local similarity matching.
-  List<double> _buildRuleVector(Map<String, dynamic> m) {
-    String norm(Object? s) {
-      if (s == null) return '';
-      if (s is bool) return s ? 'yes' : 'no';
-      return s.toString().trim().toLowerCase();
-    }
-
-    // Meeting Frequency (3 positions)
-    final meet = norm(m['meeting_frequency']);
-    double meetWeekly = meet == 'weekly' ? 1.0 : 0.0;
-    double meetMonthly = meet == 'monthly' ? 1.0 : 0.0;
-    double meetNeeded = meet == 'needed' ? 1.0 : 0.0;
-
-    // Payment Method (3 positions)
-    final pay = norm(m['payment_method']);
-    double payCash = pay == 'cash' ? 1.0 : 0.0;
-    double payGcash = pay == 'gcash' ? 1.0 : 0.0;
-    double payBoth = pay == 'both' ? 1.0 : 0.0;
-
-    List<String> feeRanges = [
-      '50-100',
-      '100-150',
-      '150-200',
-      '200-250',
-      '250-300',
-      '300-350',
-      '400 plus',
-    ];
-    List<double> regFee = List.filled(feeRanges.length, 0.0);
-    for (int i = 0; i < feeRanges.length; i++) {
-      if (isAmountInRange(m['exactamountforcollection'], feeRanges[i])) {
-        regFee[i] = 1.0;
-      }
-    }
-
-    // Membership Payment (same buckets)
-    List<double> memFee = List.filled(feeRanges.length, 0.0);
-    for (int i = 0; i < feeRanges.length; i++) {
-      if (isAmountInRange(m['exactamountformembership'], feeRanges[i])) {
-        memFee[i] = 1.0;
-      }
-    }
-
-    // Penalty Payment (same buckets)
-    List<double> penFee = List.filled(feeRanges.length, 0.0);
-    final exactPenalty = m['exactpenaltypayment'];
-    final hasExactPenalty =
-        exactPenalty != null && exactPenalty.toString().trim().isNotEmpty;
-    for (int i = 0; i < feeRanges.length; i++) {
-      final matchesExactPenalty = hasExactPenalty
-          ? isAmountInRange(exactPenalty, feeRanges[i])
-          : norm(m['penalty_payment']) == feeRanges[i];
-      if (matchesExactPenalty) penFee[i] = 1.0;
-    }
-
-    final serviceTagVector = dayungServiceTagLabels.map((label) {
-      final column = dayungServiceTagColumns[label]!;
-      final value = m[column];
-      return value == true ? 1.0 : 0.0;
-    }).toList();
-
-    return [
-      meetWeekly,
-      meetMonthly,
-      meetNeeded,
-      payCash,
-      payGcash,
-      payBoth,
-      ...regFee,
-      ...memFee,
-      ...penFee,
-      m['open_for_all'] == true ? 1.0 : 0.0,
-      ...serviceTagVector,
-    ];
-  }
+  List<double> _buildRuleVector(Map<String, dynamic> rule) =>
+      buildDayungRuleVector(rule);
 
   // Kini nga function mopangita og Dayung units, maghimo sa ilang vectors,
   // ug mosort base sa cosine similarity sa user preference vector.
@@ -377,8 +260,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     selectedDistanceKm = 5;
     _loadSavedPreferences();
     _fetchUserAddress();
-    _fetchUserLatitude();
-    _fetchUserLongitude();
   }
 
   @override
@@ -430,6 +311,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           .select('barangay,city,province,latitude,longitude')
           .eq('id', widget.userId)
           .single();
+      if (!mounted) return;
       setState(() {
         userBarangay = resp['barangay'];
         userCity = resp['city'];
@@ -451,40 +333,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       );
     } catch (e) {
       debugPrint('Failed to fetch user address: $e');
-    }
-  }
-
-  Future<void> _fetchUserLatitude() async {
-    try {
-      final resp = await Supabase.instance.client
-          .from('users')
-          .select('latitude')
-          .eq('id', widget.userId)
-          .single();
-      setState(() {
-        userLat = resp['latitude'] != null
-            ? double.tryParse('${resp['latitude']}')
-            : null;
-      });
-    } catch (e) {
-      debugPrint('Failed to fetch user latitude: $e');
-    }
-  }
-
-  Future<void> _fetchUserLongitude() async {
-    try {
-      final resp = await Supabase.instance.client
-          .from('users')
-          .select('longitude')
-          .eq('id', widget.userId)
-          .single();
-      setState(() {
-        userLng = resp['longitude'] != null
-            ? double.tryParse('${resp['longitude']}')
-            : null;
-      });
-    } catch (e) {
-      debugPrint('Failed to fetch user longitude: $e');
     }
   }
 
@@ -512,6 +360,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 .from('users')
                 .update({'latitude': lat, 'longitude': lon})
                 .eq('id', widget.userId);
+            if (!mounted) return;
             setState(() {
               userLat = lat;
               userLng = lon;
@@ -602,21 +451,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     );
   }
 
-  // Haversine formula for distance in km
-  double _distanceKm(double lat1, double lng1, double lat2, double lng2) {
-    const R = 6371.0;
-    final dLat = (lat2 - lat1) * pi / 180.0;
-    final dLng = (lng2 - lng1) * pi / 180.0;
-    final a =
-        sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1 * pi / 180.0) *
-            cos(lat2 * pi / 180.0) *
-            sin(dLng / 2) *
-            sin(dLng / 2);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return R * c;
-  }
-
   // Helper function para sa attribute match boost
   // Kini nga function nag-compute og "boost" score base sa pila ka user-selected features (1s sa user vector)
   // nga nag-match pud sa Dayung unit vector. Gigamit ang formula:
@@ -644,17 +478,15 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   int _countSelectedPreferences() {
-    final selectedDropdownCount = [
-      meeting_frequency,
-      payment_method,
-      contribution_amount,
-      membership_payment,
-      penalty_payment,
-    ].where((value) => value != null).length;
-    final selectedServiceCount = selectedServiceTags.values
-        .where((selected) => selected)
-        .length;
-    return selectedDropdownCount + selectedServiceCount;
+    return countDayungPreferences({
+      'meeting_frequency': meeting_frequency,
+      'payment_method': payment_method,
+      'contribution_amount': contribution_amount,
+      'membership_payment': membership_payment,
+      'penalty_payment': penalty_payment,
+      for (final label in dayungServiceTagLabels)
+        dayungServiceTagColumns[label]!: selectedServiceTags[label] ?? false,
+    });
   }
 
   List<dynamic> _rankPassingUnits(
@@ -679,8 +511,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       final lng = double.tryParse('${unit['longitude']}');
       double? distanceKm;
       if (userLat != null && userLng != null && lat != null && lng != null) {
-        distanceKm = _distanceKm(userLat!, userLng!, lat, lng);
+        distanceKm = dayungDistanceKm(userLat!, userLng!, lat, lng);
       }
+      final matchPercentage = hybridScoreAsPercentage(
+        hybrid.finalScore,
+        distanceKm: distanceKm,
+      );
 
       final scoredUnit = {
         ...Map<String, dynamic>.from(unit as Map),
@@ -688,6 +524,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         '__cosineSimilarity': hybrid.cosineSimilarity,
         '__attributeMatchBoost': hybrid.attributeMatchBoost,
         '__hybridScore': hybrid.finalScore,
+        '__matchPercentage': matchPercentage,
+        '__combinedMatchScore': matchPercentage,
         '__distanceKm': distanceKm,
         '__matchedSelectedCount': hybrid.matchedSelectedCount,
         '__selectedCount': hybrid.selectedCount,
@@ -716,8 +554,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         return 1;
       }
 
-      final scoreCmp = ((b['__hybridScore'] as num?) ?? 0).compareTo(
-        (a['__hybridScore'] as num?) ?? 0,
+      final scoreCmp = ((b['__combinedMatchScore'] as num?) ?? 0).compareTo(
+        (a['__combinedMatchScore'] as num?) ?? 0,
       );
       if (scoreCmp != 0) return scoreCmp;
 
@@ -823,6 +661,35 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             ? 'PASS'
             : 'REJECT'}',
       );
+      final preferencePercentage = hybridScoreAsPercentage(score);
+      final distanceKm = (unit['__distanceKm'] as num?)?.toDouble();
+      if (distanceKm == null) {
+        debugPrint(
+          'Match breakdown — ${unitName(unit)}: '
+          'Preferences=${preferencePercentage.toStringAsFixed(1)}% + '
+          'Location=N/A = ${preferencePercentage.toStringAsFixed(1)}% '
+          '(preferences only)',
+        );
+      } else {
+        final locationPercentage =
+            (1 - distanceKm / dayungLocationRadiusKm).clamp(0, 1) * 100;
+        final weightedPreferences =
+            preferencePercentage * (1 - dayungLocationMatchWeight);
+        final weightedLocation = locationPercentage * dayungLocationMatchWeight;
+        final combinedPercentage =
+            (unit['__matchPercentage'] as num?)?.toDouble() ??
+            weightedPreferences + weightedLocation;
+        debugPrint(
+          'Match breakdown — ${unitName(unit)}: '
+          'Preferences (${(1 - dayungLocationMatchWeight) * 100}%): '
+          '${weightedPreferences.toStringAsFixed(1)}% + '
+          'Location (${(dayungLocationMatchWeight * 100)}%): '
+          '${weightedLocation.toStringAsFixed(1)}% '
+          '(${locationPercentage.toStringAsFixed(1)}% at '
+          '${distanceKm.toStringAsFixed(2)} km) = '
+          '${combinedPercentage.toStringAsFixed(1)}%',
+        );
+      }
       debugPrint('');
     }
 
@@ -1028,7 +895,22 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                userLat == null || userLng == null
+                    ? 'Location is unavailable; percentages use preferences only.'
+                    : 'Match score: preferences 70% + distance 30% (within 20 km).',
+                style: const TextStyle(
+                  color: kSubText,
+                  fontSize: 13,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+            ),
             ...filteredUnits.map((unit) {
+              final matchPercentage = (unit['__matchPercentage'] as num?)
+                  ?.toDouble();
               return Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 child: Card(
@@ -1088,6 +970,28 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                                   fontFamily: 'OpenSans',
                                 ),
                               ),
+                              if (matchPercentage != null) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 11,
+                                    vertical: 7,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEAF7F1),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '${matchPercentage.toStringAsFixed(0)}% match',
+                                    style: const TextStyle(
+                                      color: kAccent,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),

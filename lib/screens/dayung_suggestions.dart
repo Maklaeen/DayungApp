@@ -1,4 +1,6 @@
 import 'package:capstone_app/screens/dayung_map_page.dart';
+import 'package:capstone_app/utils/dayung_service_tags.dart';
+import 'package:capstone_app/utils/dayung_similarity.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,13 +25,34 @@ class DayungSuggestionsPage extends StatefulWidget {
   State<DayungSuggestionsPage> createState() => _DayungSuggestionsPageState();
 }
 
+Widget _buildAppliedBadge() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF4D6),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: const Text(
+      'Already applied',
+      style: TextStyle(
+        color: Color(0xFF8A5A00),
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
+}
+
 class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
   final _sb = Supabase.instance.client;
   bool _showSearchBar = false;
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _allDayungs = [];
+  Set<int> _appliedDayungIds = {};
+  Map<int, double> _matchPercentages = {};
   bool _loading = false;
   String? _error;
+  String? _matchMessage;
   String _query = '';
 
   @override
@@ -50,6 +73,16 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
     return double.tryParse('$v');
   }
 
+  int? _toInt(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse('$value');
+  }
+
+  bool _isDayungApplied(Map<String, dynamic> dayung) {
+    final id = _toInt(dayung['id']);
+    return id != null && _appliedDayungIds.contains(id);
+  }
+
   Map<String, dynamic> _normalizeDayung(Map<String, dynamic> d) {
     final lat = _toDouble(d['latitude'] ?? d['lat']);
     final lng = _toDouble(d['longitude'] ?? d['lng']);
@@ -68,19 +101,37 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
     setState(() {
       _loading = true;
       _error = null;
+      _appliedDayungIds = {};
+      _matchPercentages = {};
+      _matchMessage = null;
     });
     try {
       final res = await _sb
           .from('dayung_units')
           .select('id, name, barangay, city, province, latitude, longitude')
           .order('name');
+      final userId = _sb.auth.currentUser?.id;
+      final applicationRows = userId == null
+          ? <dynamic>[]
+          : await _sb
+                .from('applications')
+                .select('dayung_unit_id')
+                .eq('user_id', userId);
+      final appliedDayungIds = <int>{
+        for (final row in applicationRows)
+          if (_toInt(row['dayung_unit_id']) != null)
+            _toInt(row['dayung_unit_id'])!,
+      };
       if (!mounted) return;
       setState(() {
         _allDayungs = List<Map<String, dynamic>>.from(
           res,
         ).map((e) => _normalizeDayung(e)).toList();
-        _loading = false;
+        _appliedDayungIds = appliedDayungIds;
       });
+      await _fetchMatchPercentages();
+      if (!mounted) return;
+      setState(() => _loading = false);
     } catch (e) {
       debugPrint('Failed to load Dayung units: $e');
       if (!mounted) return;
@@ -91,15 +142,176 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
     }
   }
 
+  Future<void> _fetchMatchPercentages() async {
+    final userId = _sb.auth.currentUser?.id;
+    if (userId == null) {
+      if (!mounted) return;
+      setState(() {
+        _matchPercentages = {};
+        _matchMessage =
+            'Sign in and set at least 5 preferences to see match percentages.';
+      });
+      return;
+    }
+
+    try {
+      final preferences = await _sb
+          .from('user_preferences')
+          .select(
+            'meeting_frequency, payment_method, contribution_amount, '
+            'membership_payment, penalty_payment, '
+            '${dayungServiceTagColumns.values.join(',')}',
+          )
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (preferences == null ||
+          !hasEnoughRecommendationPreferences(
+            countDayungPreferences(Map<String, dynamic>.from(preferences)),
+          )) {
+        if (!mounted) return;
+        setState(() {
+          _matchPercentages = {};
+          _matchMessage =
+              'Choose at least 5 preferences in Dayung Preferences to see match percentages.';
+        });
+        return;
+      }
+
+      final rules = await _sb
+          .from('dayung_rules')
+          .select(
+            'dayung_unit_id, meeting_frequency, payment_method, '
+            'exactamountforcollection, exactamountformembership, '
+            'penalty_payment, exactpenaltypayment, '
+            '${dayungServiceTagColumns.values.join(',')}',
+          );
+      final userLocation = await _sb
+          .from('users')
+          .select('latitude, longitude')
+          .eq('id', userId)
+          .maybeSingle();
+      final userLatitude = _toDouble(userLocation?['latitude']);
+      final userLongitude = _toDouble(userLocation?['longitude']);
+      final userVector = generateDayungPreferenceVector(
+        Map<String, dynamic>.from(preferences),
+      );
+      final dayungsById = {
+        for (final dayung in _allDayungs)
+          if (_toInt(dayung['id']) != null) _toInt(dayung['id'])!: dayung,
+      };
+      final percentages = <int, double>{};
+      var missingUnitLocation = false;
+      for (final rawRule in rules) {
+        final rule = Map<String, dynamic>.from(rawRule as Map);
+        final unitId = _toInt(rule['dayung_unit_id']);
+        if (unitId == null) continue;
+
+        final dayung = dayungsById[unitId];
+        final latitude = _toDouble(dayung?['latitude']);
+        final longitude = _toDouble(dayung?['longitude']);
+        double? distanceKm;
+        if (userLatitude != null &&
+            userLongitude != null &&
+            latitude != null &&
+            longitude != null) {
+          distanceKm = dayungDistanceKm(
+            userLatitude,
+            userLongitude,
+            latitude,
+            longitude,
+          );
+        } else {
+          missingUnitLocation = true;
+        }
+        final score = computeHybridScore(
+          userVector,
+          buildDayungRuleVector(rule),
+        );
+        percentages[unitId] = hybridScoreAsPercentage(
+          score.finalScore,
+          distanceKm: distanceKm,
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _matchPercentages = percentages;
+        _matchMessage = userLatitude == null || userLongitude == null
+            ? 'Your location is unavailable. Percentages are based on preferences only.'
+            : missingUnitLocation
+            ? 'Match score combines preferences (70%) and distance (30% within 20 km). Some percentages are preference-only because a location is unavailable.'
+            : 'Match score combines preference fit (70%) and distance (30% within 20 km).';
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Failed to load Dayung match percentages: $e\n$stackTrace');
+      if (!mounted) return;
+      setState(() {
+        _matchPercentages = {};
+        _matchMessage =
+            'Unable to load match percentages. Refresh to try again.';
+      });
+    }
+  }
+
+  double? _matchPercentage(Map<String, dynamic> dayung) {
+    final id = _toInt(dayung['id']);
+    return id == null ? null : _matchPercentages[id];
+  }
+
+  Widget _buildMatchBadge(double? percentage) {
+    if (percentage == null) {
+      return const Text(
+        'Not available',
+        style: TextStyle(color: kSubText, fontWeight: FontWeight.w600),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF7F1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '${percentage.toStringAsFixed(0)}% match',
+        style: const TextStyle(
+          color: kAccent,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
   List<Map<String, dynamic>> get _filteredDayungs {
-    if (_query.trim().isEmpty) return _allDayungs;
-    final q = _query.toLowerCase();
-    return _allDayungs.where((d) {
+    final q = _query.trim().toLowerCase();
+    final dayungs = _allDayungs.where((d) {
+      if (q.isEmpty && _isDayungApplied(d)) return false;
+      if (q.isEmpty) return true;
       return (d['name'] ?? '').toString().toLowerCase().contains(q) ||
           (d['barangay'] ?? '').toString().toLowerCase().contains(q) ||
           (d['city'] ?? '').toString().toLowerCase().contains(q) ||
           (d['province'] ?? '').toString().toLowerCase().contains(q);
     }).toList();
+    if (_matchPercentages.isEmpty) return dayungs;
+
+    dayungs.sort((a, b) {
+      final percentageA = _matchPercentage(a);
+      final percentageB = _matchPercentage(b);
+      if (percentageA != null && percentageB != null) {
+        final percentageComparison = percentageB.compareTo(percentageA);
+        if (percentageComparison != 0) return percentageComparison;
+      } else if (percentageA != null) {
+        return -1;
+      } else if (percentageB != null) {
+        return 1;
+      }
+      return (a['name'] ?? '').toString().compareTo(
+        (b['name'] ?? '').toString(),
+      );
+    });
+    return dayungs;
   }
 
   Widget _buildModernHeader(BuildContext context, bool isWide) {
@@ -196,7 +408,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          'Explore Dayung units and view their locations.',
+                          'Compare preference matches and explore Dayung locations.',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -258,7 +470,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
     return RecordDataTable(
       modernStyle: true,
       showCheckboxColumn: false,
-      minWidth: 760,
+      minWidth: 900,
       columnSpacing: 28,
       horizontalMargin: 20,
       dataRowMinHeight: 88,
@@ -266,6 +478,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
       columns: const [
         DataColumn(label: Text('Dayung')),
         DataColumn(label: Text('Location')),
+        DataColumn(label: Text('Match')),
         DataColumn(label: Text('Map')),
       ],
       rows: dayungs.map((dayung) {
@@ -296,15 +509,25 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: kText,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: kText,
+                            ),
+                          ),
+                          if (_isDayungApplied(dayung)) ...[
+                            const SizedBox(height: 4),
+                            _buildAppliedBadge(),
+                          ],
+                        ],
                       ),
                     ),
                   ],
@@ -334,6 +557,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                 ),
               ),
             ),
+            DataCell(_buildMatchBadge(_matchPercentage(normalized))),
             DataCell(
               latitude != null && longitude != null
                   ? FilledButton.icon(
@@ -411,19 +635,30 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: kText,
-                      height: 1.25,
-                      fontFamily: 'Montserrat',
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: kText,
+                          height: 1.25,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                      if (_isDayungApplied(dayung)) ...[
+                        const SizedBox(height: 6),
+                        _buildAppliedBadge(),
+                      ],
+                    ],
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            _buildMatchBadge(_matchPercentage(dayung)),
             const SizedBox(height: 16),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -497,8 +732,11 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
     final navigator = Navigator.of(context);
     final result = await navigator.push(
       MaterialPageRoute(
-        builder: (_) =>
-            DayungMapPage(dayung: dayung, isApplied: false, isMember: false),
+        builder: (_) => DayungMapPage(
+          dayung: dayung,
+          isApplied: _isDayungApplied(dayung),
+          isMember: false,
+        ),
       ),
     );
     if (!mounted) return;
@@ -637,7 +875,9 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
               const SizedBox(height: 18),
               Text(
                 _query.trim().isEmpty
-                    ? 'No Dayung units available'
+                    ? _allDayungs.isEmpty
+                          ? 'No Dayung units available'
+                          : 'No Dayung units to explore'
                     : 'No matching Dayung units',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
@@ -650,7 +890,9 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
               const SizedBox(height: 8),
               Text(
                 _query.trim().isEmpty
-                    ? 'Please check back later.'
+                    ? _allDayungs.isEmpty
+                          ? 'Please check back later.'
+                          : 'Search by name or location to find a Dayung you have already applied to.'
                     : 'Try another name or location.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
@@ -689,11 +931,44 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
           24,
         ),
         children: [
+          if (_matchMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF2FC),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      color: kPrimary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _matchMessage!,
+                        style: const TextStyle(
+                          color: kText,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (_query.trim().isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Text(
-                '${_allDayungs.length} ${_allDayungs.length == 1 ? 'unit' : 'units'} to explore',
+                '${_filteredDayungs.length} ${_filteredDayungs.length == 1 ? 'unit' : 'units'} to explore',
                 style: const TextStyle(
                   color: kSubText,
                   fontSize: 14,
