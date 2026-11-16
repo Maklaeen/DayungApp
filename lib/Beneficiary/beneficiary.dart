@@ -48,12 +48,21 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
     fetchBeneficiaries();
   }
 
+  @override
+  void didUpdateWidget(covariant BeneficiaryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.dayungUnitId != widget.dayungUnitId) {
+      fetchBeneficiaries();
+    }
+  }
+
   Future<void> fetchBeneficiaries() async {
     setState(() => isLoading = true);
 
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
-    if (user == null) {
+    final dayungUnitId = widget.dayungUnitId;
+    if (user == null || dayungUnitId == null) {
       if (!mounted) return;
       setState(() {
         beneficiaries = [];
@@ -65,10 +74,11 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
     final response = await client
         .from('beneficiaries')
         .select()
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('dayung_unit_id', dayungUnitId);
 
     final List<dynamic> allBeneficiaries = response;
-    if (!mounted) return;
+    if (!mounted || dayungUnitId != widget.dayungUnitId) return;
     setState(() {
       beneficiaries = allBeneficiaries;
       isLoading = false;
@@ -1002,7 +1012,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                             Text(
                               totalCount == 0
                                   ? 'No beneficiaries have been added yet. Please add at least one beneficiary, as this is a required part of your Dayung application. Applications without beneficiaries may not be approved.'
-                                  : '$totalCount beneficiary${totalCount == 1 ? '' : 'ies'} on record',
+                                  : '$totalCount beneficiary${totalCount == 1 ? '' : ''} on record',
                               style: TextStyle(
                                 fontSize: isWide ? 18 : 16,
                                 fontWeight: FontWeight.w800,

@@ -26,6 +26,7 @@ void main() {
               status: status,
               amount: 100,
               date: '2024-01-01T00:00:00Z',
+              dateCollected: '2026-11-10 08:45:36.33',
               deceasedName: 'Maria Dela Cruz',
               userDeceasedId: 'd1',
             ),
@@ -57,6 +58,10 @@ void main() {
     expect(find.text('User ID: u1'), findsOneWidget);
     expect(find.text('Deceased Name: Maria Dela Cruz'), findsOneWidget);
     expect(find.text('Date: Jan 1, 2024 • 8:00 AM'), findsOneWidget);
+    expect(
+      find.text('Date Collected: Nov 10, 2026 • 4:45 PM'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Unpaid').last);
     await tester.pumpAndSettle();

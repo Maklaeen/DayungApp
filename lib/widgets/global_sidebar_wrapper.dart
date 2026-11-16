@@ -31,6 +31,7 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
   String _fullName = '';
   String _roleName = '';
   String _selectedDayungUnit = 'Dayung Unit';
+  int? _selectedDayungUnitId;
   int _unreadNotifCount = 0;
   late String _currentPage = widget.openBeneficiariesInitially
       ? 'beneficiaries'
@@ -97,12 +98,17 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
     if (parsed != null && (parsed['name'] ?? '').toString().trim().isNotEmpty) {
       resolvedLabel = parsed['name'].toString();
     }
+    final rawUnitId = parsed?['id'];
+    final selectedUnitId = rawUnitId is int
+        ? rawUnitId
+        : int.tryParse(rawUnitId?.toString() ?? '');
 
     if (mounted) {
       setState(() {
         _fullName = name;
         _roleName = roleName;
         _selectedDayungUnit = resolvedLabel;
+        _selectedDayungUnitId = selectedUnitId;
       });
     }
   }
@@ -162,6 +168,7 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
       case 'beneficiaries':
         return BeneficiaryPage(
           onBack: () => _navigate('dashboard'),
+          dayungUnitId: _selectedDayungUnitId,
           onFirstBeneficiaryAdded: widget.openBeneficiariesInitially
               ? () => _navigate('dashboard')
               : null,

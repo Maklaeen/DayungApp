@@ -10,7 +10,8 @@ const Color _kCard = Colors.white;
 const Color _kBorder = Color(0xFFE5E7EB);
 
 String _formatPhilippinesDate(String value) {
-  final date = DateTime.tryParse(value);
+  final hasTimezone = RegExp(r'(?:[zZ]|[+-]\d{2}:?\d{2})$').hasMatch(value);
+  final date = DateTime.tryParse(hasTimezone ? value : '${value}Z');
   if (date == null) return value;
 
   final philippinesDate = date.toUtc().add(const Duration(hours: 8));
@@ -26,6 +27,7 @@ class PaymentMember {
   final double amount;
   final String userDeceasedId;
   final String? date;
+  final String? dateCollected;
   final String? deceasedName;
 
   const PaymentMember({
@@ -37,6 +39,7 @@ class PaymentMember {
     required this.amount,
     this.userDeceasedId = '',
     this.date,
+    this.dateCollected,
     this.deceasedName,
   });
 }
@@ -154,7 +157,8 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
               ? (row['amount'] as num).toDouble()
               : double.tryParse('${row['amount']}') ?? 0,
           userDeceasedId: (row['userdeceased'] ?? '').toString().trim(),
-          date: (row['paid_at'] ?? row['created_at'])?.toString(),
+          date: row['created_at']?.toString(),
+          dateCollected: row['paid_at']?.toString(),
           deceasedName: row['deceased_name']?.toString().trim(),
         );
 
@@ -403,13 +407,14 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             RecordDataTable(
-              minWidth: 1180,
+              minWidth: 1320,
               showCheckboxColumn: false,
               columnSpacing: 28,
               columns: const [
                 DataColumn(label: Text('Member')),
                 DataColumn(label: Text('Deceased Name')),
-                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Payment Initiated Date')),
+                DataColumn(label: Text('Date Collected')),
                 DataColumn(label: Text('Amount')),
                 DataColumn(label: Text('Status')),
                 DataColumn(label: Text('Collected By')),
@@ -432,6 +437,13 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                         member.date == null
                             ? '—'
                             : _formatPhilippinesDate(member.date!),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        member.dateCollected == null
+                            ? '—'
+                            : _formatPhilippinesDate(member.dateCollected!),
                       ),
                     ),
                     DataCell(Text('₱${member.amount.toStringAsFixed(0)}')),
@@ -479,6 +491,12 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
       (
         'Date',
         member.date == null ? '—' : _formatPhilippinesDate(member.date!),
+      ),
+      (
+        'Date Collected',
+        member.dateCollected == null
+            ? '—'
+            : _formatPhilippinesDate(member.dateCollected!),
       ),
       ('Amount', '₱${member.amount.toStringAsFixed(2)}'),
     ];

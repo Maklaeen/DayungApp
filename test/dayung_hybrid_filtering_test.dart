@@ -93,6 +93,61 @@ void main() {
       expect(score.finalScore, closeTo(0.8838834764831844, 1e-12));
     });
 
+    test(
+      'builds identical preference and rule vectors for both result pages',
+      () {
+        final preferences = <String, dynamic>{
+          'meeting_frequency': 'Weekly',
+          'payment_method': 'Cash',
+          'contribution_amount': '100-150',
+          'membership_payment': '200-250',
+          'penalty_payment': '400 plus',
+          'prayer_support': true,
+        };
+        final rule = <String, dynamic>{
+          'meeting_frequency': 'weekly',
+          'payment_method': 'cash',
+          'exactamountforcollection': 125,
+          'exactamountformembership': 225,
+          'exactpenaltypayment': 450,
+          'prayer_support': true,
+        };
+
+        final userVector = generateDayungPreferenceVector(preferences);
+        final unitVector = buildDayungRuleVector(rule);
+
+        expect(userVector, hasLength(37));
+        expect(unitVector, hasLength(37));
+        expect(unitVector, userVector);
+        expect(userVector[0], 1.0);
+        expect(unitVector[0], 1.0);
+        expect(userVector[36], 1.0);
+        expect(unitVector[36], 1.0);
+        expect(countDayungPreferences(preferences), 6);
+        expect(
+          hasEnoughRecommendationPreferences(
+            countDayungPreferences(preferences),
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test('converts the hybrid score into a bounded match percentage', () {
+      expect(hybridScoreAsPercentage(1.25), 100);
+      expect(hybridScoreAsPercentage(1.02062073), closeTo(81.6496584, 1e-6));
+      expect(hybridScoreAsPercentage(-0.2), 0);
+      expect(hybridScoreAsPercentage(1.5), 100);
+    });
+
+    test('includes proximity in the percentage within a 20 km radius', () {
+      expect(hybridScoreAsPercentage(1.25, distanceKm: 0), 100);
+      expect(hybridScoreAsPercentage(1.25, distanceKm: 10), 85);
+      expect(hybridScoreAsPercentage(1.25, distanceKm: 20), 70);
+      expect(hybridScoreAsPercentage(1.25, distanceKm: 30), 70);
+      expect(dayungDistanceKm(14.0, 121.0, 14.0, 121.0), 0);
+    });
+
     test('ranks passing recommendations by nearest distance first', () {
       final units = <Map<String, dynamic>>[
         {'id': 1, '__score': 0.75, '__km': 15.0, '__withinRadius': true},
