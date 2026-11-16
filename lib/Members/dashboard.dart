@@ -10,23 +10,12 @@ import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
+import 'package:capstone_app/shared/dayung_role_navigation_bar.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-// Color palette
-const kBg = Color(0xFFFAFAF7);
-const kText = Color(0xFF1F2937);
-const kSubText = Color(0xFF4B5563);
-const kAccent = Color(0xFF0D47A1);
-const kPrimary = Color(0xFF0D47A1);
-const kPrimaryDark = Color(0xFF083366);
-const kWarn = Color(0xFFF57C00);
-const kDanger = Color(0xFFC62828);
-const kNeutralText = Color(0xFF1F2937);
-const kSubtleText = Color(0xFF4B5563);
 
 class MemberDashboardPage extends StatefulWidget {
   const MemberDashboardPage({super.key});
@@ -78,21 +67,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   int? _asInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
   int? _lastRoleUnitId;
   int _currentIndex = 0;
-  bool _showNavBar = true;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      if (!_scrollController.hasClients || !mounted) return;
-      final maxScroll = _scrollController.position.maxScrollExtent;
-      final current = _scrollController.position.pixels;
-      if (current >= maxScroll && _showNavBar) {
-        setState(() => _showNavBar = false);
-      } else if (current < maxScroll && !_showNavBar) {
-        setState(() => _showNavBar = true);
-      }
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provUnit = context.read<DayungUnitProvider>().currentUnitId;
       _maybeOnProviderUnitChanged(provUnit);
@@ -314,66 +292,53 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         barrierDismissible: false,
         builder: (_) {
           return Dialog(
-            backgroundColor: const Color(0xFF8CA6C7),
+            backgroundColor: Theme.of(context).colorScheme.surface,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(32),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     'Announcement',
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontWeight: FontWeight.w800,
-                      fontSize: 28,
-                      color: Colors.white,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Icon(
+                  Icon(
                     Icons.notifications_active_rounded,
-                    color: Colors.amber,
-                    size: 64,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 48,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     notif['body']?.toString() ?? '',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontWeight: FontWeight.w800,
-                      fontSize: 24,
-                      color: Colors.white,
-                    ),
+                    style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   const SizedBox(height: 24),
-                  TextButton(
-                    onPressed: () async {
-                      final sb = Supabase.instance.client;
-                      try {
-                        await sb
-                            .from('notifications')
-                            .update({
-                              'read_at': DateTime.now().toIso8601String(),
-                            })
-                            .eq('id', notif['id']);
-                      } catch (_) {}
-                      if (!mounted) return;
-                      Navigator.of(context).pop();
-                      _handlingOverlay = false;
-                      await _fetchUnreadNotifCount();
-                    },
-                    child: const Text(
-                      'Continue',
-                      style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontWeight: FontWeight.w800,
-                        fontSize: 22,
-                        color: Color(0xFFDDE3EA),
-                      ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () async {
+                        final sb = Supabase.instance.client;
+                        try {
+                          await sb
+                              .from('notifications')
+                              .update({
+                                'read_at': DateTime.now().toIso8601String(),
+                              })
+                              .eq('id', notif['id']);
+                        } catch (_) {}
+                        if (!mounted) return;
+                        Navigator.of(context).pop();
+                        _handlingOverlay = false;
+                        await _fetchUnreadNotifCount();
+                      },
+                      child: const Text('Continue'),
                     ),
                   ),
                 ],
@@ -691,25 +656,19 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     super.dispose();
   }
 
-  Widget _buildContentArea(bool wide) {
+  Widget _buildContentArea() {
     return Expanded(
       child: Container(
         decoration: BoxDecoration(
           color: dayungSurface(context),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [dayungTopShadow(context)],
         ),
         child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           child: RefreshIndicator(
             onRefresh: _load,
-            edgeOffset: 68,
+            edgeOffset: 16,
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: IndexedStack(
@@ -724,106 +683,90 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     );
   }
 
-  Widget _iconBtn({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    String? tooltip,
-    String? badge,
-  }) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
-              width: 1,
-            ),
+  Widget _buildHomePage(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding = constraints.maxWidth < 400 ? 16.0 : 24.0;
+        return SingleChildScrollView(
+          controller: _scrollController,
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            20,
+            horizontalPadding,
+            dayungRoleNavigationClearance(context),
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
-              child: Icon(icon, color: color, size: 20),
-            ),
-          ),
-        ),
-        if (badge != null)
-          Positioned(
-            right: -2,
-            top: -2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_isBootstrapping || _loadingApplicationStatus)
+                    _buildDashboardLoadingState()
+                  else ...[
+                    if (_hasPendingApplication)
+                      _buildPendingApplicationNotice(),
+                    if (!_hasAppliedBefore && !_hasPendingApplication)
+                      _buildNoApplicationNotice(),
+                    if (_hasPendingApplication || !_hasAppliedBefore)
+                      const SizedBox(height: 24),
+                    _overviewSection(),
+                    const SizedBox(height: 24),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth < 760) {
+                          return Column(
+                            children: [
+                              _buildNextPaymentCard(false),
+                              const SizedBox(height: 12),
+                              _buildAdvancePaymentCard(),
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: _buildNextPaymentCard(true)),
+                            const SizedBox(width: 16),
+                            Expanded(child: _buildAdvancePaymentCard()),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    _modernActionCards(),
+                    const SizedBox(height: 24),
+                    _modernRecentActivity(),
+                  ],
                 ],
               ),
-              child: Text(
-                badge,
-                style: const TextStyle(
-                  fontFamily: 'OpenSans',
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
             ),
           ),
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildHomePage(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _load,
-      edgeOffset: 68,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_isBootstrapping || _loadingApplicationStatus)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else ...[
-              if (_hasPendingApplication) _buildPendingApplicationNotice(),
-              if (!_hasAppliedBefore && !_hasPendingApplication)
-                _buildNoApplicationNotice(),
-              _overviewSection(),
-              const SizedBox(height: 24),
-              _buildNextPaymentCard(false),
-              const SizedBox(height: 12),
-              _buildAdvancePaymentCard(),
-              const SizedBox(height: 24),
-              _modernActionCards(),
-              const SizedBox(height: 24),
-              _modernRecentActivity(),
-              const SizedBox(height: 24),
-              const SizedBox(height: 100),
-            ],
-          ],
-        ),
+  Widget _buildDashboardLoadingState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: dayungSectionCardDecoration(context, radius: 16),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              'Loading your dashboard…',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -835,23 +778,33 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         children: [
           Row(
             children: [
-              Builder(
-                builder: (context) => Container(
-                  padding: const EdgeInsets.all(1),
-                  decoration: BoxDecoration(
-                    color: kPrimary.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                        color: kPrimary.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+              Semantics(
+                button: true,
+                label: 'Open menu',
+                onTap: () => Scaffold.of(context).openDrawer(),
+                child: ExcludeSemantics(
+                  child: Builder(
+                    builder: (context) => Container(
+                      padding: const EdgeInsets.all(1),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.menu_rounded,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => Scaffold.of(context).openDrawer(),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -863,6 +816,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     Text(
                       _selectedDayungUnit,
                       maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
@@ -874,10 +828,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   ],
                 ),
               ),
-              _iconBtn(
+              _buildModernIconButton(
                 icon: Icons.notifications_active_rounded,
-                color: kWarn,
-                tooltip: 'Notifications',
                 onTap: _openNotifications,
                 badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
               ),
@@ -889,7 +841,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               Expanded(
                 child: dayungGreetingPanel(
                   child: Text(
-                    'Good Morning!\n$_fullName',
+                    'Good Morning,\n$_fullName!',
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 28,
@@ -908,8 +862,84 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     );
   }
 
+  Widget _buildModernIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    return Semantics(
+      button: true,
+      label: 'Notifications',
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Tooltip(
+              message: 'Notifications',
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: onTap,
+                    child: Icon(icon, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ),
+            if (badge != null)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    badge,
+                    style: const TextStyle(
+                      fontFamily: 'OpenSans',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _overviewSection() {
-    final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: dayungSectionCardDecoration(context),
@@ -918,19 +948,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         children: [
           Text(
             'Overview',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Theme.of(context).colorScheme.primary,
-              fontFamily: 'Montserrat',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth < 320
+              final columns = constraints.maxWidth < 520
                   ? 1
-                  : constraints.maxWidth < 840
+                  : constraints.maxWidth < 900
                   ? 2
                   : 3;
               const spacing = 12.0;
@@ -943,33 +971,48 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   value: _loadingActiveMembers
                       ? '—'
                       : _activeMembersCount.toString(),
-                  color: const Color(0xFF3B82F6),
-                  bgColor: const Color(0xFFEFF6FF),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-                InkWell(
-                  onTap: () {
-                    final id = _asInt(_selectedDayungUnitObj?['id']);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RecentDeathNotices(dayungUnitId: id),
+                Semantics(
+                  button: true,
+                  label: 'View recent death notices',
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      onTap: () {
+                        final id = _asInt(_selectedDayungUnitObj?['id']);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                RecentDeathNotices(dayungUnitId: id),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: _recentDeathsCard(),
+                    ),
+                  ),
+                ),
+                Semantics(
+                  button: true,
+                  label: 'View pending contributions',
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      onTap: () => setState(() => _currentIndex = 1),
+                      borderRadius: BorderRadius.circular(16),
+                      child: _modernStatCard(
+                        icon: Icons.account_balance_wallet_rounded,
+                        title: 'Pending contributions',
+                        value: _loadingPending
+                            ? '—'
+                            : '₱${_pendingPaymentsAmount.toStringAsFixed(0)}',
+                        color: Theme.of(context).colorScheme.tertiary,
                       ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: _recentDeathsCard(),
-                ),
-                InkWell(
-                  onTap: () => setState(() => _currentIndex = 1),
-                  borderRadius: BorderRadius.circular(16),
-                  child: _modernStatCard(
-                    icon: Icons.account_balance_wallet_rounded,
-                    title: 'Pending Amount',
-                    value: _loadingPending
-                        ? '—'
-                        : '₱${_pendingPaymentsAmount.toStringAsFixed(0)}',
-                    color: const Color(0xFFF59E0B),
-                    bgColor: const Color(0xFFFEF3C7),
+                    ),
                   ),
                 ),
               ];
@@ -977,13 +1020,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 spacing: spacing,
                 runSpacing: spacing,
                 children: cards
-                    .map(
-                      (card) => SizedBox(
-                        width: cardWidth,
-                        height: isMobile ? 170 : 180,
-                        child: card,
-                      ),
-                    )
+                    .map((card) => SizedBox(width: cardWidth, child: card))
                     .toList(),
               );
             },
@@ -999,9 +1036,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     required String title,
     required String value,
     required Color color,
-    required Color bgColor,
   }) {
     return Container(
+      constraints: const BoxConstraints(minHeight: 140),
       padding: const EdgeInsets.all(16),
       decoration: dayungAccentCardDecoration(
         context,
@@ -1011,6 +1048,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -1024,20 +1062,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Text(
             title,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: color.withValues(alpha: 0.8),
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(
             value,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: color,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -1052,13 +1087,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         .where((s) => s.isNotEmpty)
         .toList();
     final display = names.take(2).toList();
-    // final extra = names.length - display.length;
+    final theme = Theme.of(context);
 
     return Container(
+      constraints: const BoxConstraints(minHeight: 140),
       padding: const EdgeInsets.all(16),
       decoration: dayungAccentCardDecoration(
         context,
-        accent: const Color(0xFFEC4899),
+        accent: theme.colorScheme.tertiary,
         lightAlpha: 0.08,
         darkAlpha: 0.14,
       ),
@@ -1068,52 +1104,49 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFEC4899).withValues(alpha: 0.1),
+              color: theme.colorScheme.tertiary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.family_restroom_rounded,
-              color: Color(0xFFEC4899),
+              color: theme.colorScheme.tertiary,
               size: 20,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Recent Deaths',
+          Text(
+            'Recent death notices',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
+            style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
-              color: Color(0xFFEC4899),
             ),
           ),
           const SizedBox(height: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: display
-                .map(
-                  (name) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF9F1239),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+          if (display.isEmpty)
+            Text(
+              'No recent notices',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: display
+                  .map(
+                    (name) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        name,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                )
-                .toList(),
-          ),
+                  )
+                  .toList(),
+            ),
         ],
       ),
     );
@@ -1121,83 +1154,109 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
   // Quick Actions
   Widget _modernActionCards() {
+    final actions = [
+      _ActionItem(
+        icon: Icons.receipt_long_rounded,
+        title: 'View Receipts',
+        color: Theme.of(context).colorScheme.primary,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ReceiptsPage()),
+          );
+        },
+      ),
+      _ActionItem(
+        icon: Icons.qr_code_rounded,
+        title: 'Pay via GCash',
+        color: Theme.of(context).colorScheme.secondary,
+        onTap: () {
+          final user = Supabase.instance.client.auth.currentUser;
+          if (user != null) {
+            debugPrint(
+              'Pay via GCash clicked by user: ${user.id} (${user.email})',
+            );
+          } else {
+            debugPrint('Pay via GCash clicked by unknown user');
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GCashPaymentPage(
+                dayungUnitId:
+                    context.read<DayungUnitProvider>().currentUnitId ??
+                    _asInt(_selectedDayungUnitObj?['id']),
+              ),
+            ),
+          );
+        },
+      ),
+      _ActionItem(
+        icon: Icons.track_changes_rounded,
+        title: 'Service Tracking',
+        color: Theme.of(context).colorScheme.tertiary,
+        onTap: () {
+          final id =
+              context.read<DayungUnitProvider>().currentUnitId ??
+              _asInt(_selectedDayungUnitObj?['id']);
+          if (id == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ServiceTrackerPage(
+                dayungUnitId: id,
+                allowManage: false,
+                allowJoin: true,
+                title: 'Service Tracking',
+              ),
+            ),
+          );
+        },
+      ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Theme.of(context).colorScheme.primary,
-            fontFamily: 'Montserrat',
+          'Useful actions',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 12),
-        const SizedBox(height: 8),
-        _modernActionCard(
-          icon: Icons.receipt_long_rounded,
-          title: 'View Receipts',
-          color: const Color(0xFF10B981),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ReceiptsPage()),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        _modernActionCard(
-          icon: Icons.qr_code_rounded,
-          title: 'Pay via GCash',
-          color: const Color(0xFF3B82F6),
-          onTap: () {
-            final user = Supabase.instance.client.auth.currentUser;
-            if (user != null) {
-              // Print user info to debug console
-              debugPrint(
-                'Pay via GCash clicked by user: ${user.id} (${user.email})',
-              );
-            } else {
-              debugPrint('Pay via GCash clicked by unknown user');
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => GCashPaymentPage(
-                  dayungUnitId:
-                      context.read<DayungUnitProvider>().currentUnitId ??
-                      _asInt(_selectedDayungUnitObj?['id']),
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        _modernActionCard(
-          icon: Icons.track_changes_rounded,
-          title: 'Service Tracking',
-          color: const Color(0xFF8B5CF6),
-          onTap: () {
-            final id =
-                context.read<DayungUnitProvider>().currentUnitId ??
-                _asInt(_selectedDayungUnitObj?['id']);
-            if (id == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ServiceTrackerPage(
-                  dayungUnitId: id,
-                  allowManage: false,
-                  allowJoin: true,
-                  title: 'Service Tracking',
-                ),
-              ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth < 520
+                ? 1
+                : constraints.maxWidth < 900
+                ? 2
+                : 3;
+            const spacing = 12.0;
+            final cardWidth =
+                (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: actions
+                  .map(
+                    (action) => SizedBox(
+                      width: cardWidth,
+                      child: _modernActionCard(
+                        icon: action.icon,
+                        title: action.title,
+                        color: action.color,
+                        onTap: action.onTap,
+                      ),
+                    ),
+                  )
+                  .toList(),
             );
           },
         ),
@@ -1211,9 +1270,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     required Color color,
     required VoidCallback onTap,
   }) {
-    final isCompact = MediaQuery.of(context).size.width < 360;
-    final titleFontSize = isCompact ? 14.0 : 16.0;
-
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -1228,16 +1284,18 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  width: 48,
+                  height: 48,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: color, size: 24),
+                  child: Icon(icon, color: color, size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1246,13 +1304,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     children: [
                       Text(
                         title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        style: TextStyle(
-                          fontSize: titleFontSize,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: dayungTextColor(context),
                         ),
                       ),
                     ],
@@ -1271,7 +1324,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     );
   }
 
-  // Recent Activity
+  // Application status
   Widget _buildPendingApplicationNotice() {
     final unitName = _pendingApplicationDayungName;
     final unitLabel = unitName != null && unitName.isNotEmpty
@@ -1279,26 +1332,44 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         : _pendingApplicationDayungUnitId != null
         ? 'Dayung unit #$_pendingApplicationDayungUnitId'
         : 'selected Dayung unit';
-    final findMoreDayungButton = ElevatedButton.icon(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const DayungSettingsPage()),
-        );
-      },
-      icon: const Icon(Icons.search_rounded, size: 18),
-      label: const Text('Find More Dayung'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFB45309),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-    );
+    final theme = Theme.of(context);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 620;
+        final message = Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Application submitted',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: dayungTextColor(context),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Your request to $unitLabel is being reviewed.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: dayungSubtextColor(context),
+                ),
+              ),
+            ],
+          ),
+        );
+        final findMoreDayungButton = FilledButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DayungSettingsPage()),
+            );
+          },
+          icon: const Icon(Icons.search_rounded),
+          label: const Text('Find more Dayung units'),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+        );
+
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(18),
@@ -1308,112 +1379,100 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             lightAlpha: 0.10,
             darkAlpha: 0.16,
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: const Icon(
-                  Icons.hourglass_top_rounded,
-                  color: Color(0xFFB45309),
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
+          child: isCompact
+              ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Application submitted',
-                      style: TextStyle(
-                        color: dayungTextColor(context),
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'Montserrat',
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.hourglass_top_rounded,
+                          color: theme.colorScheme.tertiary,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        message,
+                      ],
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Your request to $unitLabel is being reviewed.',
-                      style: TextStyle(
-                        color: dayungSubtextColor(context),
-                        fontSize: 14,
-                        height: 1.35,
+                    if (!_hasApprovedApplication) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: findMoreDayungButton,
                       ),
+                    ],
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.hourglass_top_rounded,
+                      color: theme.colorScheme.tertiary,
+                      size: 24,
                     ),
-                    const SizedBox(height: 10),
-                    if (isCompact && !_hasApprovedApplication)
+                    const SizedBox(width: 12),
+                    message,
+                    if (!_hasApprovedApplication) ...[
+                      const SizedBox(width: 16),
                       findMoreDayungButton,
+                    ],
                   ],
                 ),
-              ),
-              if (!isCompact && !_hasApprovedApplication) ...[
-                const SizedBox(width: 16),
-                findMoreDayungButton,
-              ],
-            ],
-          ),
         );
       },
     );
   }
 
   Widget _buildNoApplicationNotice() {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.28)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF3B82F6).withOpacity(0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: theme.colorScheme.primary,
+        radius: 18,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB)),
+              Icon(
+                Icons.info_outline_rounded,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(width: 10),
-              const Text(
-                'Not applying yet?',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1D4ED8),
+              Expanded(
+                child: Text(
+                  'Not a member of a Dayung unit yet?',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          const Text(
-            'You have not applied to any Dayung yet.',
-            style: TextStyle(
-              fontSize: 30,
-              height: 1.5,
-              color: Color(0xFF1D4ED8),
-              fontWeight: FontWeight.w600,
+          Text(
+            'You have not applied to any Dayung unit yet.',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: dayungTextColor(context),
             ),
           ),
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
+            child: FilledButton.icon(
               onPressed: () => openDayungRecommendations(context),
               icon: const Icon(Icons.quiz_outlined),
               label: const Text('Dayung Recommendations'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
             ),
           ),
         ],
@@ -1422,19 +1481,18 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   Widget _modernRecentActivity() {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Recent Activity',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Theme.of(context).colorScheme.onSurface,
-            fontFamily: 'Montserrat',
+          'Payment reminders',
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: theme.colorScheme.onSurface,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(20),
           decoration: dayungSectionCardDecoration(context, radius: 16),
@@ -1447,32 +1505,33 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: dayungAccentSurface(context, kPrimaryDark),
+                  color: dayungAccentSurface(
+                    context,
+                    theme.colorScheme.primary,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: kPrimaryDark.withValues(
+                    color: theme.colorScheme.primary.withValues(
                       alpha: dayungIsDark(context) ? 0.34 : 0.18,
                     ),
                   ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.notifications_active_rounded,
-                      color: kPrimaryDark,
-                      size: 18,
+                    Icon(
+                      Icons.notifications_active_outlined,
+                      color: theme.colorScheme.primary,
+                      size: 20,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _pendingPaymentMessages.isEmpty
                             ? 'No payment reminders right now.'
-                            : '${_pendingPaymentMessages.length} reminder(s) need your attention.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
+                            : 'Payment reminders for you',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          fontFamily: 'OpenSans',
                         ),
                       ),
                     ),
@@ -1481,13 +1540,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               ),
               const SizedBox(height: 14),
               if (_pendingPaymentMessages.isEmpty)
-                const Text(
-                  'No recent activity',
-                  style: TextStyle(
-                    color: Color(0xFF6B7280),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    fontFamily: 'OpenSans',
+                Text(
+                  'You have no payment reminders.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 )
               else
@@ -1499,27 +1555,18 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              margin: const EdgeInsets.only(top: 6),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFEF4444),
-                                shape: BoxShape.circle,
-                              ),
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: theme.colorScheme.primary,
+                              size: 20,
                             ),
-                            const SizedBox(width: 10),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 msg,
-                                style: TextStyle(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface,
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                  fontFamily: 'OpenSans',
-                                  height: 1.35,
                                 ),
                               ),
                             ),
@@ -1608,22 +1655,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     Text(
                       title,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: dayungTextColor(context),
-                        fontSize: 21,
                         fontWeight: FontWeight.w800,
-                        fontFamily: 'Montserrat',
                       ),
                     ),
                     const SizedBox(height: 10),
                     Text(
                       description,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: dayungSubtextColor(context),
-                        fontSize: 15,
-                        height: 1.5,
-                        fontFamily: 'OpenSans',
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -1638,11 +1680,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          textStyle: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Montserrat',
-                          ),
+                          minimumSize: const Size.fromHeight(48),
+                          textStyle: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
@@ -1650,10 +1690,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     Text(
                       'Your contributions and claims will be shown for the selected unit.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: dayungSubtextColor(context),
-                        fontSize: 12,
-                        height: 1.4,
                       ),
                     ),
                   ],
@@ -1701,105 +1739,34 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
   @override
   Widget build(BuildContext context) {
-    // final provUnit = context.watch<DayungUnitProvider>().currentUnitId;
-    // if (provUnit != _lastRoleUnitId) {
-    //   WidgetsBinding.instance.addPostFrameCallback((_) {
-    //     _maybeOnProviderUnitChanged(provUnit);
-    //   });
-    // }
-
-    final width = MediaQuery.of(context).size.width;
-    final bool wide = width > 820;
-
     return Container(
       decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
       child: Stack(
         children: [
           SafeArea(
             child: Column(
-              children: [_buildModernHeader(), _buildContentArea(wide)],
+              children: [_buildModernHeader(), _buildContentArea()],
             ),
           ),
-          _buildFloatingNavBar(wide),
+          _buildFloatingNavBar(),
         ],
       ),
     );
   }
 
-  // Add this method for the floating nav bar, matching Treasurer style
-  Widget _buildFloatingNavBar(bool wide) {
+  Widget _buildFloatingNavBar() {
     return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 20,
+      left: 16,
+      right: 16,
+      bottom: MediaQuery.paddingOf(context).bottom + 8,
       child: Center(
-        child: IgnorePointer(
-          ignoring: !_showNavBar,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 300),
-            opacity: _showNavBar ? 1 : 0,
-            child: Container(
-              height: 80,
-              margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: dayungSurface(context),
-                borderRadius: BorderRadius.circular(40),
-                border: Border.all(color: dayungBorder(context)),
-                boxShadow: [dayungElevatedShadow(context)],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(Icons.dashboard_rounded, "Home", 0),
-                  _buildNavItem(Icons.trending_up_rounded, "Contributions", 1),
-                  _buildNavItem(Icons.assignment_rounded, "Claims", 2),
-                ],
-              ),
-            ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: DayungRoleNavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) =>
+                setState(() => _currentIndex = index),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final selected = _currentIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: selected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-                height: 1.0,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
         ),
       ),
     );
@@ -1808,121 +1775,70 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   Widget _buildNextPaymentCard(bool isWide) {
     final loading = _loadingPending;
     final amount = loading
-        ? '…'
+        ? 'Loading…'
         : '₱ ${_pendingPaymentsAmount.toStringAsFixed(0)}';
-
-    final dueDate = 'Due soon';
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(isWide ? 32 : 24),
+      padding: EdgeInsets.all(isWide ? 24 : 20),
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: dayungAccentSurface(
           context,
-          kPrimary,
+          accent,
           lightAlpha: 0.08,
           darkAlpha: 0.14,
         ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: kPrimary.withValues(
-            alpha: dayungIsDark(context) ? 0.36 : 0.25,
-          ),
-          width: 1.6,
+          color: accent.withValues(alpha: dayungIsDark(context) ? 0.36 : 0.25),
         ),
-        boxShadow: [dayungElevatedShadow(context)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Next Payment Due:',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 20,
+            'Unpaid contributions',
+            style: theme.textTheme.titleMedium?.copyWith(
               color: dayungTextColor(context),
-              fontFamily: 'Montserrat',
-              height: 1.1,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                amount,
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.w800,
-                  color: dayungTextColor(context),
-                  fontFamily: 'Montserrat',
-                  letterSpacing: .5,
-                ),
-              ),
-              const SizedBox(width: 10),
-              if (!_loadingPending && _pendingPaymentsByDeathNotice.isNotEmpty)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: _pendingPaymentsByDeathNotice.map((p) {
-                      final amt = (p['amount'] is num)
-                          ? (p['amount'] as num).toDouble()
-                          : 0.0;
-                      final name = (p['name'] ?? '').toString();
-                      final dod = p['date_of_death'];
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                '₱${amt.toStringAsFixed(0)} for $name',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: dayungTextColor(context),
-                                  fontFamily: 'Montserrat',
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                softWrap: false,
-                              ),
-                            ),
-                            if (dod != null) ...[
-                              const SizedBox(width: 6),
-                              Text(
-                                '($dod)',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: dayungSubtextColor(context),
-                                  fontFamily: 'OpenSans',
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
           Text(
-            dueDate,
-            style: TextStyle(
-              color: dayungSubtextColor(context),
-              fontSize: 14.5,
-              fontFamily: 'OpenSans',
-              fontWeight: FontWeight.w600,
+            amount,
+            softWrap: true,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: dayungTextColor(context),
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 18),
+          if (!_loadingPending && _pendingPaymentsByDeathNotice.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ..._pendingPaymentsByDeathNotice.map((payment) {
+              final amount = payment['amount'] is num
+                  ? (payment['amount'] as num).toDouble()
+                  : 0.0;
+              final name = (payment['name'] ?? '').toString();
+              final date = payment['date_of_death'];
+              return Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '₱${amount.toStringAsFixed(0)} for $name'
+                  '${date == null ? '' : ' ($date)'}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: dayungSubtextColor(context),
+                  ),
+                ),
+              );
+            }),
+          ],
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
+            child: FilledButton.icon(
               onPressed: loading
                   ? null
                   : () {
@@ -1941,31 +1857,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     },
               icon: loading
                   ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
                     )
                   : const Icon(Icons.payments_rounded),
-              label: Text(
-                loading ? 'Loading…' : 'Pay Now',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  fontFamily: 'Montserrat',
-                  letterSpacing: .3,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimary,
-                minimumSize: const Size.fromHeight(54),
+              label: Text(loading ? 'Loading…' : 'Pay with GCash'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                elevation: 0,
               ),
             ),
           ),
@@ -1976,64 +1878,65 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
   Widget _buildAdvancePaymentCard() {
     final amount = _loadingAdvancePayment
-        ? '…'
+        ? 'Loading…'
         : '₱ ${_advancePaymentAmount.toStringAsFixed(2)}';
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.secondary;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: dayungAccentSurface(
-          context,
-          const Color(0xFF15803D),
-          lightAlpha: 0.08,
-          darkAlpha: 0.14,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(
-            0xFF15803D,
-          ).withValues(alpha: dayungIsDark(context) ? 0.36 : 0.25),
-          width: 1.6,
-        ),
-        boxShadow: [dayungElevatedShadow(context)],
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: accent,
+        radius: 18,
+        lightAlpha: 0.08,
+        darkAlpha: 0.14,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Advance Payment',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 20,
+            'Advance payment',
+            style: theme.textTheme.titleMedium?.copyWith(
               color: dayungTextColor(context),
-              fontFamily: 'Montserrat',
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             amount,
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
+            softWrap: true,
+            style: theme.textTheme.headlineSmall?.copyWith(
               color: dayungTextColor(context),
-              fontFamily: 'Montserrat',
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Remaining balance',
-            style: TextStyle(
+            style: theme.textTheme.bodyMedium?.copyWith(
               color: dayungSubtextColor(context),
-              fontSize: 14,
-              fontFamily: 'OpenSans',
-              fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _ActionItem {
+  const _ActionItem({
+    required this.icon,
+    required this.title,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final Color color;
+  final VoidCallback onTap;
 }
 
 class AmountDueWidget extends StatefulWidget {

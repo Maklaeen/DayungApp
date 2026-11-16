@@ -11,6 +11,7 @@ import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/members_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
+import 'package:capstone_app/shared/dayung_role_navigation_bar.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
@@ -1242,50 +1243,14 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             duration: const Duration(milliseconds: 300),
             opacity: _showNavBar ? 1.0 : 0.0,
             child: Container(
-              constraints: const BoxConstraints(minHeight: 80, maxHeight: 90),
               margin: EdgeInsets.symmetric(
                 horizontal: wide
                     ? MediaQuery.of(context).size.width * 0.15
                     : 16,
               ),
-              decoration: BoxDecoration(
-                color: dayungSurface(context),
-                borderRadius: BorderRadius.circular(40),
-                boxShadow: [
-                  dayungElevatedShadow(context),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-                border: Border.all(color: dayungBorder(context), width: 1),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _navBarItem(
-                      icon: Icons.dashboard_rounded,
-                      label: 'Dashboard',
-                      selected: _tab == 0,
-                      onTap: () => setState(() => _tab = 0),
-                    ),
-                    _navBarItem(
-                      icon: Icons.trending_up_rounded,
-                      label: 'Contributions',
-                      selected: _tab == 1,
-                      onTap: () => setState(() => _tab = 1),
-                    ),
-                    _navBarItem(
-                      icon: Icons.assignment_rounded,
-                      label: 'Claims',
-                      selected: _tab == 2,
-                      onTap: () => setState(() => _tab = 2),
-                    ),
-                  ],
-                ),
+              child: DayungRoleNavigationBar(
+                selectedIndex: _tab,
+                onDestinationSelected: (index) => setState(() => _tab = index),
               ),
             ),
           ),
@@ -1356,91 +1321,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             ),
           ),
       ],
-    );
-  }
-
-  // --- Modern Nav Item ---
-  Widget _navBarItem({
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-              constraints: const BoxConstraints(minHeight: 56, maxHeight: 64),
-              decoration: BoxDecoration(
-                color: selected
-                    ? const Color(0xFF1E40AF).withValues(alpha: 0.12)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-                border: selected
-                    ? Border.all(
-                        color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
-                        width: 1,
-                      )
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? const Color(0xFF1E40AF)
-                          : Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: selected
-                          ? [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFF1E40AF,
-                                ).withValues(alpha: 0.4),
-                                blurRadius: 12,
-                                offset: const Offset(0, 3),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Icon(
-                      icon,
-                      color: selected ? Colors.white : Colors.grey[700],
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: selected
-                          ? const Color(0xFF1E40AF)
-                          : Colors.grey[700],
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                      fontSize: 12,
-                      letterSpacing: 0.2,
-                      fontFamily: 'Montserrat',
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 

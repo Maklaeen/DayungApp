@@ -12,7 +12,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
-const Color kCardBg = Color(0xFFFFFFFF);
 const Color kBorderColor = Color(0xFFE5E7EB);
 const Color kPrimary = Color(0xFF1E40AF);
 const Color kAccent = Color(0xFF10B981);
@@ -680,47 +679,57 @@ class _ReportsPageState extends State<ReportsPage> {
     final option = await showModalBottomSheet<_ReportExportOption>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => SafeArea(
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SecretarySheetHeader(
-                title: 'Print Reports',
-                subtitle: 'Choose which graph to export as PDF.',
+      builder: (context) {
+        final colors = Theme.of(context).colorScheme;
+        return SafeArea(
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
               ),
-              ListTile(
-                leading: const Icon(
-                  Icons.account_balance_rounded,
-                  color: kPrimary,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SecretarySheetHeader(
+                  title: 'Print Reports',
+                  subtitle: 'Choose which graph to export as PDF.',
                 ),
-                title: const Text('Money Collected Per Collector (Monthly)'),
-                onTap: () =>
-                    Navigator.pop(context, _ReportExportOption.moneyCollected),
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.person_add_alt_1_rounded,
-                  color: kPrimary,
+                ListTile(
+                  leading: Icon(
+                    Icons.account_balance_rounded,
+                    color: colors.primary,
+                  ),
+                  title: const Text('Money Collected Per Collector (Monthly)'),
+                  onTap: () => Navigator.pop(
+                    context,
+                    _ReportExportOption.moneyCollected,
+                  ),
                 ),
-                title: const Text('New Members Per Month'),
-                onTap: () =>
-                    Navigator.pop(context, _ReportExportOption.newMembers),
-              ),
-              ListTile(
-                leading: const Icon(Icons.print_rounded, color: kPrimary),
-                title: const Text('All'),
-                onTap: () => Navigator.pop(context, _ReportExportOption.all),
-              ),
-              const SizedBox(height: 12),
-            ],
+                ListTile(
+                  leading: Icon(
+                    Icons.person_add_alt_1_rounded,
+                    color: colors.primary,
+                  ),
+                  title: const Text('New Members Per Month'),
+                  onTap: () => Navigator.pop(
+                    context,
+                    _ReportExportOption.newMembers,
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(Icons.print_rounded, color: colors.primary),
+                  title: const Text('All'),
+                  onTap: () =>
+                      Navigator.pop(context, _ReportExportOption.all),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
 
     if (option == null || !mounted) return;
@@ -916,6 +925,7 @@ class _ReportsPageState extends State<ReportsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
       body: SafeArea(
@@ -1111,23 +1121,21 @@ class _ReportsPageState extends State<ReportsPage> {
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: kCardBg,
+                                            color: colors.surface,
                                             borderRadius: BorderRadius.circular(
                                               10,
                                             ),
                                             border: Border.all(
-                                              color: kBorderColor.withValues(
-                                                alpha: 0.2,
-                                              ),
+                                              color: colors.outlineVariant,
                                             ),
                                           ),
                                           child: ListTile(
                                             leading: CircleAvatar(
-                                              backgroundColor: kPrimary
+                                              backgroundColor: colors.primary
                                                   .withValues(alpha: 0.12),
                                               child: Icon(
                                                 Icons.person,
-                                                color: kPrimary,
+                                                color: colors.primary,
                                               ),
                                             ),
                                             title: Text(
@@ -1175,18 +1183,19 @@ class _ReportsPageState extends State<ReportsPage> {
     required Widget child,
     double titleFontSize = 18,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
-        color: kCardBg,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: kBorderColor.withValues(alpha: 0.3),
+          color: colors.outlineVariant.withValues(alpha: 0.6),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: colors.shadow.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -1200,10 +1209,10 @@ class _ReportsPageState extends State<ReportsPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: kPrimary.withValues(alpha: 0.1),
+                  color: colors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: kPrimary, size: 20),
+                child: Icon(icon, color: colors.primary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1213,7 +1222,7 @@ class _ReportsPageState extends State<ReportsPage> {
                     fontFamily: 'Montserrat',
                     fontSize: titleFontSize,
                     fontWeight: FontWeight.w800,
-                    color: kPrimary,
+                    color: colors.primary,
                     letterSpacing: 0.3,
                   ),
                   maxLines: 2,
@@ -1290,17 +1299,21 @@ class _SearchableMemberPickerState extends State<_SearchableMemberPicker> {
             children: [
               Text(
                 widget.title,
-                style: const TextStyle(
-                  color: kPrimary,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                   fontFamily: 'Montserrat',
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Search by name to find the right member.',
-                style: TextStyle(color: kSubText, fontSize: 14, height: 1.4),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -1311,19 +1324,26 @@ class _SearchableMemberPickerState extends State<_SearchableMemberPicker> {
                   prefixIcon: const Icon(Icons.search_rounded),
                   hintText: 'Search member name',
                   filled: true,
-                  fillColor: const Color(0xFFF7F9FC),
+                  fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: kBorderColor),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: kBorderColor),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: kPrimary, width: 1.5),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),
@@ -1347,8 +1367,10 @@ class _SearchableMemberPickerState extends State<_SearchableMemberPicker> {
                     : ListView.separated(
                         shrinkWrap: true,
                         itemCount: filteredMembers.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1, color: kBorderColor),
+                        separatorBuilder: (_, _) => Divider(
+                          height: 1,
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
                         itemBuilder: (context, index) {
                           final member = filteredMembers[index];
                           final isSelected = _selectedIds.contains(member.id);
@@ -1358,24 +1380,26 @@ class _SearchableMemberPickerState extends State<_SearchableMemberPicker> {
                             ),
                             minVerticalPadding: 10,
                             leading: CircleAvatar(
-                              backgroundColor: kPrimary.withValues(alpha: 0.1),
-                              child: const Icon(
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.1),
+                              child: Icon(
                                 Icons.person_rounded,
-                                color: kPrimary,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                             title: Text(
                               member.name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF1F2937),
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                             trailing: isSelected
-                                ? const Icon(
+                                ? Icon(
                                     Icons.check_circle_rounded,
-                                    color: kPrimary,
+                                    color: Theme.of(context).colorScheme.primary,
                                   )
                                 : null,
                             onTap: () => Navigator.of(context).pop([member.id]),
@@ -1404,13 +1428,14 @@ class _CollectionMemberSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Select $label',
-          style: const TextStyle(
-            color: Color(0xFF374151),
+          style: TextStyle(
+            color: colors.onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
@@ -1429,8 +1454,12 @@ class _CollectionMemberSelector extends StatelessWidget {
               textAlign: TextAlign.left,
             ),
             style: OutlinedButton.styleFrom(
-              foregroundColor: onTap == null ? kSubText : kPrimary,
-              side: const BorderSide(color: kBorderColor),
+              foregroundColor: onTap == null
+                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  : Theme.of(context).colorScheme.primary,
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               textStyle: const TextStyle(
@@ -1456,23 +1485,24 @@ class _CollectionReportNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FC),
+        color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kBorderColor),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         children: [
-          Icon(icon, color: kPrimary, size: 30),
+          Icon(icon, color: colors.primary, size: 30),
           const SizedBox(height: 10),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF4B5563),
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
               fontSize: 14,
               height: 1.45,
               fontWeight: FontWeight.w600,
@@ -1491,30 +1521,31 @@ class _CollectedTotalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
+        color: dayungAccentSurface(context, colors.primary),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kPrimary.withValues(alpha: 0.16)),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.1),
+              color: colors.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: const Icon(Icons.savings_rounded, color: kPrimary, size: 24),
+            child: Icon(Icons.savings_rounded, color: colors.primary, size: 24),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Text(
               'Total collected',
               style: TextStyle(
-                color: Color(0xFF374151),
+                color: colors.onSurface,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
               ),
@@ -1522,8 +1553,8 @@ class _CollectedTotalCard extends StatelessWidget {
           ),
           Text(
             _formatReportCurrency(total),
-            style: const TextStyle(
-              color: kPrimary,
+            style: TextStyle(
+              color: colors.primary,
               fontSize: 20,
               fontWeight: FontWeight.w800,
               fontFamily: 'Montserrat',
@@ -1595,6 +1626,7 @@ class _IndividualCollectionRowsState extends State<_IndividualCollectionRows> {
             ),
             const SizedBox(height: 12),
             _reportTable(
+              context: context,
               columns: const [
                 DataColumn(label: Text('Contributor')),
                 DataColumn(label: Text('Date')),
@@ -1675,19 +1707,26 @@ class _IndividualCollectionRowsState extends State<_IndividualCollectionRows> {
         prefixIcon: const Icon(Icons.search_rounded),
         hintText: 'Search contributors',
         filled: true,
-        fillColor: const Color(0xFFF7F9FC),
+        fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
         contentPadding: const EdgeInsets.symmetric(vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: kBorderColor),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: kBorderColor),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: kPrimary, width: 1.5),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 1.5,
+          ),
         ),
       ),
     );
@@ -1744,6 +1783,7 @@ class _ConsolidatedCollectionRowsState
         return Column(
           children: [
             _reportTable(
+              context: context,
               columns: const [
                 DataColumn(label: Text('Deceased Member')),
                 DataColumn(label: Text('Collected')),
@@ -1842,14 +1882,15 @@ class _CollectionDataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kBorderColor),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1860,8 +1901,8 @@ class _CollectionDataCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: kPrimary,
+                  style: TextStyle(
+                    color: colors.primary,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1870,8 +1911,8 @@ class _CollectionDataCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 trailing,
-                style: const TextStyle(
-                  color: kPrimary,
+                style: TextStyle(
+                  color: colors.primary,
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1889,8 +1930,8 @@ class _CollectionDataCard extends StatelessWidget {
                     width: 126,
                     child: Text(
                       detail.$1,
-                      style: const TextStyle(
-                        color: kSubText,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1899,8 +1940,8 @@ class _CollectionDataCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       detail.$2,
-                      style: const TextStyle(
-                        color: Color(0xFF374151),
+                      style: TextStyle(
+                        color: colors.onSurface,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1924,19 +1965,28 @@ class _CollectionStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final normalized = label.toLowerCase();
-    final color =
+    final isSuccess =
         normalized.contains('paid') ||
-            normalized.contains('collect') ||
-            normalized.contains('release')
-        ? const Color(0xFF15803D)
-        : normalized.contains('pending') || normalized.contains('not filed')
-        ? const Color(0xFFB45309)
-        : const Color(0xFF475569);
+        normalized.contains('collect') ||
+        normalized.contains('release');
+    final isPending =
+        normalized.contains('pending') || normalized.contains('not filed');
+    final color = isSuccess
+        ? theme.colorScheme.secondary
+        : isPending
+        ? (theme.brightness == Brightness.dark
+              ? const Color(0xFFFFB74D)
+              : const Color(0xFFB45309))
+        : theme.colorScheme.onSurfaceVariant;
+    final background = color.withValues(
+      alpha: theme.brightness == Brightness.dark ? 0.18 : 0.09,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
+        color: background,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1952,24 +2002,26 @@ class _CollectionStatusPill extends StatelessWidget {
 }
 
 Widget _reportTable({
+  required BuildContext context,
   required List<DataColumn> columns,
   required List<DataRow> rows,
   required double minWidth,
 }) {
+  final colors = Theme.of(context).colorScheme;
   return RecordDataTable(
     headingRowHeight: 64,
     dataRowMinHeight: 68,
     dataRowMaxHeight: 112,
     minWidth: minWidth,
-    headingRowColor: const Color(0xFFEAF2FC),
-    headingTextStyle: const TextStyle(
-      color: Color(0xFF0D47A1),
+    headingRowColor: colors.primaryContainer,
+    headingTextStyle: TextStyle(
+      color: colors.primary,
       fontSize: 16,
       fontWeight: FontWeight.w800,
       fontFamily: 'Montserrat',
     ),
-    dataTextStyle: const TextStyle(
-      color: Color(0xFF1F2937),
+    dataTextStyle: TextStyle(
+      color: colors.onSurface,
       fontSize: 16,
       fontWeight: FontWeight.w600,
       fontFamily: 'OpenSans',
@@ -1988,7 +2040,7 @@ Widget _reportTable({
             color:
                 row.color ??
                 WidgetStatePropertyAll(
-                  index.isEven ? Colors.white : const Color(0xFFF5F8FC),
+                  index.isEven ? colors.surface : colors.surfaceContainerLow,
                 ),
             cells: row.cells,
           );
@@ -2041,13 +2093,14 @@ class _DisbursementActivityTable extends StatelessWidget {
   });
 
   Widget _buildErrorState(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7F5),
+        color: colors.errorContainer,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFAD4CE)),
+        border: Border.all(color: colors.error.withValues(alpha: 0.4)),
       ),
       child: Wrap(
         alignment: WrapAlignment.center,
@@ -2055,9 +2108,9 @@ class _DisbursementActivityTable extends StatelessWidget {
         spacing: 16,
         runSpacing: 12,
         children: [
-          const Icon(
+          Icon(
             Icons.cloud_off_rounded,
-            color: Color(0xFFB42318),
+            color: colors.error,
             size: 26,
           ),
           ConstrainedBox(
@@ -2065,18 +2118,21 @@ class _DisbursementActivityTable extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Text(
                   'Disbursement activity could not be loaded',
                   style: TextStyle(
-                    color: Color(0xFF912018),
+                    color: colors.onErrorContainer,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 SizedBox(height: 4),
                 Text(
                   'Check your connection and try again.',
-                  style: TextStyle(color: Color(0xFF7A271A), fontSize: 13),
+                  style: TextStyle(
+                    color: colors.onErrorContainer,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -2086,8 +2142,8 @@ class _DisbursementActivityTable extends StatelessWidget {
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Retry'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFB42318),
-              side: const BorderSide(color: Color(0xFFE7A49A)),
+              foregroundColor: colors.error,
+              side: BorderSide(color: colors.error),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
@@ -2098,11 +2154,12 @@ class _DisbursementActivityTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     if (error != null) {
       return _buildErrorState(context);
     }
     if (activities.isEmpty) {
-      return _message('No disbursement activity has been recorded yet.');
+      return _message('No disbursement activity has been recorded yet.', colors);
     }
 
     return LayoutBuilder(
@@ -2110,7 +2167,7 @@ class _DisbursementActivityTable extends StatelessWidget {
         if (constraints.maxWidth < 760) {
           return Column(
             children: activities
-                .map((activity) => _buildActivityCard(activity))
+                .map((activity) => _buildActivityCard(activity, colors))
                 .toList(),
           );
         }
@@ -2118,23 +2175,25 @@ class _DisbursementActivityTable extends StatelessWidget {
         return Container(
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: colors.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: kBorderColor.withValues(alpha: 0.45)),
+            border: Border.all(
+              color: colors.outlineVariant.withValues(alpha: 0.8),
+            ),
           ),
           child: RecordDataTable(
               headingRowHeight: 64,
               dataRowMinHeight: 72,
               dataRowMaxHeight: 120,
-              headingRowColor: const Color(0xFFEAF2FC),
-              headingTextStyle: const TextStyle(
-                color: Color(0xFF0D47A1),
+              headingRowColor: colors.primaryContainer,
+              headingTextStyle: TextStyle(
+                color: colors.primary,
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 fontFamily: 'Montserrat',
               ),
-              dataTextStyle: const TextStyle(
-                color: Color(0xFF1F2937),
+              dataTextStyle: TextStyle(
+                color: colors.onSurface,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 fontFamily: 'OpenSans',
@@ -2142,8 +2201,8 @@ class _DisbursementActivityTable extends StatelessWidget {
               columnSpacing: 24,
               horizontalMargin: 18,
               dividerThickness: 1,
-              border: const TableBorder(
-                horizontalInside: BorderSide(color: Color(0xFFD7E0EA)),
+              border: TableBorder(
+                horizontalInside: BorderSide(color: colors.outlineVariant),
               ),
               columns: const [
                 DataColumn(label: Text('Beneficiary Name')),
@@ -2157,17 +2216,22 @@ class _DisbursementActivityTable extends StatelessWidget {
                 final (index, activity) = entry;
                 return DataRow(
                   color: WidgetStatePropertyAll(
-                    index.isEven ? Colors.white : const Color(0xFFF5F8FC),
+                    index.isEven ? colors.surface : colors.surfaceContainerLow,
                   ),
                   cells: [
-                    DataCell(_tableValue(activity['beneficiary_name'])),
-                    DataCell(_tableValue(activity['deceased_member'])),
-                    DataCell(_tableValue(_formatCurrency(activity['amount']))),
-                    DataCell(_tableValue(activity['released_by'])),
+                    DataCell(_tableValue(activity['beneficiary_name'], colors)),
+                    DataCell(_tableValue(activity['deceased_member'], colors)),
                     DataCell(
-                      _tableValue(_formatReleaseDate(activity['released_at'])),
+                      _tableValue(_formatCurrency(activity['amount']), colors),
                     ),
-                    DataCell(_statusBadge(activity['status'])),
+                    DataCell(_tableValue(activity['released_by'], colors)),
+                    DataCell(
+                      _tableValue(
+                        _formatReleaseDate(activity['released_at']),
+                        colors,
+                      ),
+                    ),
+                    DataCell(_statusBadge(activity['status'], colors)),
                   ],
                 );
               }).toList(),
@@ -2177,15 +2241,18 @@ class _DisbursementActivityTable extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityCard(Map<String, dynamic> activity) {
+  Widget _buildActivityCard(
+    Map<String, dynamic> activity,
+    ColorScheme colors,
+  ) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kBorderColor.withValues(alpha: 0.55)),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2195,8 +2262,8 @@ class _DisbursementActivityTable extends StatelessWidget {
               Expanded(
                 child: Text(
                   '${activity['beneficiary_name']}',
-                  style: const TextStyle(
-                    color: kPrimary,
+                  style: TextStyle(
+                    color: colors.primary,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
@@ -2204,8 +2271,8 @@ class _DisbursementActivityTable extends StatelessWidget {
               ),
               Text(
                 _formatCurrency(activity['amount']),
-                style: const TextStyle(
-                  color: kPrimary,
+                style: TextStyle(
+                  color: colors.primary,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
@@ -2213,20 +2280,21 @@ class _DisbursementActivityTable extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          _detailLine('Deceased Member', activity['deceased_member']),
-          _detailLine('Released By', activity['released_by']),
+          _detailLine('Deceased Member', activity['deceased_member'], colors),
+          _detailLine('Released By', activity['released_by'], colors),
           _detailLine(
             'Date and Time Released',
             _formatReleaseDate(activity['released_at']),
+            colors,
           ),
           const SizedBox(height: 8),
-          _statusBadge(activity['status']),
+          _statusBadge(activity['status'], colors),
         ],
       ),
     );
   }
 
-  Widget _detailLine(String label, Object? value) {
+  Widget _detailLine(String label, Object? value, ColorScheme colors) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -2236,8 +2304,8 @@ class _DisbursementActivityTable extends StatelessWidget {
             width: 150,
             child: Text(
               label,
-              style: const TextStyle(
-                color: kSubText,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -2246,8 +2314,8 @@ class _DisbursementActivityTable extends StatelessWidget {
           Expanded(
             child: Text(
               '${value ?? '—'}',
-              style: const TextStyle(
-                color: Colors.black87,
+              style: TextStyle(
+                color: colors.onSurface,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -2258,45 +2326,48 @@ class _DisbursementActivityTable extends StatelessWidget {
     );
   }
 
-  Widget _message(String text, {Color? color}) {
+  Widget _message(String text, ColorScheme colors, {Color? color}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kBorderColor.withValues(alpha: 0.45)),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color ?? kSubText, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: color ?? colors.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
 
-  Widget _tableValue(Object? value) {
+  Widget _tableValue(Object? value, ColorScheme colors) {
     return Text(
       '${value ?? '—'}',
-      style: const TextStyle(
-        color: Colors.black87,
+      style: TextStyle(
+        color: colors.onSurface,
         fontSize: 16,
         fontWeight: FontWeight.w600,
       ),
     );
   }
 
-  Widget _statusBadge(Object? value) {
+  Widget _statusBadge(Object? value, ColorScheme colors) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F5E9),
+        color: colors.secondaryContainer,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         '${value ?? 'Released'}',
-        style: const TextStyle(
-          color: Color(0xFF2E7D32),
+        style: TextStyle(
+          color: colors.secondary,
           fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
@@ -2326,6 +2397,7 @@ class _MoneyCollectedBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final now = DateTime.now();
     final currentYear = now.year;
     final monthlyTotals = List<double>.filled(12, 0);
@@ -2374,15 +2446,15 @@ class _MoneyCollectedBarChart extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: kPrimary.withValues(alpha: 0.08),
+                color: colors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 'Total: ₱${totalYear.toStringAsFixed(0)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: kPrimary,
+                  color: colors.primary,
                   fontFamily: 'Montserrat',
                 ),
               ),
@@ -2390,10 +2462,10 @@ class _MoneyCollectedBarChart extends StatelessWidget {
             const Spacer(),
             Text(
               '$currentYear',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: kSubText,
+                color: colors.onSurfaceVariant,
                 fontFamily: 'OpenSans',
               ),
             ),
@@ -2446,7 +2518,7 @@ class _MoneyCollectedBarChart extends StatelessWidget {
                           monthLabels[idx],
                           style: TextStyle(
                             fontSize: isWide ? 11 : 10,
-                            color: kSubText,
+                            color: colors.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -2460,7 +2532,7 @@ class _MoneyCollectedBarChart extends StatelessWidget {
                 drawVerticalLine: false,
                 horizontalInterval: chartMax / 4,
                 getDrawingHorizontalLine: (_) =>
-                    FlLine(color: Colors.grey.shade100, strokeWidth: 1),
+                    FlLine(color: colors.outlineVariant, strokeWidth: 1),
               ),
               borderData: FlBorderData(show: false),
               barGroups: List.generate(12, (i) {
@@ -2472,8 +2544,8 @@ class _MoneyCollectedBarChart extends StatelessWidget {
                     BarChartRodData(
                       toY: value,
                       color: isCurrentMonth
-                          ? kPrimary
-                          : kPrimary.withValues(alpha: 0.45),
+                          ? colors.primary
+                          : colors.primary.withValues(alpha: 0.45),
                       width: isWide ? 18 : 16,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(6),
@@ -2481,7 +2553,7 @@ class _MoneyCollectedBarChart extends StatelessWidget {
                       backDrawRodData: BackgroundBarChartRodData(
                         show: true,
                         toY: chartMax,
-                        color: Colors.grey.shade100,
+                        color: colors.surfaceContainerLow,
                       ),
                     ),
                   ],
@@ -2502,13 +2574,13 @@ class _MoneyCollectedBarChart extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: isCurrentMonth
-                      ? kPrimary.withValues(alpha: 0.1)
-                      : Colors.grey.shade50,
+                      ? colors.primary.withValues(alpha: 0.1)
+                      : colors.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isCurrentMonth
-                        ? kPrimary.withValues(alpha: 0.3)
-                        : Colors.grey.shade200,
+                        ? colors.primary.withValues(alpha: 0.3)
+                        : colors.outlineVariant,
                   ),
                 ),
                 child: Column(
@@ -2518,7 +2590,9 @@ class _MoneyCollectedBarChart extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: isCurrentMonth ? kPrimary : kSubText,
+                        color: isCurrentMonth
+                            ? colors.primary
+                            : colors.onSurfaceVariant,
                       ),
                     ),
                     Text(
@@ -2526,7 +2600,9 @@ class _MoneyCollectedBarChart extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w600,
-                        color: isCurrentMonth ? kPrimary : kSubText,
+                        color: isCurrentMonth
+                            ? colors.primary
+                            : colors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -2548,6 +2624,7 @@ class _NewMembersBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final months = data.map((e) => e['month'] as String).toList()..sort();
     final counts = months
         .map((m) => data.firstWhere((e) => e['month'] == m)['count'] as int)
@@ -2576,7 +2653,7 @@ class _NewMembersBarChart extends StatelessWidget {
                     value.toInt().toString(),
                     style: TextStyle(
                       fontSize: isWide ? 14 : 10,
-                      color: Colors.black54,
+                      color: colors.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -2595,7 +2672,7 @@ class _NewMembersBarChart extends StatelessWidget {
                             _formatMonthYear(months[idx]),
                             style: TextStyle(
                               fontSize: isWide ? 14 : 12,
-                              color: Colors.black87,
+                              color: colors.onSurface,
                             ),
                           ),
                         )
@@ -2619,13 +2696,13 @@ class _NewMembersBarChart extends StatelessWidget {
               barRods: [
                 BarChartRodData(
                   toY: counts[i].toDouble(),
-                  color: Colors.blueAccent,
+                  color: colors.primary,
                   width: isWide ? 26 : 22,
                   borderRadius: BorderRadius.circular(4),
                   backDrawRodData: BackgroundBarChartRodData(
                     show: true,
                     toY: maxY,
-                    color: const Color(0xFFE5E7EB),
+                    color: colors.surfaceContainerLow,
                   ),
                 ),
               ],

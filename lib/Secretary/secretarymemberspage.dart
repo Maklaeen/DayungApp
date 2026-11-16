@@ -180,8 +180,9 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth > 700;
@@ -265,8 +266,8 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                   controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Search member...',
-                    hintStyle: const TextStyle(
-                      color: kSubtleText,
+                    hintStyle: TextStyle(
+                      color: colors.onSurfaceVariant,
                       fontFamily: 'OpenSans',
                     ),
                     prefixIcon: const Icon(
@@ -275,24 +276,27 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                       size: 20,
                     ),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: Theme.of(context).inputDecorationTheme.fillColor,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(color: colors.outlineVariant),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(color: colors.outlineVariant),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: kPrimary, width: 1.5),
+                      borderSide: BorderSide(
+                        color: colors.primary,
+                        width: 1.5,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    color: kNeutralText,
+                    color: colors.onSurface,
                     fontFamily: 'OpenSans',
                     fontWeight: FontWeight.w600,
                   ),
@@ -307,12 +311,12 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                   horizontal: 20,
                   vertical: 16,
                 ),
-                color: const Color(0xFFF1F5F9),
+                color: colors.surfaceContainerHigh,
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.filter_list_rounded,
-                      color: kSubtleText,
+                      color: colors.onSurfaceVariant,
                       size: 16,
                     ),
                     const SizedBox(width: 12),
@@ -352,10 +356,10 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                         child: Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: colors.surfaceContainerLow,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: Colors.grey.shade300,
+                              color: colors.outlineVariant,
                               width: 1,
                             ),
                             boxShadow: [
@@ -366,18 +370,18 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                               ),
                             ],
                           ),
-                          child: const Column(
+                          child:                           Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               CircularProgressIndicator(
-                                color: kPrimary,
+                              color: colors.primary,
                                 strokeWidth: 3,
                               ),
                               SizedBox(height: 16),
                               Text(
                                 'Loading members...',
                                 style: TextStyle(
-                                  color: kSubtleText,
+                                  color: colors.onSurfaceVariant,
                                   fontSize: 14,
                                   fontFamily: 'OpenSans',
                                   fontWeight: FontWeight.w600,
@@ -393,10 +397,10 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                           margin: const EdgeInsets.all(20),
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: colors.surfaceContainerLow,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: Colors.grey.shade300,
+                              color: colors.outlineVariant,
                               width: 1,
                             ),
                             boxShadow: [
@@ -409,9 +413,9 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                           ),
                           child: Text(
                             _infoMsg!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
-                              color: kNeutralText,
+                              color: colors.onSurface,
                               fontFamily: 'OpenSans',
                               fontWeight: FontWeight.w600,
                             ),
@@ -459,6 +463,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     List<Map<String, dynamic>> list, {
     String mode = 'active',
   }) {
+    final colors = Theme.of(context).colorScheme;
     List<Map<String, dynamic>> filtered = list;
     if (_searchQuery.isNotEmpty) {
       filtered = list.where((r) {
@@ -473,11 +478,16 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
+          children: [
             SizedBox(height: 120),
-            Icon(Icons.people_outline, size: 48, color: kSubtleText),
+            Icon(Icons.people_outline, size: 48, color: colors.onSurfaceVariant),
             SizedBox(height: 12),
-            Center(child: Text('No members in this status')),
+            Center(
+              child: Text(
+                'No members in this status',
+                style: TextStyle(color: colors.onSurfaceVariant),
+              ),
+            ),
           ],
         ),
       );
@@ -506,6 +516,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   }
 
   DataRow _memberDataRow(Map<String, dynamic> r, {required String mode}) {
+    final colors = Theme.of(context).colorScheme;
     final u = r['user'] as Map<String, dynamic>?;
     final profileUrl = (u?['profile_url'] as String?)?.trim();
     final dayungId = r['dayung_unit_id'] as int?;
@@ -517,15 +528,15 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     Color chipColor;
     if (mode == 'deceased') {
       chipText = 'deceased';
-      chipColor = Colors.red;
+      chipColor = colors.error;
     } else {
       final status = (r['status'] ?? '').toString();
       chipText = status;
       chipColor = status == 'approved'
-          ? Colors.green
+          ? colors.secondary
           : status == 'pending'
-          ? Colors.orange
-          : Colors.grey;
+          ? colors.tertiary
+          : colors.onSurfaceVariant;
     }
 
     final title = (u?['full_name'] as String?)?.trim().isNotEmpty == true
@@ -549,15 +560,15 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                 backgroundImage: profileUrl != null && profileUrl.isNotEmpty
                     ? NetworkImage(profileUrl)
                     : null,
-                backgroundColor: kBg,
+                backgroundColor: Theme.of(context).scaffoldBackgroundColor,
                 radius: 18,
                 child: profileUrl == null || profileUrl.isEmpty
                     ? Text(
                         _initialOf(u?['full_name']),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
-                          color: kPrimaryDark,
+                          color: colors.primary,
                         ),
                       )
                     : null,
@@ -568,10 +579,10 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: kPrimaryDark,
+                    color: colors.onSurface,
                     fontFamily: 'Montserrat',
                   ),
                 ),
@@ -623,6 +634,7 @@ class _NavTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -631,14 +643,18 @@ class _NavTab extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 12, color: selected ? kPrimary : kSubtleText),
+              Icon(
+                icon,
+                size: 12,
+                color: selected ? colors.primary : colors.onSurfaceVariant,
+              ),
               const SizedBox(width: 3),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: selected ? kPrimary : kSubtleText,
+                  color: selected ? colors.primary : colors.onSurfaceVariant,
                   fontFamily: 'Montserrat',
                 ),
               ),
@@ -650,7 +666,7 @@ class _NavTab extends StatelessWidget {
               height: 3,
               width: label.length * 8.0,
               decoration: BoxDecoration(
-                color: kPrimary,
+                color: colors.primary,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -721,13 +737,14 @@ Future<void> _showBeneficiariesModal(
 
           return LayoutBuilder(
             builder: (context, constraints) {
+              final colors = Theme.of(context).colorScheme;
               String fmtDate(String iso) =>
                   iso.isEmpty ? '—' : (iso.split('T').first);
 
               return Container(
                 height: MediaQuery.of(context).size.height * 0.8,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8FAFC),
+                decoration: BoxDecoration(
+                  color: colors.surface,
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(24),
                     topRight: Radius.circular(24),
@@ -740,7 +757,7 @@ Future<void> _showBeneficiariesModal(
                       width: 50,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade400,
+                        color: colors.outline,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -751,28 +768,19 @@ Future<void> _showBeneficiariesModal(
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFFFFFF), Color(0xFFE0E7FF)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
+                              color: colors.primaryContainer,
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.white54,
-                                  blurRadius: 20,
-                                  offset: Offset(0, 8),
-                                ),
-                                BoxShadow(
-                                  color: Color(0xFF1E40AF),
+                                  color: colors.shadow.withValues(alpha: 0.12),
                                   blurRadius: 12,
-                                  offset: Offset(0, 4),
+                                  offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.person_rounded,
-                              color: Color(0xFF1E40AF),
+                              color: colors.onPrimaryContainer,
                               size: 24,
                             ),
                           ),
@@ -783,19 +791,19 @@ Future<void> _showBeneficiariesModal(
                               children: [
                                 Text(
                                   userName ?? 'Member',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w800,
-                                    color: Color(0xFF1E40AF),
+                                    color: colors.onSurface,
                                     fontFamily: 'Montserrat',
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                const Text(
+                                Text(
                                   'Member Details',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: Color(0xFF6B7280),
+                                    color: colors.onSurfaceVariant,
                                     fontFamily: 'OpenSans',
                                   ),
                                 ),
@@ -805,13 +813,13 @@ Future<void> _showBeneficiariesModal(
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
+                              color: colors.surfaceContainerHigh,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.close,
-                                color: Color(0xFF6B7280),
+                                color: colors.onSurfaceVariant,
                                 size: 20,
                               ),
                               onPressed: () => Navigator.pop(context),
@@ -822,17 +830,17 @@ Future<void> _showBeneficiariesModal(
                     ),
                     Expanded(
                       child: Container(
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.only(
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(32),
                             topRight: Radius.circular(32),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black12,
+                              color: colors.shadow.withValues(alpha: 0.12),
                               blurRadius: 20,
-                              offset: Offset(0, -5),
+                              offset: const Offset(0, -5),
                             ),
                           ],
                         ),
@@ -870,14 +878,14 @@ Future<void> _showBeneficiariesModal(
                                           ? const Color(
                                               0xFF10B981,
                                             ).withValues(alpha: 0.1)
-                                          : Colors.grey.shade50,
+                                          : colors.surfaceContainerHigh,
                                       borderRadius: BorderRadius.circular(10),
                                       border: Border.all(
                                         color: ok
                                             ? const Color(
                                                 0xFF10B981,
                                               ).withValues(alpha: 0.3)
-                                            : Colors.grey.shade300,
+                                            : colors.outlineVariant,
                                       ),
                                     ),
                                     child: Row(
@@ -888,8 +896,8 @@ Future<void> _showBeneficiariesModal(
                                               : Icons
                                                     .radio_button_unchecked_rounded,
                                           color: ok
-                                              ? const Color(0xFF10B981)
-                                              : const Color(0xFF6B7280),
+                                              ? colors.secondary
+                                              : colors.onSurfaceVariant,
                                           size: 18,
                                         ),
                                         const SizedBox(width: 10),
@@ -898,8 +906,8 @@ Future<void> _showBeneficiariesModal(
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: ok
-                                                ? const Color(0xFF10B981)
-                                                : const Color(0xFF374151),
+                                                ? colors.secondary
+                                                : colors.onSurface,
                                             fontFamily: 'OpenSans',
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -912,10 +920,10 @@ Future<void> _showBeneficiariesModal(
                                     width: double.infinity,
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: colors.surfaceContainerLow,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Colors.grey.shade200,
+                                        color: colors.outlineVariant,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
@@ -936,15 +944,13 @@ Future<void> _showBeneficiariesModal(
                                             Container(
                                               padding: const EdgeInsets.all(8),
                                               decoration: BoxDecoration(
-                                                color: const Color(
-                                                  0xFF1E40AF,
-                                                ).withValues(alpha: 0.1),
+                                                color: colors.primaryContainer,
                                                 borderRadius:
                                                     BorderRadius.circular(10),
                                               ),
-                                              child: const Icon(
+                                              child: Icon(
                                                 Icons.person_rounded,
-                                                color: Color(0xFF1E40AF),
+                                                color: colors.onPrimaryContainer,
                                                 size: 20,
                                               ),
                                             ),
@@ -956,22 +962,20 @@ Future<void> _showBeneficiariesModal(
                                                 children: [
                                                   Text(
                                                     (userName ?? 'Member'),
-                                                    style: const TextStyle(
+                                                    style: TextStyle(
                                                       fontWeight:
                                                           FontWeight.w700,
                                                       fontSize: 16,
-                                                      color: Color(0xFF374151),
+                                                      color: colors.onSurface,
                                                       fontFamily: 'Montserrat',
                                                     ),
                                                   ),
                                                   if (phone.isNotEmpty)
                                                     Text(
                                                       phone,
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         fontSize: 12,
-                                                        color: Color(
-                                                          0xFF6B7280,
-                                                        ),
+                                                        color: colors.onSurfaceVariant,
                                                         fontFamily: 'OpenSans',
                                                       ),
                                                     ),
@@ -981,12 +985,12 @@ Future<void> _showBeneficiariesModal(
                                           ],
                                         ),
                                         const SizedBox(height: 14),
-                                        const Text(
+                                        Text(
                                           'Last Contribution:',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w700,
                                             fontSize: 14,
-                                            color: Color(0xFF374151),
+                                            color: colors.onSurface,
                                             fontFamily: 'Montserrat',
                                           ),
                                         ),
@@ -1002,7 +1006,7 @@ Future<void> _showBeneficiariesModal(
                                                 height: 18,
                                                 width: 180,
                                                 decoration: BoxDecoration(
-                                                  color: Colors.grey.shade200,
+                                                  color: colors.surfaceContainerHigh,
                                                   borderRadius:
                                                       BorderRadius.circular(6),
                                                 ),
@@ -1010,11 +1014,11 @@ Future<void> _showBeneficiariesModal(
                                             }
                                             final data = cSnap.data ?? const [];
                                             if (data.isEmpty) {
-                                              return const Text(
+                                              return Text(
                                                 '—',
                                                 style: TextStyle(
                                                   fontSize: 15,
-                                                  color: kNeutralText,
+                                                  color: colors.onSurface,
                                                   fontFamily: 'OpenSans',
                                                 ),
                                               );
@@ -1027,9 +1031,9 @@ Future<void> _showBeneficiariesModal(
                                                 .toString();
                                             return Text(
                                               '₱ ${amt.toStringAsFixed(0)} on ${fmtDate(date)}',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 15,
-                                                color: kNeutralText,
+                                                color: colors.onSurface,
                                                 fontFamily: 'OpenSans',
                                                 fontWeight: FontWeight.w700,
                                               ),
@@ -1037,12 +1041,12 @@ Future<void> _showBeneficiariesModal(
                                           },
                                         ),
                                         const SizedBox(height: 16),
-                                        const Text(
+                                        Text(
                                           'Required Documents',
                                           style: TextStyle(
                                             fontWeight: FontWeight.w700,
                                             fontSize: 14,
-                                            color: Color(0xFF374151),
+                                            color: colors.onSurface,
                                             fontFamily: 'Montserrat',
                                           ),
                                         ),
@@ -1073,20 +1077,20 @@ Future<void> _showBeneficiariesModal(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
+                                      Text(
                                         'Last Contributions',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 12,
-                                          color: kPrimaryDark,
+                                          color: colors.primary,
                                         ),
                                       ),
                                       const SizedBox(height: 10),
                                       if (contribs.isEmpty)
-                                        const Text(
+                                        Text(
                                           'No paid contributions yet.',
                                           style: TextStyle(
-                                            color: kSubtleText,
+                                            color: colors.onSurfaceVariant,
                                             fontSize: 16,
                                           ),
                                         )
@@ -1108,13 +1112,13 @@ Future<void> _showBeneficiariesModal(
                                               vertical: 6,
                                             ),
                                             child: ListTile(
-                                              leading: const CircleAvatar(
-                                                backgroundColor: Color(
-                                                  0xFFE3F2FD,
-                                                ),
+                                              leading: CircleAvatar(
+                                                backgroundColor:
+                                                    colors.primaryContainer,
                                                 child: Icon(
                                                   Icons.receipt_long,
-                                                  color: Color(0xFF1976D2),
+                                                  color: colors
+                                                      .onPrimaryContainer,
                                                 ),
                                               ),
                                               title: Text(
@@ -1131,26 +1135,26 @@ Future<void> _showBeneficiariesModal(
                                                 children: [
                                                   Text(
                                                     'Paid on ${fmtDate(date)}',
-                                                    style: const TextStyle(
+                                                    style: TextStyle(
                                                       fontSize: 12,
-                                                      color: kSubtleText,
+                                                      color: colors.onSurfaceVariant,
                                                     ),
                                                   ),
                                                   if (dod.isNotEmpty)
                                                     Text(
                                                       'Date of Death: $dod',
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         fontSize: 12,
-                                                        color: kSubtleText,
+                                                        color: colors.onSurfaceVariant,
                                                       ),
                                                     ),
                                                 ],
                                               ),
                                               trailing: Text(
                                                 '₱ $amt',
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontWeight: FontWeight.w800,
-                                                  color: kPrimaryDark,
+                                                  color: colors.primary,
                                                 ),
                                               ),
                                             ),
@@ -1161,20 +1165,20 @@ Future<void> _showBeneficiariesModal(
                                 },
                               ),
                               const SizedBox(height: 22),
-                              const Text(
+                              Text(
                                 'Beneficiaries',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
-                                  color: kPrimaryDark,
+                                  color: colors.primary,
                                 ),
                               ),
                               const SizedBox(height: 12),
                               if (list.isEmpty)
-                                const Text(
+                                Text(
                                   'No beneficiaries found.',
                                   style: TextStyle(
-                                    color: kSubtleText,
+                                    color: colors.onSurfaceVariant,
                                     fontSize: 16,
                                   ),
                                 ),
@@ -1184,9 +1188,9 @@ Future<void> _showBeneficiariesModal(
                                     vertical: 6,
                                   ),
                                   child: ListTile(
-                                    leading: const Icon(
+                                    leading: Icon(
                                       Icons.person,
-                                      color: Colors.blue,
+                                      color: colors.primary,
                                     ),
                                     title: Text(
                                       b['full_name'] ?? '',
@@ -1210,14 +1214,14 @@ Future<void> _showBeneficiariesModal(
                                             onTap: () => launchUrl(
                                               Uri.parse(b['birth_certificate']),
                                             ),
-                                            child: const Padding(
+                                            child: Padding(
                                               padding: EdgeInsets.only(
                                                 top: 4.0,
                                               ),
                                               child: Text(
                                                 'View Birth Certificate',
                                                 style: TextStyle(
-                                                  color: Colors.blue,
+                                                  color: colors.primary,
                                                   decoration:
                                                       TextDecoration.underline,
                                                 ),

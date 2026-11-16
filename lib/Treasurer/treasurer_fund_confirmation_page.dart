@@ -412,7 +412,7 @@ class _TreasurerFundConfirmationPageState
               onPressed: () => Navigator.of(dialogContext).pop(true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
+                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
               ),
               child: const Text('Confirm'),
             ),
@@ -442,6 +442,7 @@ class _TreasurerFundConfirmationPageState
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final colors = Theme.of(context).colorScheme;
             return AlertDialog(
               title: Text(collector['name']?.toString() ?? 'Collector'),
               contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -453,14 +454,17 @@ class _TreasurerFundConfirmationPageState
                   children: [
                     Text(
                       '${members.length} member${members.length == 1 ? '' : 's'} • ${_formatCurrency(_asDouble(collector['amount']))}',
-                      style: const TextStyle(
-                        color: Color(0xFF6B7280),
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
                         fontSize: 13,
                       ),
                     ),
                     const SizedBox(height: 12),
                     if (members.isEmpty)
-                      const Text('No member breakdown available yet.')
+                      Text(
+                        'No member breakdown available yet.',
+                        style: TextStyle(color: colors.onSurfaceVariant),
+                      )
                     else
                       Flexible(
                         child: SingleChildScrollView(
@@ -470,7 +474,10 @@ class _TreasurerFundConfirmationPageState
                                 contentPadding: EdgeInsets.zero,
                                 title: Text(
                                   member['name']?.toString() ?? 'Member',
-                                  style: const TextStyle(fontSize: 14),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: colors.onSurface,
+                                  ),
                                 ),
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,18 +487,18 @@ class _TreasurerFundConfirmationPageState
                                       _formatCurrency(
                                         _asDouble(member['amount']),
                                       ),
-                                      style: const TextStyle(
-                                        color: Color(0xFF6B7280),
+                                      style: TextStyle(
+                                        color: colors.onSurfaceVariant,
                                         fontSize: 12,
                                       ),
                                     ),
                                     if (member['is_received'] == true)
-                                      const Padding(
+                                      Padding(
                                         padding: EdgeInsets.only(top: 4),
                                         child: Text(
                                           'Received by treasurer',
                                           style: TextStyle(
-                                            color: Color(0xFF10B981),
+                                            color: colors.secondary,
                                             fontSize: 11,
                                           ),
                                         ),
@@ -538,8 +545,8 @@ class _TreasurerFundConfirmationPageState
                                   style: TextButton.styleFrom(
                                     foregroundColor:
                                         member['is_received'] == true
-                                        ? Colors.grey
-                                        : const Color(0xFF10B981),
+                                        ? colors.onSurfaceVariant
+                                        : colors.secondary,
                                   ),
                                   child: Text(
                                     member['is_received'] == true
@@ -575,13 +582,14 @@ class _TreasurerFundConfirmationPageState
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final totalCollected = _collectorSummaries.fold<double>(
       0.0,
       (sum, collector) => sum + _asDouble(collector['amount']),
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -660,7 +668,7 @@ class _TreasurerFundConfirmationPageState
                       child: Container(
                         margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: colors.surface,
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
@@ -681,7 +689,7 @@ class _TreasurerFundConfirmationPageState
                                     child: _summaryCard(
                                       title: 'Assigned collectors',
                                       value: '${_collectorSummaries.length}',
-                                      accent: const Color(0xFFF59E0B),
+                                      accent: colors.tertiary,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -691,18 +699,18 @@ class _TreasurerFundConfirmationPageState
                                       value: _formatCurrency(
                                         _treasurerCollectedTotal,
                                       ),
-                                      accent: const Color(0xFF10B981),
+                                      accent: colors.secondary,
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 16),
-                              const Text(
+                              Text(
                                 'Collector totals',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF111827),
+                                  color: colors.onSurface,
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -710,24 +718,34 @@ class _TreasurerFundConfirmationPageState
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF7ED),
+                                    color: colors.errorContainer,
                                     borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: colors.error.withValues(alpha: 0.4),
+                                    ),
                                   ),
-                                  child: Text(_error!),
+                                  child: Text(
+                                    _error!,
+                                    style: TextStyle(
+                                      color: colors.onErrorContainer,
+                                    ),
+                                  ),
                                 )
                               else if (_collectorSummaries.isEmpty)
                                 Container(
                                   padding: const EdgeInsets.all(20),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: colors.surfaceContainerLow,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: const Color(0xFFE5E7EB),
+                                      color: colors.outlineVariant,
                                     ),
                                   ),
-                                  child: const Text(
+                                  child: Text(
                                     'No assigned collectors or paid remittances are available yet.',
-                                    style: TextStyle(color: Color(0xFF6B7280)),
+                                    style: TextStyle(
+                                      color: colors.onSurfaceVariant,
+                                    ),
                                   ),
                                 )
                               else
@@ -736,10 +754,10 @@ class _TreasurerFundConfirmationPageState
                                     margin: const EdgeInsets.only(bottom: 12),
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: colors.surfaceContainerLow,
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: const Color(0xFFE5E7EB),
+                                        color: colors.outlineVariant,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
@@ -767,17 +785,17 @@ class _TreasurerFundConfirmationPageState
                                                   collector['name']
                                                           ?.toString() ??
                                                       'Collector',
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontWeight: FontWeight.w800,
                                                     fontSize: 15,
-                                                    color: Color(0xFF111827),
+                                                    color: colors.onSurface,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
                                                   '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'} • tap to view members',
-                                                  style: const TextStyle(
-                                                    color: Color(0xFF6B7280),
+                                                  style: TextStyle(
+                                                    color: colors.onSurfaceVariant,
                                                     fontSize: 12,
                                                   ),
                                                 ),
@@ -794,17 +812,17 @@ class _TreasurerFundConfirmationPageState
                                               _formatCurrency(
                                                 _asDouble(collector['amount']),
                                               ),
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.w800,
-                                                color: Color(0xFF0D47A1),
+                                                color: colors.primary,
                                               ),
                                             ),
                                             const SizedBox(height: 4),
-                                            const Text(
+                                            Text(
                                               'Collected',
                                               style: TextStyle(
-                                                color: Color(0xFF10B981),
+                                                color: colors.secondary,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w700,
                                               ),
@@ -832,12 +850,13 @@ class _TreasurerFundConfirmationPageState
     required String value,
     required Color accent,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -853,8 +872,8 @@ class _TreasurerFundConfirmationPageState
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              color: Color(0xFF111827),
+            style: TextStyle(
+              color: colors.onSurface,
               fontWeight: FontWeight.w800,
               fontSize: 16,
             ),

@@ -479,7 +479,7 @@ class _CollectorOverallReportsPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -497,8 +497,8 @@ class _CollectorOverallReportsPageState
                         child: Text(
                           _error!,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xFFB91C1C),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
                             fontFamily: 'OpenSans',
                           ),
                         ),
@@ -509,10 +509,12 @@ class _CollectorOverallReportsPageState
                       children: [
                         _sectionTitle('Unpaid Contributions'),
                         const SizedBox(height: 4),
-                        const Text(
+                        Text(
                           "Members who haven't paid for previous deceased members.",
                           style: TextStyle(
-                            color: Color(0xFF6B7280),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontFamily: 'OpenSans',
                             fontSize: 13,
                           ),
@@ -548,21 +550,27 @@ class _CollectorOverallReportsPageState
                             hintText: 'Search collection records',
                             prefixIcon: const Icon(Icons.search_rounded),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: Theme.of(
+                              context,
+                            ).inputDecorationTheme.fillColor,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 12,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
+                              borderSide: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
+                              borderSide: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
                               ),
                             ),
                           ),
@@ -581,21 +589,27 @@ class _CollectorOverallReportsPageState
                             hintText: 'Search member collection records',
                             prefixIcon: const Icon(Icons.search_rounded),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: Theme.of(
+                              context,
+                            ).inputDecorationTheme.fillColor,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 12,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
+                              borderSide: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
+                              borderSide: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
                               ),
                             ),
                           ),
@@ -682,21 +696,27 @@ class _CollectorOverallReportsPageState
                             hintText: 'Search advance payments',
                             prefixIcon: const Icon(Icons.search_rounded),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: Theme.of(
+                              context,
+                            ).inputDecorationTheme.fillColor,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 12,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
+                              borderSide: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
+                              borderSide: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
                               ),
                             ),
                           ),
@@ -752,18 +772,22 @@ class _CollectorOverallReportsPageState
         labelText: 'Deceased Member',
         prefixIcon: const Icon(Icons.person_search_rounded),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Theme.of(context).inputDecorationTheme.fillColor,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 12,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
       ),
       items: [
@@ -806,6 +830,7 @@ class _CollectorOverallReportsPageState
     required int pageIndex,
     required ValueChanged<int> onPageChanged,
   }) {
+    final colors = Theme.of(context).colorScheme;
     final pageCount = (rows.length / _recordsPageSize).ceil();
     final currentPage = pageCount == 0
         ? 0
@@ -834,8 +859,8 @@ class _CollectorOverallReportsPageState
               children: [
                 Text(
                   'Showing ${startIndex + 1}–${startIndex + visibleRows.length} of ${rows.length}',
-                  style: const TextStyle(
-                    color: Color(0xFF6B7280),
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
                     fontFamily: 'OpenSans',
                     fontSize: 12,
                   ),
@@ -865,17 +890,18 @@ class _CollectorOverallReportsPageState
     required bool selected,
     required ValueChanged<bool> onSelected,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return FilterChip(
       label: Text(label),
       selected: selected,
       onSelected: onSelected,
-      selectedColor: const Color(0xFFDCEBFA),
-      checkmarkColor: const Color(0xFF0D47A1),
+      selectedColor: colors.primaryContainer,
+      checkmarkColor: colors.primary,
       labelStyle: TextStyle(
-        color: selected ? const Color(0xFF0D47A1) : const Color(0xFF374151),
+        color: selected ? colors.onPrimaryContainer : colors.onSurface,
         fontWeight: FontWeight.w700,
       ),
-      side: const BorderSide(color: Color(0xFFD1D5DB)),
+      side: BorderSide(color: colors.outlineVariant),
     );
   }
 
@@ -895,6 +921,7 @@ class _CollectorOverallReportsPageState
     required List<List<String>> rows,
     required String emptyMessage,
   }) {
+    final colors = Theme.of(context).colorScheme;
     if (rows.isEmpty) {
       return Container(
         width: double.infinity,
@@ -902,8 +929,8 @@ class _CollectorOverallReportsPageState
         decoration: _tableDecoration(),
         child: Text(
           emptyMessage,
-          style: const TextStyle(
-            color: Color(0xFF6B7280),
+          style: TextStyle(
+            color: colors.onSurfaceVariant,
             fontFamily: 'OpenSans',
           ),
         ),
@@ -913,7 +940,7 @@ class _CollectorOverallReportsPageState
     return RecordDataTable(
       minWidth: 680,
       showCheckboxColumn: false,
-      headingRowColor: const Color(0xFFEAF1F8),
+      headingRowColor: colors.primaryContainer,
       dataRowMinHeight: 48,
       dataRowMaxHeight: 64,
       columnSpacing: 22,
@@ -922,8 +949,8 @@ class _CollectorOverallReportsPageState
           DataColumn(
             label: Text(
               column,
-              style: const TextStyle(
-                color: Color(0xFF111827),
+              style: TextStyle(
+                color: colors.onPrimaryContainer,
                 fontFamily: 'Montserrat',
                 fontWeight: FontWeight.w800,
                 fontSize: 12,
@@ -939,8 +966,8 @@ class _CollectorOverallReportsPageState
                 DataCell(
                   Text(
                     value,
-                    style: const TextStyle(
-                      color: Color(0xFF1F2937),
+                    style: TextStyle(
+                      color: colors.onSurface,
                       fontFamily: 'OpenSans',
                       fontSize: 12,
                     ),
@@ -953,18 +980,20 @@ class _CollectorOverallReportsPageState
   }
 
   BoxDecoration _tableDecoration() {
+    final colors = Theme.of(context).colorScheme;
     return BoxDecoration(
-      color: Colors.white,
+      color: colors.surface,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFE5E7EB)),
+      border: Border.all(color: colors.outlineVariant),
     );
   }
 
   Widget _sectionTitle(String title) {
+    final colors = Theme.of(context).colorScheme;
     return Text(
       title,
-      style: const TextStyle(
-        color: Color(0xFF111827),
+      style: TextStyle(
+        color: colors.onSurface,
         fontFamily: 'Montserrat',
         fontWeight: FontWeight.w800,
         fontSize: 20,

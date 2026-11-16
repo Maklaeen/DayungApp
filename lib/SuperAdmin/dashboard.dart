@@ -394,13 +394,14 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       constraints: const BoxConstraints(minHeight: 190),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: kSuperAdminBorder),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,33 +409,36 @@ class _StatTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: kSuperAdminPrimary.withValues(alpha: 0.08),
+              color: colors.primaryContainer,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(icon, color: kSuperAdminPrimary),
+            child: Icon(icon, color: colors.onPrimaryContainer),
           ),
           const SizedBox(height: 16),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.w900,
-              color: kSuperAdminText,
+              color: colors.onSurface,
               fontFamily: 'Montserrat',
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w800,
-              color: kSuperAdminText,
+              color: colors.onSurface,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             hint,
-            style: const TextStyle(color: kSuperAdminMuted, height: 1.4),
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -457,8 +461,9 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Material(
-      color: Colors.white,
+      color: colors.surface,
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
         onTap: onTap,
@@ -467,17 +472,21 @@ class _ActionTile extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: kSuperAdminBorder),
+            border: Border.all(color: colors.outlineVariant),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: kSuperAdminPrimary.withValues(alpha: 0.08),
+                  color: colors.primaryContainer,
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(icon, color: kSuperAdminPrimary, size: 28),
+                child: Icon(
+                  icon,
+                  color: colors.onPrimaryContainer,
+                  size: 28,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -486,18 +495,18 @@ class _ActionTile extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: kSuperAdminText,
+                        color: colors.onSurface,
                         fontFamily: 'Montserrat',
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       description,
-                      style: const TextStyle(
-                        color: kSuperAdminMuted,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
                         height: 1.5,
                       ),
                     ),
@@ -505,10 +514,10 @@ class _ActionTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Icon(
+              Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 18,
-                color: kSuperAdminMuted,
+                color: colors.onSurfaceVariant,
               ),
             ],
           ),

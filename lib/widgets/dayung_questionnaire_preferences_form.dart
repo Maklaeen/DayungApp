@@ -1,11 +1,6 @@
 import 'package:capstone_app/utils/dayung_service_tags.dart';
 import 'package:flutter/material.dart';
 
-const Color _primary = Color(0xFF3B82F6);
-const Color _primaryDark = Color(0xFF1E40AF);
-const Color _subText = Color(0xFF6B7280);
-const Color _borderColor = Color(0xFFE5E7EB);
-
 class DayungQuestionnairePreferencesForm extends StatelessWidget {
   const DayungQuestionnairePreferencesForm({
     super.key,
@@ -48,60 +43,64 @@ class DayungQuestionnairePreferencesForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       children: [
         _buildDropdown(
+          context: context,
           label: 'Meeting Frequency',
           items: const ['Weekly', 'Monthly', 'Needed'],
           value: meetingFrequency,
           onChanged: onMeetingFrequencyChanged,
         ),
         _buildDropdown(
+          context: context,
           label: 'Payment Method',
           items: const ['Cash', 'GCash', 'Both'],
           value: paymentMethod,
           onChanged: onPaymentMethodChanged,
         ),
         _buildDropdown(
+          context: context,
           label: 'Collection Fee',
           items: _feeRanges,
           value: contributionAmount,
           onChanged: onContributionAmountChanged,
         ),
         _buildDropdown(
+          context: context,
           label: 'Membership Payment',
           items: _feeRanges,
           value: membershipPayment,
           onChanged: onMembershipPaymentChanged,
         ),
         _buildDropdown(
+          context: context,
           label: 'Penalty Payment',
           items: _feeRanges,
           value: penaltyPayment,
           onChanged: onPenaltyPaymentChanged,
         ),
         const SizedBox(height: 8),
-        const Align(
+        Align(
           alignment: Alignment.centerLeft,
           child: Text(
             'Preferred Support Services',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: _primaryDark,
-              fontFamily: 'Montserrat',
+              color: colors.primary,
             ),
           ),
         ),
         const SizedBox(height: 6),
-        const Align(
+        Align(
           alignment: Alignment.centerLeft,
           child: Text(
             'Select the support services you want.',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
               fontSize: 13,
-              color: _subText,
-              fontFamily: 'OpenSans',
+              color: colors.onSurfaceVariant,
             ),
           ),
         ),
@@ -114,9 +113,9 @@ class DayungQuestionnairePreferencesForm extends StatelessWidget {
               label: Text(label),
               selected: serviceTags[label] ?? false,
               onSelected: (selected) => onServiceTagChanged(label, selected),
-              side: const BorderSide(color: _borderColor),
-              selectedColor: _primary.withValues(alpha: 0.16),
-              checkmarkColor: _primary,
+              side: BorderSide(color: colors.outlineVariant),
+              selectedColor: colors.primaryContainer,
+              checkmarkColor: colors.primary,
             );
           }).toList(),
         ),
@@ -125,6 +124,7 @@ class DayungQuestionnairePreferencesForm extends StatelessWidget {
   }
 
   Widget _buildDropdown({
+    required BuildContext context,
     required String label,
     required List<String> items,
     required String? value,
@@ -139,7 +139,7 @@ class DayungQuestionnairePreferencesForm extends StatelessWidget {
           labelText: label,
           border: const OutlineInputBorder(),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: Theme.of(context).inputDecorationTheme.fillColor,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
             vertical: 12,

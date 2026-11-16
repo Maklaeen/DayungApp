@@ -16,15 +16,17 @@ class PresidentSecretaryMemberReports extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: colors.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: colors.shadow.withValues(alpha: 0.04),
             blurRadius: 14,
             offset: const Offset(0, 5),
           ),
@@ -33,17 +35,16 @@ class PresidentSecretaryMemberReports extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.groups_rounded, color: Color(0xFF1E40AF)),
+              Icon(Icons.groups_rounded, color: colors.primary),
               SizedBox(width: 10),
               Text(
                 'Membership Activity',
-                style: TextStyle(
+                style: theme.textTheme.titleMedium?.copyWith(
                   fontFamily: 'Montserrat',
-                  fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E40AF),
+                  color: colors.primary,
                 ),
               ),
             ],
@@ -64,6 +65,7 @@ class PresidentSecretaryMemberReports extends StatelessWidget {
                     value: addedMembers,
                     icon: Icons.person_add_alt_1_rounded,
                     color: const Color(0xFF059669),
+                    labelColor: colors.onSurfaceVariant,
                   ),
                   _metric(
                     width: width,
@@ -71,6 +73,7 @@ class PresidentSecretaryMemberReports extends StatelessWidget {
                     value: removedMembers,
                     icon: Icons.person_remove_alt_1_rounded,
                     color: const Color(0xFFDC2626),
+                    labelColor: colors.onSurfaceVariant,
                   ),
                   _metric(
                     width: width,
@@ -78,13 +81,17 @@ class PresidentSecretaryMemberReports extends StatelessWidget {
                     value: deceasedMembers,
                     icon: Icons.person_off_rounded,
                     color: const Color(0xFF7C3AED),
+                    labelColor: colors.onSurfaceVariant,
                   ),
                   _metric(
                     width: width,
                     label: 'Beneficiaries deceased',
                     value: deceasedBeneficiaries,
                     icon: Icons.family_restroom_rounded,
-                    color: const Color(0xFFD97706),
+                    color: theme.brightness == Brightness.dark
+                        ? const Color(0xFFFFB74D)
+                        : const Color(0xFFD97706),
+                    labelColor: colors.onSurfaceVariant,
                   ),
                 ],
               );
@@ -101,6 +108,7 @@ class PresidentSecretaryMemberReports extends StatelessWidget {
     required int value,
     required IconData icon,
     required Color color,
+    required Color labelColor,
   }) {
     return Container(
       width: width,
@@ -138,8 +146,8 @@ class PresidentSecretaryMemberReports extends StatelessWidget {
                   label,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF4B5563),
+                  style: TextStyle(
+                    color: labelColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     fontFamily: 'OpenSans',

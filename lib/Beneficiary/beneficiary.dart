@@ -1100,6 +1100,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
 
     if (widget.embedded) return content;
 
-    return Scaffold(backgroundColor: kBg, body: content);
+    return Scaffold(backgroundColor: Theme.of(context).scaffoldBackgroundColor, body: content);
   }
 }

@@ -5,8 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 
 const Color _kPrimary = Color(0xFF0D47A1);
-const Color _kNeutralText = Color(0xFF1F2937);
-const Color _kSubText = Color(0xFF4B5563);
 const Color _kSuccess = Color(0xFF10B981);
 const Color _kWarn = Color(0xFFF59E0B);
 const Color _kPurple = Color(0xFF7C3AED);
@@ -134,6 +132,7 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final completedCount = _items.where((item) => item.isComplete).length;
     final totalPaid = _items.fold<double>(
       0,
@@ -148,7 +147,7 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
         : (totalPaid / totalGoal).clamp(0.0, 1.0);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: dayungPageBackground(context),
       body: Container(
         decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
         child: SafeArea(
@@ -220,14 +219,14 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: colors.surface,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
-                                    color: Colors.grey.shade200,
+                                    color: colors.outlineVariant,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(
+                                      color: colors.shadow.withValues(
                                         alpha: 0.04,
                                       ),
                                       blurRadius: 10,
@@ -276,20 +275,20 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                                   children: [
                                     Row(
                                       children: [
-                                        const Expanded(
+                                        Expanded(
                                           child: Text(
                                             'Overall collection progress',
                                             style: TextStyle(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w800,
-                                              color: _kNeutralText,
+                                              color: colors.onSurface,
                                               fontFamily: 'Montserrat',
                                             ),
                                           ),
                                         ),
                                         Text(
                                           '${(overallProgress * 100).round()}%',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w800,
                                             color: _kPrimary,
@@ -304,7 +303,8 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                                       child: LinearProgressIndicator(
                                         value: overallProgress,
                                         minHeight: 8,
-                                        backgroundColor: Colors.white,
+                                        backgroundColor:
+                                            colors.surfaceContainerHighest,
                                         valueColor:
                                             const AlwaysStoppedAnimation(
                                               _kPrimary,
@@ -314,9 +314,9 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                                     const SizedBox(height: 7),
                                     Text(
                                       '${totalPaid.toStringAsFixed(0)} of ${totalGoal.toStringAsFixed(0)} members paid across all notices',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 12,
-                                        color: _kSubText,
+                                        color: colors.onSurfaceVariant,
                                         fontFamily: 'OpenSans',
                                       ),
                                     ),
@@ -330,17 +330,17 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                                     width: double.infinity,
                                     padding: const EdgeInsets.all(24),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: colors.surface,
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: Colors.grey.shade200,
+                                        color: colors.outlineVariant,
                                       ),
                                     ),
-                                    child: const Center(
+                                    child: Center(
                                       child: Text(
                                         'No collection data found.',
                                         style: TextStyle(
-                                          color: _kSubText,
+                                          color: colors.onSurfaceVariant,
                                           fontFamily: 'OpenSans',
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -408,9 +408,9 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                 Flexible(
                   child: Text(
                     item.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: _kNeutralText,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontFamily: 'Montserrat',
                     ),
                     maxLines: 1,
@@ -449,7 +449,8 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
               child: LinearProgressIndicator(
                 value: item.progress,
                 minHeight: 10,
-                backgroundColor: Colors.grey.shade100,
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
                 valueColor: AlwaysStoppedAnimation(
                   item.isComplete ? _kSuccess : _kPrimary,
                 ),
@@ -460,7 +461,7 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
         DataCell(
           Text(
             '${item.paid.toStringAsFixed(0)} of ${item.goal.toStringAsFixed(0)} members paid',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: _kSuccess,
@@ -471,10 +472,10 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
         DataCell(
           Text(
             '${(item.goal - item.paid).toStringAsFixed(0)} remaining',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: _kSubText,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontFamily: 'OpenSans',
             ),
           ),

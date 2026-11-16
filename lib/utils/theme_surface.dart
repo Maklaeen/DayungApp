@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
 
 bool dayungIsDark(BuildContext context) {
   return Theme.of(context).brightness == Brightness.dark;
@@ -9,24 +10,23 @@ Color dayungPageBackground(BuildContext context) {
 }
 
 Color dayungSurface(BuildContext context) {
-  return dayungIsDark(context) ? const Color(0xFF162033) : Colors.white;
+  return dayungIsDark(context) ? kDarkSurface : kSurface;
 }
 
 Color dayungSoftSurface(BuildContext context) {
-  return dayungIsDark(context)
-      ? const Color(0xFF1B2435)
-      : const Color(0xFFF8FAFC);
+  return dayungIsDark(context) ? kDarkSoftSurface : kSoftSurface;
 }
 
 Color dayungBorder(BuildContext context) {
-  final colorScheme = Theme.of(context).colorScheme;
-  return dayungIsDark(context)
-      ? colorScheme.outline.withValues(alpha: 0.34)
-      : const Color(0xFFE5E7EB);
+  return dayungIsDark(context) ? kDarkBorder : kBorder;
 }
 
 Color dayungTextColor(BuildContext context) {
   return Theme.of(context).colorScheme.onSurface;
+}
+
+double dayungRoleNavigationClearance(BuildContext context) {
+  return MediaQuery.textScalerOf(context).scale(112) + 80;
 }
 
 Color dayungSubtextColor(BuildContext context) {

@@ -449,7 +449,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
     final primaryColor = kSettingsPrimary;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAF7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 28),

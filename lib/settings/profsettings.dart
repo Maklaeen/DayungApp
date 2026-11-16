@@ -4,7 +4,7 @@ import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:capstone_app/shared/dayung_back_button.dart';
+import 'package:capstone_app/shared/dayung_theme_mode_selector.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:http/http.dart' as http;
@@ -401,17 +401,11 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
-    final titleStyle = TextStyle(
-      fontSize: isWide ? 20 : 16,
+    final titleStyle = _theme.textTheme.titleLarge?.copyWith(
       fontWeight: FontWeight.w700,
-      fontFamily: 'Montserrat',
       color: _textColor,
     );
-    final bodyStyle = TextStyle(
-      fontSize: isWide ? 15 : 13,
-      fontFamily: 'OpenSans',
+    final bodyStyle = _theme.textTheme.bodyMedium?.copyWith(
       color: _subTextColor,
       height: 1.4,
     );
@@ -423,12 +417,8 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
           children: [
             if (!widget.embedded)
               Container(
-                padding: EdgeInsets.fromLTRB(
-                  30,
-                  isWide ? 36 : 28,
-                  isWide ? 24 : 16,
-                  isWide ? 32 : 24,
-                ),
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                 decoration: const BoxDecoration(
                   color: Color(0xFF0D47A1),
                   borderRadius: BorderRadius.only(
@@ -446,21 +436,37 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                 child: Row(
                   children: [
                     if (widget.showBackButton) ...[
-                      DayungBackButton(
-                        onPressed:
-                            widget.onBack ?? () => Navigator.pop(context),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: IconButton(
+                          tooltip: 'Back',
+                          padding: EdgeInsets.zero,
+                          onPressed:
+                              widget.onBack ?? () => Navigator.pop(context),
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 21,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 8),
                     ],
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Profile Settings',
                         style: TextStyle(
-                          fontSize: isWide ? 24 : 17,
-                          fontWeight: FontWeight.w800,
                           color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 24,
                         ),
                       ),
                     ),
@@ -473,6 +479,8 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildSectionCard(child: const DayungThemeModeSelector()),
+                    const SizedBox(height: 18),
                     Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 18),

@@ -1150,7 +1150,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
   Widget build(BuildContext context) {
     final visibleNotices = _visibleNotices;
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

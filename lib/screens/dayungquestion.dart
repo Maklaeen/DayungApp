@@ -528,14 +528,14 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   @override
   Widget build(BuildContext context) {
     if (!widget.showPreferences) {
-      return const Scaffold(backgroundColor: kBg, body: SizedBox.shrink());
+      return Scaffold(backgroundColor: Theme.of(context).scaffoldBackgroundColor, body: SizedBox.shrink());
     }
 
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

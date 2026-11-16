@@ -107,11 +107,11 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
         builder: (context) => AlertDialog(
           title: const Text('System Snapshot'),
           content: SingleChildScrollView(
-              child: SelectableText(
-                formatted,
-                style: const TextStyle(fontSize: 12.5, height: 1.4),
-              ),
+            child: SelectableText(
+              formatted,
+              style: const TextStyle(fontSize: 12.5, height: 1.4),
             ),
+          ),
           actions: [
             TextButton(
               onPressed: () async {
@@ -143,6 +143,7 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final appTheme = context.watch<AppTheme>();
+    final colors = Theme.of(context).colorScheme;
     final appearancePanel = _Panel(
       title: 'Appearance',
       subtitle:
@@ -187,9 +188,9 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
             ),
             child: Text(
               'Current mode: ${_themeModeDescription(appTheme.mode)}',
-              style: const TextStyle(
-                color: kSuperAdminText,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w700,
+                color: colors.onSurface,
               ),
             ),
           ),
@@ -208,11 +209,11 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
             value: _forceOnCreate,
             onChanged: (value) => setState(() => _forceOnCreate = value),
             activeThumbColor: kSuperAdminPrimary,
-            title: const Text(
+            title: Text(
               'Force password change for newly created accounts',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: kSuperAdminText,
+                color: colors.onSurface,
               ),
             ),
           ),
@@ -221,11 +222,11 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
             value: _forceOnReset,
             onChanged: (value) => setState(() => _forceOnReset = value),
             activeThumbColor: kSuperAdminPrimary,
-            title: const Text(
+            title: Text(
               'Force password change after password reset',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: kSuperAdminText,
+                color: colors.onSurface,
               ),
             ),
           ),
@@ -251,8 +252,8 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
               _twilioConfigured
                   ? 'Twilio server integration is ready.'
                   : 'Twilio is not configured on the server.',
-              style: TextStyle(
-                color: _twilioConfigured ? kSuperAdminAccent : kSuperAdminWarn,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: _twilioConfigured ? colors.secondary : colors.error,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -263,16 +264,18 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
             value: _allowSmsBroadcast,
             onChanged: (value) => setState(() => _allowSmsBroadcast = value),
             activeThumbColor: kSuperAdminPrimary,
-            title: const Text(
+            title: Text(
               'Allow SMS broadcast',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: kSuperAdminText,
+                color: colors.onSurface,
               ),
             ),
-            subtitle: const Text(
+            subtitle: Text(
               'When disabled, SuperAdmin broadcasts will only create in-app notifications.',
-              style: TextStyle(color: kSuperAdminMuted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
             ),
           ),
         ],
@@ -285,7 +288,7 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
       label: const Text('Open system snapshot'),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(52),
-        side: const BorderSide(color: kSuperAdminBorder),
+        side: BorderSide(color: colors.outline),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     );
@@ -339,16 +342,18 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
                               onChanged: (value) =>
                                   setState(() => _maintenanceMode = value),
                               activeThumbColor: kSuperAdminPrimary,
-                              title: const Text(
+                              title: Text(
                                 'Maintenance mode',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: kSuperAdminText,
-                                ),
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: colors.onSurface,
+                                    ),
                               ),
-                              subtitle: const Text(
+                              subtitle: Text(
                                 'Use this before planned updates or backend maintenance windows.',
-                                style: TextStyle(color: kSuperAdminMuted),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: colors.onSurfaceVariant),
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -428,22 +433,23 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
   }
 
   InputDecoration _decoration(String label) {
+    final colors = Theme.of(context).colorScheme;
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: kSuperAdminMuted),
+      labelStyle: TextStyle(color: colors.onSurfaceVariant),
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: Theme.of(context).inputDecorationTheme.fillColor,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: kSuperAdminBorder),
+        borderSide: BorderSide(color: colors.outline),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: kSuperAdminBorder),
+        borderSide: BorderSide(color: colors.outline),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: kSuperAdminPrimary, width: 1.8),
+        borderSide: BorderSide(color: colors.primary, width: 1.8),
       ),
     );
   }
@@ -537,30 +543,32 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: kSuperAdminCard,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: kSuperAdminBorder),
+        border: Border.all(color: theme.colorScheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 22,
+            style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
-              color: kSuperAdminText,
-              fontFamily: 'Montserrat',
+              color: theme.colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             subtitle,
-            style: const TextStyle(color: kSuperAdminMuted, height: 1.5),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 18),
           child,

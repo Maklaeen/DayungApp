@@ -93,7 +93,7 @@ class _PinLockPageState extends State<PinLockPage> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: kBg,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: Column(
             children: [

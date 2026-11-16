@@ -1206,7 +1206,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
 
     if (widget.embedded) return content;
 
-    return Scaffold(backgroundColor: kBg, body: content);
+    return Scaffold(backgroundColor: Theme.of(context).scaffoldBackgroundColor, body: content);
   }
 
   Widget _fileUploadSection({

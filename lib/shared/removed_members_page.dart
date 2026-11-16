@@ -3,8 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color _kPrimary = Color(0xFF0D47A1);
-const Color _kNeutralText = Color(0xFF1F2937);
-const Color _kSubText = Color(0xFF4B5563);
 const Color _kDanger = Color(0xFFC62828);
 const Color _kSuccess = Color(0xFF10B981);
 
@@ -17,6 +15,11 @@ class RemovedMembersPage extends StatefulWidget {
 }
 
 class _RemovedMembersPageState extends State<RemovedMembersPage> {
+  Color get _onSurface => Theme.of(context).colorScheme.onSurface;
+
+  Color get _onSurfaceVariant =>
+      Theme.of(context).colorScheme.onSurfaceVariant;
+
   static const int _pageSize = 10;
 
   final _sb = Supabase.instance.client;
@@ -159,7 +162,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           'Remove Member',
           style: TextStyle(
             fontWeight: FontWeight.w800,
@@ -168,12 +171,12 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
         ),
         content: Text(
           'Move $memberName to removed members?',
-          style: const TextStyle(fontFamily: 'OpenSans'),
+          style: TextStyle(fontFamily: 'OpenSans'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -181,7 +184,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
               backgroundColor: _kDanger,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Remove'),
+            child: Text('Remove'),
           ),
         ],
       ),
@@ -265,7 +268,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           'Restore Member',
           style: TextStyle(
             fontWeight: FontWeight.w800,
@@ -274,12 +277,12 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
         ),
         content: Text(
           'Return $memberName to approved members?',
-          style: const TextStyle(fontFamily: 'OpenSans'),
+          style: TextStyle(fontFamily: 'OpenSans'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -287,7 +290,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
               backgroundColor: _kPrimary,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Restore'),
+            child: Text('Restore'),
           ),
         ],
       ),
@@ -364,7 +367,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -430,7 +433,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                     ),
                     child: Text(
                       '${_members.length}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
                         fontSize: 14,
@@ -451,14 +454,18 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                     color: _kPrimary,
                   ),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: Theme.of(context).colorScheme.surface,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -490,10 +497,10 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                               color: _kDanger.withValues(alpha: 0.8),
                             ),
                             const SizedBox(height: 12),
-                            const Text(
+                            Text(
                               'Failed to load approved members',
                               style: TextStyle(
-                                color: _kNeutralText,
+                                color: _onSurface,
                                 fontSize: 16,
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.w700,
@@ -503,8 +510,8 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                             const SizedBox(height: 8),
                             Text(
                               _error!,
-                              style: const TextStyle(
-                                color: _kSubText,
+                              style: TextStyle(
+                                color: _onSurfaceVariant,
                                 fontSize: 12,
                                 fontFamily: 'OpenSans',
                               ),
@@ -517,7 +524,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                                 backgroundColor: _kPrimary,
                                 foregroundColor: Colors.white,
                               ),
-                              child: const Text('Retry'),
+                              child: Text('Retry'),
                             ),
                           ],
                         ),
@@ -531,13 +538,13 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                           Icon(
                             Icons.people_outline,
                             size: 56,
-                            color: _kSubText.withValues(alpha: 0.5),
+                            color: _onSurfaceVariant.withValues(alpha: 0.5),
                           ),
                           const SizedBox(height: 12),
-                          const Text(
+                          Text(
                             'No approved members found',
                             style: TextStyle(
-                              color: _kSubText,
+                              color: _onSurfaceVariant,
                               fontSize: 16,
                               fontFamily: 'Montserrat',
                               fontWeight: FontWeight.w600,
@@ -597,8 +604,8 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                                 ),
                                 Text(
                                   'Page ${_pageIndex + 1} of $_pageCount',
-                                  style: const TextStyle(
-                                    color: _kNeutralText,
+                                  style: TextStyle(
+                                    color: _onSurface,
                                     fontWeight: FontWeight.w700,
                                     fontFamily: 'Montserrat',
                                   ),
@@ -621,17 +628,21 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                             margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.surface,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.grey.shade200),
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Removed In Dayung',
                                   style: TextStyle(
-                                    color: _kNeutralText,
+                                    color: _onSurface,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
                                     fontFamily: 'Montserrat',
@@ -712,8 +723,8 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
           ),
           Text(
             'Page ${_removedPageIndex + 1} of $_removedPageCount',
-            style: const TextStyle(
-              color: _kNeutralText,
+            style: TextStyle(
+              color: _onSurface,
               fontWeight: FontWeight.w700,
               fontFamily: 'Montserrat',
             ),
@@ -745,7 +756,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: _kDanger,
                 fontWeight: FontWeight.w700,
                 fontFamily: 'OpenSans',
@@ -779,7 +790,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
         DataCell(
           Text(
             name,
-            style: const TextStyle(
+            style: TextStyle(
               color: _kDanger,
               fontWeight: FontWeight.w700,
             ),
@@ -828,7 +839,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
             child: profileUrl.isEmpty
                 ? Text(
                     name.isNotEmpty ? name[0].toUpperCase() : 'M',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: _kSuccess,
                     ),
@@ -844,18 +855,18 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: _kNeutralText,
+                    color: _onSurface,
                     fontFamily: 'Montserrat',
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   'Approved: $dateLabel',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: _kSubText,
+                    color: _onSurfaceVariant,
                     fontFamily: 'OpenSans',
                   ),
                 ),
@@ -912,7 +923,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                 child: profileUrl.isEmpty
                     ? Text(
                         name.isNotEmpty ? name[0].toUpperCase() : 'M',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: _kSuccess,
                         ),
@@ -925,10 +936,10 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
-                    color: _kNeutralText,
+                    color: _onSurface,
                     fontFamily: 'Montserrat',
                   ),
                 ),
@@ -939,9 +950,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
         DataCell(
           Text(
             dateStr.isEmpty ? '—' : dateStr,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: _kSubText,
+              color: _onSurfaceVariant,
               fontFamily: 'OpenSans',
             ),
           ),
@@ -964,7 +975,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                 : const Icon(Icons.person_remove_rounded, size: 16),
             label: Text(
               isRemoving ? 'Removing' : 'Remove',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
                 fontFamily: 'Montserrat',

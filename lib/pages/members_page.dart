@@ -3,14 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
-const kBg = Color(0xFFFAFAF7);
-const kText = Color(0xFF1F2937);
-const kSubText = Color(0xFF4B5563);
-const kAccent = Color(0xFF0D47A1);
-const kAccentDark = Color(0xFF083366);
-const kBorder = Color(0xFFE5E7EB);
-const kSurface = Color(0xFFF8FAFC);
-const kSuccess = Color(0xFF10B981);
 const kWarn = Color(0xFFF59E0B);
 
 class MembersPage extends StatefulWidget {
@@ -221,13 +213,15 @@ class _MembersPageState extends State<MembersPage> {
                     topRight: Radius.circular(24),
                   ),
                   child: _loading
-                      ? const Center(
-                          child: CircularProgressIndicator(color: kAccent),
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         )
                       : _error != null
                       ? _buildErrorState()
                       : RefreshIndicator(
-                          color: kAccent,
+                          color: Theme.of(context).colorScheme.primary,
                           onRefresh: _loadPayments,
                           child: ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
@@ -419,7 +413,7 @@ class _MembersPageState extends State<MembersPage> {
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,
               fontSize: 12,
@@ -432,33 +426,34 @@ class _MembersPageState extends State<MembersPage> {
   }
 
   Widget _buildOverviewCard() {
+    final colors = Theme.of(context).colorScheme;
     final cards = [
       _statCard(
         icon: Icons.receipt_long_rounded,
         label: 'Page Records',
         value: '${_payments.length}',
-        tone: const Color(0xFF1E40AF),
+        tone: colors.primary,
       ),
       _statCard(
         icon: Icons.check_circle_rounded,
         label: 'Paid',
         value: '$_paidCount',
-        tone: kSuccess,
+        tone: colors.secondary,
       ),
       _statCard(
         icon: Icons.pending_actions_rounded,
         label: 'Pending',
         value: '$_pendingCount',
-        tone: kWarn,
+        tone: _pendingTone(context),
       ),
     ];
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: kBorder),
+        border: Border.all(color: colors.outlineVariant),
         boxShadow: const [
           BoxShadow(
             color: Color(0x12000000),
@@ -470,24 +465,21 @@ class _MembersPageState extends State<MembersPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Member Payment Overview',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: kText,
-              fontFamily: 'Montserrat',
+              color: colors.onSurface,
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Track which members already paid, which payments are still pending, and who recorded each collection.',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
               fontSize: 13,
-              color: kSubText,
+              color: colors.onSurfaceVariant,
               fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              height: 1.4,
             ),
           ),
           const SizedBox(height: 16),
@@ -525,6 +517,7 @@ class _MembersPageState extends State<MembersPage> {
     required String value,
     required Color tone,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -550,21 +543,19 @@ class _MembersPageState extends State<MembersPage> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: kSubText,
-                    fontFamily: 'Montserrat',
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
-                    color: kText,
-                    fontFamily: 'Montserrat',
+                    color: colors.onSurface,
                   ),
                 ),
               ],
@@ -576,12 +567,13 @@ class _MembersPageState extends State<MembersPage> {
   }
 
   Widget _buildSearchAndFilterCard() {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: kBorder),
+        border: Border.all(color: colors.outlineVariant),
         boxShadow: const [
           BoxShadow(
             color: Color(0x10000000),
@@ -593,24 +585,21 @@ class _MembersPageState extends State<MembersPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Search and Filter',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: kText,
-              fontFamily: 'Montserrat',
+              color: colors.onSurface,
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Search by member, amount, or collector name, then narrow the list by payment status.',
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
               fontSize: 13,
-              color: kSubText,
+              color: colors.onSurfaceVariant,
               fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              height: 1.4,
             ),
           ),
           const SizedBox(height: 16),
@@ -620,22 +609,22 @@ class _MembersPageState extends State<MembersPage> {
               hintText: 'Search by member, amount, or collector',
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
-              fillColor: kSurface,
+              fillColor: Theme.of(context).inputDecorationTheme.fillColor,
               contentPadding: const EdgeInsets.symmetric(
                 vertical: 12,
                 horizontal: 14,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: kBorder),
+                borderSide: BorderSide(color: colors.outlineVariant),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: kBorder),
+                borderSide: BorderSide(color: colors.outlineVariant),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: kAccent),
+                borderSide: BorderSide(color: colors.primary),
               ),
             ),
           ),
@@ -656,22 +645,23 @@ class _MembersPageState extends State<MembersPage> {
 
   Widget _filterChip(String label, String key) {
     final selected = _statusFilter == key;
+    final colors = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: () => setState(() => _statusFilter = key),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? kAccent : const Color(0xFFEFF6FF),
+          color: selected ? colors.primary : colors.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected ? kAccent : kAccent.withValues(alpha: 0.18),
+            color: selected ? colors.primary : colors.outlineVariant,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : kAccentDark,
+            color: selected ? colors.onPrimary : colors.onSurface,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -681,9 +671,13 @@ class _MembersPageState extends State<MembersPage> {
 
   //ignore: unused_element
   Widget _buildPaymentCard(Map<String, dynamic> payment) {
+    final colors = Theme.of(context).colorScheme;
     final status = (payment['status'] ?? 'pending').toString().toLowerCase();
     final isPaid = status == 'paid';
-    final tone = isPaid ? kSuccess : kWarn;
+    final tone = isPaid ? colors.secondary : _pendingTone(context);
+    final chipColor = isPaid
+        ? colors.secondaryContainer
+        : colors.tertiaryContainer;
     final dateValue = isPaid
         ? (payment['paid_at'] ?? '').toString()
         : (payment['created_at'] ?? '').toString();
@@ -691,7 +685,7 @@ class _MembersPageState extends State<MembersPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: tone.withValues(alpha: 0.16)),
         boxShadow: const [
@@ -726,10 +720,10 @@ class _MembersPageState extends State<MembersPage> {
                     children: [
                       Text(
                         (payment['full_name'] ?? 'Member').toString(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
-                          color: kText,
+                          color: colors.onSurface,
                           fontFamily: 'Montserrat',
                         ),
                       ),
@@ -771,16 +765,14 @@ class _MembersPageState extends State<MembersPage> {
                   icon: Icons.person_outline_rounded,
                   label:
                       'Collector: ${(payment['collector_full_name'] ?? 'Not assigned').toString()}',
-                  color: const Color(0xFF1E40AF),
-                  background: const Color(0xFFEFF6FF),
+                  color: colors.primary,
+                  background: colors.primaryContainer,
                 ),
                 _detailChip(
                   icon: Icons.schedule_rounded,
                   label: _formatDate(dateValue),
-                  color: isPaid ? kSuccess : kWarn,
-                  background: isPaid
-                      ? const Color(0xFFECFDF5)
-                      : const Color(0xFFFFFBEB),
+                  color: tone,
+                  background: chipColor,
                 ),
               ],
             ),
@@ -796,6 +788,7 @@ class _MembersPageState extends State<MembersPage> {
     required Color color,
     required Color background,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -811,7 +804,7 @@ class _MembersPageState extends State<MembersPage> {
             label,
             style: TextStyle(
               fontSize: 11,
-              color: color,
+              color: colors.onSurface,
               fontWeight: FontWeight.w700,
               fontFamily: 'Montserrat',
             ),
@@ -822,6 +815,7 @@ class _MembersPageState extends State<MembersPage> {
   }
 
   Widget _buildPaginationBar() {
+    final colors = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(
@@ -841,13 +835,13 @@ class _MembersPageState extends State<MembersPage> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFEFF6FF),
+            color: colors.surfaceContainerHigh,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Text(
             'Page ${_currentPage + 1}',
-            style: const TextStyle(
-              color: kAccentDark,
+            style: TextStyle(
+              color: colors.onSurface,
               fontWeight: FontWeight.w800,
               fontFamily: 'Montserrat',
             ),
@@ -860,10 +854,10 @@ class _MembersPageState extends State<MembersPage> {
             icon: const Icon(Icons.chevron_right_rounded),
             label: const Text('Next'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: kAccent,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: const Color(0xFFE5E7EB),
-              disabledForegroundColor: const Color(0xFF6B7280),
+              backgroundColor: colors.primary,
+              foregroundColor: colors.onPrimary,
+              disabledBackgroundColor: colors.surfaceContainerHighest,
+              disabledForegroundColor: colors.onSurfaceVariant,
               minimumSize: const Size.fromHeight(48),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -876,6 +870,7 @@ class _MembersPageState extends State<MembersPage> {
   }
 
   Widget _buildErrorState() {
+    final colors = Theme.of(context).colorScheme;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
@@ -883,16 +878,16 @@ class _MembersPageState extends State<MembersPage> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF7ED),
+            color: colors.errorContainer,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFFED7AA)),
+            border: Border.all(color: colors.error.withValues(alpha: 0.4)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.error_outline_rounded, color: Color(0xFFB45309)),
+                  Icon(Icons.error_outline_rounded, color: colors.error),
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -900,7 +895,7 @@ class _MembersPageState extends State<MembersPage> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: kText,
+                        color: colors.onErrorContainer,
                         fontFamily: 'Montserrat',
                       ),
                     ),
@@ -910,8 +905,8 @@ class _MembersPageState extends State<MembersPage> {
               const SizedBox(height: 10),
               Text(
                 _error ?? 'Unknown error',
-                style: const TextStyle(
-                  color: kSubText,
+                style: TextStyle(
+                  color: colors.onErrorContainer,
                   fontWeight: FontWeight.w600,
                   fontFamily: 'OpenSans',
                 ),
@@ -939,13 +934,14 @@ class _MembersPageState extends State<MembersPage> {
   }
 
   Widget _buildEmptyState() {
+    final colors = Theme.of(context).colorScheme;
     final hasFilters = _searchQuery.isNotEmpty || _statusFilter != 'all';
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: kSurface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: kBorder),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
         children: [
@@ -953,23 +949,23 @@ class _MembersPageState extends State<MembersPage> {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: kAccent.withValues(alpha: 0.08),
+              color: colors.primaryContainer,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.people_alt_rounded,
               size: 32,
-              color: kAccent,
+              color: colors.primary,
             ),
           ),
           const SizedBox(height: 16),
           Text(
             hasFilters ? 'No matching payments found' : 'No payments found',
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: kText,
+              color: colors.onSurface,
               fontFamily: 'Montserrat',
             ),
           ),
@@ -979,9 +975,9 @@ class _MembersPageState extends State<MembersPage> {
                 ? 'Try another search term or reset the current status filter.'
                 : 'Payment records will appear here once members start paying.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: kSubText,
+              color: colors.onSurfaceVariant,
               fontWeight: FontWeight.w600,
               fontFamily: 'OpenSans',
               height: 1.4,
@@ -1010,5 +1006,11 @@ class _MembersPageState extends State<MembersPage> {
         ],
       ),
     );
+  }
+
+  Color _pendingTone(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFFFFB74D)
+        : kWarn;
   }
 }

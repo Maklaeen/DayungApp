@@ -20,6 +20,7 @@ import 'package:capstone_app/Treasurer/dashboard.dart';
 import 'package:capstone_app/services/firebase_push_service.dart';
 import 'package:capstone_app/services/push_notification_service.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
+import 'package:capstone_app/ui/theme/dayung_theme.dart';
 import 'package:capstone_app/utils/network_error_dialog.dart';
 import 'config/app_config.dart';
 import 'package:flutter/material.dart';
@@ -35,220 +36,6 @@ import 'screens/splash_screen.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
-
-ThemeData _buildAppTheme(Brightness brightness) {
-  final isDark = brightness == Brightness.dark;
-  final base = ThemeData(
-    useMaterial3: true,
-    brightness: brightness,
-    visualDensity: VisualDensity.standard,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF2563EB),
-      brightness: brightness,
-    ),
-    scaffoldBackgroundColor: isDark
-        ? const Color(0xFF0F172A)
-        : const Color(0xFFF6F8FC),
-  );
-  final colors = base.colorScheme;
-  final outlineColor = isDark
-      ? colors.outline.withValues(alpha: 0.32)
-      : const Color(0xFFD6DCE8);
-
-  return base.copyWith(
-    canvasColor: isDark ? const Color(0xFF111827) : Colors.white,
-    cardColor: isDark ? const Color(0xFF162033) : Colors.white,
-    textTheme: base.textTheme
-        .apply(bodyColor: colors.onSurface, displayColor: colors.onSurface)
-        .copyWith(
-          bodyLarge: base.textTheme.bodyLarge?.copyWith(
-            fontSize: 17,
-            height: 1.45,
-          ),
-          bodyMedium: base.textTheme.bodyMedium?.copyWith(
-            fontSize: 16,
-            height: 1.4,
-          ),
-          bodySmall: base.textTheme.bodySmall?.copyWith(
-            fontSize: 14,
-            height: 1.35,
-          ),
-          labelLarge: base.textTheme.labelLarge?.copyWith(fontSize: 16),
-        ),
-    appBarTheme: AppBarTheme(
-      backgroundColor: Colors.transparent,
-      foregroundColor: colors.onSurface,
-      elevation: 0,
-      centerTitle: false,
-      toolbarHeight: 72,
-      surfaceTintColor: Colors.transparent,
-      titleTextStyle: base.textTheme.titleLarge?.copyWith(
-        color: colors.onSurface,
-        fontWeight: FontWeight.w700,
-        fontFamily: 'Montserrat',
-      ),
-    ),
-    cardTheme: CardThemeData(
-      color: isDark ? const Color(0xFF162033) : Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.black.withValues(alpha: isDark ? 0.28 : 0.08),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      margin: EdgeInsets.zero,
-    ),
-    dialogTheme: DialogThemeData(
-      backgroundColor: isDark ? const Color(0xFF162033) : Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      titleTextStyle: base.textTheme.titleLarge?.copyWith(
-        color: colors.onSurface,
-        fontWeight: FontWeight.w800,
-      ),
-      contentTextStyle: base.textTheme.bodyMedium?.copyWith(
-        color: colors.onSurfaceVariant,
-        height: 1.5,
-      ),
-    ),
-    bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: isDark ? const Color(0xFF162033) : Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-    ),
-    drawerTheme: DrawerThemeData(
-      backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: isDark ? const Color(0xFF1B2435) : Colors.white,
-      isDense: false,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-      labelStyle: TextStyle(color: colors.onSurfaceVariant),
-      hintStyle: TextStyle(color: colors.onSurfaceVariant),
-      prefixIconColor: colors.primary,
-      suffixIconColor: colors.onSurfaceVariant,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide(color: outlineColor),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide(color: outlineColor),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide(color: colors.primary, width: 1.8),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        elevation: 0,
-        minimumSize: const Size(48, 52),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontFamily: 'Montserrat',
-        ),
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(48, 52),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontFamily: 'Montserrat',
-        ),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(48, 52),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        side: BorderSide(color: outlineColor),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        textStyle: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontFamily: 'Montserrat',
-        ),
-      ),
-    ),
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
-      indicatorColor: colors.primary.withValues(alpha: isDark ? 0.28 : 0.14),
-      elevation: 0,
-      surfaceTintColor: Colors.transparent,
-      labelTextStyle: WidgetStateProperty.resolveWith((states) {
-        final color = states.contains(WidgetState.selected)
-            ? colors.primary
-            : colors.onSurfaceVariant;
-        return TextStyle(
-          color: color,
-          fontWeight: FontWeight.w600,
-          fontFamily: 'OpenSans',
-        );
-      }),
-    ),
-    listTileTheme: ListTileThemeData(
-      iconColor: colors.primary,
-      textColor: colors.onSurface,
-      minVerticalPadding: 12,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-      titleTextStyle: TextStyle(
-        color: colors.onSurface,
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        height: 1.3,
-      ),
-      subtitleTextStyle: TextStyle(
-        color: colors.onSurfaceVariant,
-        fontSize: 14,
-        height: 1.35,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    ),
-    iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(
-        minimumSize: const Size(48, 48),
-        tapTargetSize: MaterialTapTargetSize.padded,
-      ),
-    ),
-    checkboxTheme: CheckboxThemeData(
-      materialTapTargetSize: MaterialTapTargetSize.padded,
-      visualDensity: VisualDensity.standard,
-    ),
-    radioTheme: RadioThemeData(
-      materialTapTargetSize: MaterialTapTargetSize.padded,
-    ),
-    chipTheme: base.chipTheme.copyWith(
-      backgroundColor: isDark
-          ? const Color(0xFF1B2435)
-          : const Color(0xFFEFF4FF),
-      selectedColor: colors.primary.withValues(alpha: 0.16),
-      labelStyle: TextStyle(color: colors.onSurface),
-      side: BorderSide(color: outlineColor),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-    ),
-    dividerTheme: DividerThemeData(color: outlineColor, thickness: 1, space: 1),
-    snackBarTheme: SnackBarThemeData(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: isDark
-          ? const Color(0xFF1E293B)
-          : const Color(0xFF0F172A),
-      contentTextStyle: const TextStyle(color: Colors.white),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    ),
-    switchTheme: SwitchThemeData(
-      trackOutlineColor: WidgetStatePropertyAll(outlineColor),
-    ),
-  );
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -307,11 +94,13 @@ class AppSetupRequiredApp extends StatelessWidget {
       value: appTheme,
       child: Builder(
         builder: (context) {
+          final appTheme = context.watch<AppTheme>();
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'Dayung Setup Required',
-            theme: _buildAppTheme(Brightness.light),
-            themeMode: ThemeMode.light,
+            theme: buildDayungTheme(Brightness.light),
+            darkTheme: buildDayungTheme(Brightness.dark),
+            themeMode: appTheme.mode,
             home: _SetupRequiredScreen(missingKeys: missingKeys),
           );
         },
@@ -543,6 +332,7 @@ class _MyAppState extends State<MyApp> {
       ],
       child: Builder(
         builder: (context) {
+          final appTheme = context.watch<AppTheme>();
           return MaterialApp(
             navigatorKey: globalNavigatorKey,
             debugShowCheckedModeBanner: false,
@@ -555,8 +345,9 @@ class _MyAppState extends State<MyApp> {
               });
               return child!;
             },
-            theme: _buildAppTheme(Brightness.light),
-            themeMode: ThemeMode.light,
+            theme: buildDayungTheme(Brightness.light),
+            darkTheme: buildDayungTheme(Brightness.dark),
+            themeMode: appTheme.mode,
             themeAnimationDuration: const Duration(milliseconds: 400),
             initialRoute: '/',
             routes: {

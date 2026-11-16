@@ -512,7 +512,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

@@ -1034,7 +1034,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
         return false;
       },
       child: Scaffold(
-        backgroundColor: kBg,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: Column(
             children: [

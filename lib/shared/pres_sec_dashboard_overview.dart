@@ -1,29 +1,23 @@
 import 'package:capstone_app/shared/collectors_manage_page.dart';
 import 'package:capstone_app/shared/removed_members_page.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-const Color _kPrimary = Color(0xFF0D47A1);
-const Color _kPrimaryDark = Color(0xFF083366);
-const Color _kNeutralText = Color(0xFF1F2937);
-const Color _kSubText = Color(0xFF4B5563);
-const Color _kDanger = Color(0xFFEF4444);
-const Color _kSuccess = Color(0xFF10B981);
-const Color _kWarn = Color(0xFFF59E0B);
-const Color _kPurple = Color(0xFF7C3AED);
 
 class PresSecDashboardOverview extends StatefulWidget {
   final int dayungUnitId;
   final VoidCallback? onNavigateToMembers;
   final VoidCallback? onNavigateToDeceased;
+  final bool responsiveLayout;
 
   const PresSecDashboardOverview({
     super.key,
     required this.dayungUnitId,
     this.onNavigateToMembers,
     this.onNavigateToDeceased,
+    this.responsiveLayout = false,
   });
 
   @override
@@ -303,9 +297,13 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
-        child: Center(child: CircularProgressIndicator(color: _kPrimary)),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
       );
     }
 
@@ -335,11 +333,9 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   Widget _sectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w800,
-        color: _kPrimaryDark,
-        fontFamily: 'Montserrat',
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
+        fontWeight: FontWeight.w700,
       ),
     );
   }
@@ -347,6 +343,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   // ── ROW 1 ──────────────────────────────────────────────────────────────────
 
   Widget _row1StatCards() {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       children: [
         Row(
@@ -356,7 +353,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                 icon: Icons.groups_rounded,
                 title: 'Active Members',
                 value: '$_activeMembers',
-                color: _kPrimary,
+                color: colors.primary,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -374,7 +371,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                 icon: Icons.person_remove_rounded,
                 title: 'Removed Members',
                 value: '$_removedMembers',
-                color: _kDanger,
+                color: colors.error,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -394,7 +391,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                 icon: Icons.local_florist_rounded,
                 title: 'Deceased Members',
                 value: '$_deceasedMembers',
-                color: _kPurple,
+                color: colors.tertiary,
                 onTap: widget.onNavigateToDeceased,
               ),
             ),
@@ -404,7 +401,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                 icon: Icons.badge_rounded,
                 title: 'Collectors',
                 value: '$_collectorsCount',
-                color: _kWarn,
+                color: colors.secondary,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -434,16 +431,10 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: dayungSurface(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withValues(alpha: 0.18)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: [dayungElevatedShadow(context)],
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -470,7 +461,6 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                       fontSize: compact ? 26 : 22,
                       fontWeight: FontWeight.w900,
                       color: color,
-                      fontFamily: 'Montserrat',
                     ),
                   ),
                 ),
@@ -479,11 +469,9 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: compact ? TextAlign.center : TextAlign.start,
-                  style: TextStyle(
-                    fontSize: compact ? 13 : 11,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: _kSubText,
-                    fontFamily: 'OpenSans',
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -531,25 +519,27 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: dayungAccentSurface(
+                          context,
+                          Theme.of(context).colorScheme.primary,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.account_balance_wallet_rounded,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.primary,
                         size: 22,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Funds Summary',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Montserrat',
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ),
                   ],
@@ -579,12 +569,15 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: dayungAccentSurface(
+                    context,
+                    Theme.of(context).colorScheme.primary,
+                  ),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.primary,
                   size: 26,
                 ),
               ),
@@ -596,7 +589,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                 ),
               ),
               const SizedBox(width: 16),
-              Container(width: 1, height: 120, color: Colors.white24),
+              Container(width: 1, height: 120, color: dayungBorder(context)),
               const SizedBox(width: 16),
               Expanded(
                 child: _fundsBalanceTile(
@@ -612,21 +605,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   }
 
   BoxDecoration _fundsCardDecoration() {
-    return BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [Color(0xFF0D47A1), Color(0xFF1565C0)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: _kPrimary.withValues(alpha: 0.3),
-          blurRadius: 16,
-          offset: const Offset(0, 6),
-        ),
-      ],
-    );
+    return dayungSectionCardDecoration(context, radius: 16);
   }
 
   Widget _fundsBalanceTile(String title, String value) {
@@ -634,20 +613,18 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: dayungSoftSurface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: dayungBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 13,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w600,
-              color: Colors.white70,
-              fontFamily: 'OpenSans',
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 4),
@@ -656,11 +633,9 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: const TextStyle(
-                fontSize: 26,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
-                fontFamily: 'Montserrat',
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -672,6 +647,8 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   // ── ROW 2 ──────────────────────────────────────────────────────────────────
 
   Widget _monthlyChartCard() {
+    final theme = Theme.of(context);
+    final chartColor = theme.colorScheme.primary;
     final maxY = _monthlyCollected.reduce((a, b) => a > b ? a : b);
     final chartMax = maxY <= 0 ? 100.0 : maxY * 1.25;
     final totalYear = _monthlyCollected.fold(0.0, (a, b) => a + b);
@@ -679,54 +656,40 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: _kPrimary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'Total: ₱${totalYear.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: _kPrimary,
-                    fontFamily: 'Montserrat',
+          if (widget.responsiveLayout)
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _yearTotalBadge(totalYear),
+                Text(
+                  '${DateTime.now().year}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ),
-              const Spacer(),
-              Text(
-                '${DateTime.now().year}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _kSubText,
-                  fontFamily: 'OpenSans',
+              ],
+            )
+          else
+            Row(
+              children: [
+                _yearTotalBadge(totalYear),
+                const Spacer(),
+                Text(
+                  '${DateTime.now().year}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 20),
           SizedBox(
             height: 180,
@@ -741,10 +704,10 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       return BarTooltipItem(
                         '₱${rod.toY.toStringAsFixed(0)}',
-                        const TextStyle(
+                        TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
-                          fontSize: 12,
+                          fontSize: theme.textTheme.labelMedium?.fontSize,
                         ),
                       );
                     },
@@ -768,13 +731,14 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                         if (idx < 0 || idx >= 12) {
                           return const SizedBox.shrink();
                         }
+
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
                             months[idx],
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: _kSubText,
+                              color: theme.colorScheme.onSurfaceVariant,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -787,8 +751,10 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                   show: true,
                   drawVerticalLine: false,
                   horizontalInterval: chartMax / 4,
-                  getDrawingHorizontalLine: (_) =>
-                      FlLine(color: Colors.grey.shade100, strokeWidth: 1),
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: theme.colorScheme.outlineVariant,
+                    strokeWidth: 1,
+                  ),
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(12, (i) {
@@ -800,8 +766,8 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                       BarChartRodData(
                         toY: val,
                         color: isCurrentMonth
-                            ? _kPrimary
-                            : _kPrimary.withValues(alpha: 0.45),
+                            ? chartColor
+                            : chartColor.withValues(alpha: 0.55),
                         width: 18,
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(6),
@@ -809,7 +775,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                         backDrawRodData: BackgroundBarChartRodData(
                           show: true,
                           toY: chartMax,
-                          color: Colors.grey.shade100,
+                          color: dayungSoftSurface(context),
                         ),
                       ),
                     ],
@@ -834,13 +800,13 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                   ),
                   decoration: BoxDecoration(
                     color: isCurrentMonth
-                        ? _kPrimary.withValues(alpha: 0.1)
-                        : Colors.grey.shade50,
+                        ? dayungAccentSurface(context, chartColor)
+                        : dayungSoftSurface(context),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: isCurrentMonth
-                          ? _kPrimary.withValues(alpha: 0.3)
-                          : Colors.grey.shade200,
+                          ? chartColor.withValues(alpha: 0.35)
+                          : dayungBorder(context),
                     ),
                   ),
                   child: Column(
@@ -850,7 +816,9 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: isCurrentMonth ? _kPrimary : _kSubText,
+                          color: isCurrentMonth
+                              ? chartColor
+                              : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                       Text(
@@ -858,7 +826,9 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                         style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
-                          color: isCurrentMonth ? _kPrimary : _kSubText,
+                          color: isCurrentMonth
+                              ? chartColor
+                              : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -872,23 +842,36 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
     );
   }
 
+  Widget _yearTotalBadge(double totalYear) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: dayungAccentSurface(context, theme.colorScheme.primary),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        'Total: ₱${totalYear.toStringAsFixed(0)}',
+        style: theme.textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+
   // ── ROW 3 ──────────────────────────────────────────────────────────────────
 
   Widget _incompleteCollectionsList() {
     if (_incomplete.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: const Center(
+        decoration: dayungSectionCardDecoration(context, radius: 16),
+        child: Center(
           child: Text(
             'All collections are complete.',
-            style: TextStyle(
-              color: _kSubText,
-              fontFamily: 'OpenSans',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -902,24 +885,14 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   }
 
   Widget _incompleteCard(_IncompleteCollection c) {
+    final colors = Theme.of(context).colorScheme;
     final progress = (c.goal > 0) ? (c.paid / c.goal).clamp(0.0, 1.0) : 0.0;
     final pct = (progress * 100).round();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context, radius: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -928,12 +901,12 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: _kPurple.withValues(alpha: 0.1),
+                  color: dayungAccentSurface(context, colors.primary),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.local_florist_rounded,
-                  color: _kPurple,
+                  color: colors.primary,
                   size: 18,
                 ),
               ),
@@ -941,29 +914,24 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
               Expanded(
                 child: Text(
                   c.name,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: _kNeutralText,
-                    fontFamily: 'Montserrat',
-                  ),
-                  maxLines: 1,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _kWarn.withValues(alpha: 0.1),
+                  color: dayungAccentSurface(context, colors.secondary),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '$pct%',
-                  style: const TextStyle(
-                    fontSize: 12,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: _kWarn,
-                    fontFamily: 'Montserrat',
+                    color: colors.secondary,
                   ),
                 ),
               ),
@@ -976,32 +944,30 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
-              backgroundColor: Colors.grey.shade100,
+              backgroundColor: dayungSoftSurface(context),
               valueColor: AlwaysStoppedAnimation(
-                progress >= 0.75 ? _kSuccess : _kPrimary,
+                progress >= 0.75 ? colors.secondary : colors.primary,
               ),
             ),
           ),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            spacing: 12,
+            runSpacing: 4,
             children: [
               Text(
                 '${c.paid.toStringAsFixed(0)} of ${c.goal.toStringAsFixed(0)} members paid',
-                style: const TextStyle(
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: _kSuccess,
-                  fontFamily: 'OpenSans',
+                  color: colors.secondary,
                 ),
               ),
               Text(
                 '${(c.goal - c.paid).toStringAsFixed(0)} remaining',
-                style: const TextStyle(
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: _kSubText,
-                  fontFamily: 'OpenSans',
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ],

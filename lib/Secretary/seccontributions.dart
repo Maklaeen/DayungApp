@@ -1,15 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 // Additional colors for secretary contributions specific styling (new UI)
-const kText = Color(0xFF111827);
-const kSubText = Color(0xFF6B7280);
-const kPrimaryLight = Color(0xFF3B82F6);
-const kCardBg = Color(0xFFFFFFFF);
-const kBorderColor = Color(0xFFE5E7EB);
 const kSuccess = Color(0xFF10B981);
 const kDanger = Color(0xFFEF4444);
 const kPaid = Color(0xFF2E7D32);
@@ -164,6 +158,7 @@ class _SecretaryContributionsPageState
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
       body: Container(
@@ -185,16 +180,9 @@ class _SecretaryContributionsPageState
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                      decoration: dayungSectionCardDecoration(
+                        context,
+                        radius: 12,
                       ),
                       child: Column(
                         children: [
@@ -211,10 +199,10 @@ class _SecretaryContributionsPageState
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Paid',
                             style: TextStyle(
-                              color: kSubText,
+                              color: colors.onSurfaceVariant,
                               fontSize: 10,
                               fontFamily: 'OpenSans',
                               fontWeight: FontWeight.w600,
@@ -223,8 +211,8 @@ class _SecretaryContributionsPageState
                           const SizedBox(height: 1),
                           Text(
                             '${_countByStatus('paid')}',
-                            style: const TextStyle(
-                              color: kText,
+                            style: TextStyle(
+                              color: colors.onSurface,
                               fontSize: 14,
                               fontFamily: 'Montserrat',
                               fontWeight: FontWeight.w800,
@@ -238,16 +226,9 @@ class _SecretaryContributionsPageState
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                      decoration: dayungSectionCardDecoration(
+                        context,
+                        radius: 12,
                       ),
                       child: Column(
                         children: [
@@ -264,10 +245,10 @@ class _SecretaryContributionsPageState
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Pending',
                             style: TextStyle(
-                              color: kSubText,
+                              color: colors.onSurfaceVariant,
                               fontSize: 10,
                               fontFamily: 'OpenSans',
                               fontWeight: FontWeight.w600,
@@ -276,8 +257,8 @@ class _SecretaryContributionsPageState
                           const SizedBox(height: 1),
                           Text(
                             '${_countByStatus('pending')}',
-                            style: const TextStyle(
-                              color: kText,
+                            style: TextStyle(
+                              color: colors.onSurface,
                               fontSize: 14,
                               fontFamily: 'Montserrat',
                               fontWeight: FontWeight.w800,
@@ -296,30 +277,19 @@ class _SecretaryContributionsPageState
                   ? Center(
                       child: Container(
                         padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: kCardBg,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: kBorderColor, width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
+                        decoration: dayungSectionCardDecoration(context),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             CircularProgressIndicator(
-                              color: kPrimary,
+                              color: colors.primary,
                               strokeWidth: 3,
                             ),
                             const SizedBox(height: 16),
-                            const Text(
+                            Text(
                               'Loading contributions...',
                               style: TextStyle(
-                                color: kSubText,
+                                color: colors.onSurfaceVariant,
                                 fontSize: 16,
                                 fontFamily: 'OpenSans',
                                 fontWeight: FontWeight.w600,
@@ -334,28 +304,14 @@ class _SecretaryContributionsPageState
                             child: Container(
                               margin: const EdgeInsets.all(20),
                               padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: kCardBg,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: kBorderColor,
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: const Column(
+                              decoration: dayungSectionCardDecoration(context),
+                              child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
                                     Icons.account_balance_wallet_rounded,
                                     size: 48,
-                                    color: kSubText,
+                                    color: colors.onSurfaceVariant,
                                   ),
                                   SizedBox(height: 16),
                                   Text(
@@ -363,7 +319,7 @@ class _SecretaryContributionsPageState
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
-                                      color: kText,
+                                      color: colors.onSurface,
                                       fontFamily: 'Montserrat',
                                     ),
                                     textAlign: TextAlign.center,
@@ -373,7 +329,7 @@ class _SecretaryContributionsPageState
                                     'No contributions have been made yet',
                                     style: TextStyle(
                                       fontSize: 14,
-                                      color: kSubText,
+                                      color: colors.onSurfaceVariant,
                                       fontFamily: 'OpenSans',
                                     ),
                                     textAlign: TextAlign.center,

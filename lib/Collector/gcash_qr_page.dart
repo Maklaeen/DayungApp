@@ -637,7 +637,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
     final double previewSize = isMobile ? 72 : 96;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

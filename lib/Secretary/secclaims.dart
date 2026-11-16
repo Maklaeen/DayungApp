@@ -18,13 +18,7 @@ const Color kPrimaryDark = Color(0xFF083366);
 const Color kAccent = Color(0xFF2E7D32);
 const Color kWarn = Color(0xFFF57C00);
 const Color kDanger = Color(0xFFC62828);
-const Color kNeutralText = Color(0xFF1F2937);
-const Color kSubtleText = Color(0xFF4B5563);
 const double kRadius = 18;
-
-// Extra tones used by new UI
-const kCardBg = Color(0xFFFFFFFF);
-const kBorderColor = Color(0xFFE5E7EB);
 
 List<Map<String, dynamic>> filterPaymentRecipientsForDeceasedClaim({
   required List<Map<String, dynamic>> approvedApplications,
@@ -764,6 +758,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   Widget build(BuildContext context) {
     final currentStatus = _tabs[_tabController.index];
     final claims = _filteredClaims;
+    final colors = Theme.of(context).colorScheme;
     // final dayungName = context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
 
     return Scaffold(
@@ -794,10 +789,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                     fontSize: 10,
                     fontFamily: 'Montserrat',
                   ),
-                  labelColor: kPrimary,
-                  unselectedLabelColor: kSubtleText,
-                  indicator: const UnderlineTabIndicator(
-                    borderSide: BorderSide(color: kPrimary, width: 2),
+                  labelColor: colors.primary,
+                  unselectedLabelColor: colors.onSurfaceVariant,
+                  indicator: UnderlineTabIndicator(
+                    borderSide: BorderSide(color: colors.primary, width: 2),
                   ),
                   tabs: _tabs.map((t) {
                     final active = t == currentStatus;
@@ -809,7 +804,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           Icon(
                             _statusIcon(t),
                             size: 12,
-                            color: active ? kPrimary : kSubtleText,
+                            color: active
+                                ? colors.primary
+                                : colors.onSurfaceVariant,
                           ),
                           const SizedBox(width: 2),
                           Flexible(
@@ -821,7 +818,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                     ? FontWeight.w700
                                     : FontWeight.w600,
                                 fontFamily: 'Montserrat',
-                                color: active ? kPrimary : kSubtleText,
+                                color: active
+                                    ? colors.primary
+                                    : colors.onSurfaceVariant,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -877,10 +876,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         child: Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: kCardBg,
+                            color: dayungSurface(context),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: kBorderColor.withValues(alpha: 0.3),
+                              color: dayungBorder(context),
                               width: 1,
                             ),
                             boxShadow: [
@@ -895,14 +894,14 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               CircularProgressIndicator(
-                                color: kPrimary,
+                                color: colors.primary,
                                 strokeWidth: 3,
                               ),
                               const SizedBox(height: 16),
-                              const Text(
+                              Text(
                                 'Loading claims...',
                                 style: TextStyle(
-                                  color: kSubtleText,
+                                  color: colors.onSurfaceVariant,
                                   fontSize: 16,
                                   fontFamily: 'OpenSans',
                                   fontWeight: FontWeight.w600,
@@ -918,10 +917,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                 margin: const EdgeInsets.all(20),
                                 padding: const EdgeInsets.all(24),
                                 decoration: BoxDecoration(
-                                  color: kCardBg,
+                                  color: dayungSurface(context),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: kBorderColor.withValues(alpha: 0.3),
+                                    color: dayungBorder(context),
                                     width: 1,
                                   ),
                                   boxShadow: [
@@ -945,22 +944,22 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                       ).withValues(alpha: 0.6),
                                     ),
                                     const SizedBox(height: 16),
-                                    const Text(
+                                    Text(
                                       "No claims found",
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w700,
-                                        color: kNeutralText,
+                                        color: colors.onSurface,
                                         fontFamily: 'Montserrat',
                                       ),
                                       textAlign: TextAlign.center,
                                     ),
                                     const SizedBox(height: 8),
-                                    const Text(
+                                    Text(
                                       "No claims for the selected status in this Dayung",
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: kSubtleText,
+                                        color: colors.onSurfaceVariant,
                                         fontFamily: 'OpenSans',
                                       ),
                                       textAlign: TextAlign.center,
@@ -1034,37 +1033,38 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   }
 
   Widget _searchField() {
+    final colors = Theme.of(context).colorScheme;
     return TextField(
       controller: _searchCtrl,
       onChanged: (v) => setState(() => _search = v),
-      style: const TextStyle(color: Colors.black87, fontSize: 14),
+      style: TextStyle(color: colors.onSurface, fontSize: 14),
       decoration: InputDecoration(
         hintText: "Search title, member, dayung...",
-        hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
-        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+        hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 14),
+        prefixIcon: Icon(Icons.search, color: colors.onSurfaceVariant),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: dayungSurface(context),
         contentPadding: const EdgeInsets.symmetric(
           vertical: 12,
           horizontal: 16,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(color: dayungBorder(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(color: dayungBorder(context)),
         ),
-        focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-          borderSide: BorderSide(color: kPrimary, width: 2),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colors.primary, width: 2),
         ),
         suffixIcon: _search.isEmpty
             ? null
             : IconButton(
                 tooltip: "Clear",
-                icon: const Icon(Icons.close, color: Colors.grey),
+                icon: Icon(Icons.close, color: colors.onSurfaceVariant),
                 onPressed: () {
                   _searchCtrl.clear();
                   setState(() => _search = '');
@@ -1089,7 +1089,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       ],
       rows: claims.map((claim) {
         final status = (claim['status'] ?? '').toString();
-        final color = _statusColor(status);
         final userInfo = _userMap[(claim['user_id'] ?? '').toString()];
         final claimant =
             (claim['claimant_name'] ?? userInfo?['full_name'] ?? 'Member')
@@ -1165,13 +1164,14 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
+        final sheetColors = Theme.of(ctx).colorScheme;
         return Container(
           height: MediaQuery.of(ctx).size.height * 0.8,
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: dayungSurface(ctx),
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
-              BoxShadow(
+              const BoxShadow(
                 color: Colors.black26,
                 blurRadius: 20,
                 offset: Offset(0, -5),
@@ -1186,7 +1186,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 width: 50,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade400,
+                  color: dayungBorder(ctx),
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -1210,10 +1210,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         children: [
                           Text(
                             submitter,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: Colors.black87,
+                              color: sheetColors.onSurface,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -1221,7 +1221,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                             dayungName,
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey.shade600,
+                              color: sheetColors.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -1259,10 +1259,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       // Title
                       Text(
                         (claim['title'] ?? 'Untitled').toString(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: Colors.black87,
+                          color: sheetColors.onSurface,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -1275,15 +1275,15 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: dayungSoftSurface(ctx),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade200),
+                            border: Border.all(color: dayungBorder(ctx)),
                           ),
                           child: Text(
                             claim['description'],
                             style: TextStyle(
                               fontSize: 15,
-                              color: Colors.grey.shade700,
+                              color: sheetColors.onSurfaceVariant,
                               height: 1.5,
                             ),
                           ),
@@ -1330,8 +1330,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                             icon: const Icon(Icons.map_outlined, size: 22),
                             label: const Text('View Location on Map'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: kPrimary,
-                              foregroundColor: Colors.white,
+                              backgroundColor: sheetColors.primary,
+                              foregroundColor: sheetColors.onPrimary,
                               minimumSize: const Size.fromHeight(56),
                               textStyle: const TextStyle(
                                 fontSize: 16,
@@ -1399,8 +1399,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                             icon: const Icon(Icons.description, size: 20),
                             label: const Text('View Death Certificate'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: kPrimary,
-                              foregroundColor: Colors.white,
+                              backgroundColor: sheetColors.primary,
+                              foregroundColor: sheetColors.onPrimary,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -1531,8 +1531,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               icon: const Icon(Icons.credit_card, size: 20),
                               label: const Text('View Valid ID'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: kPrimary,
-                                foregroundColor: Colors.white,
+                                backgroundColor: sheetColors.primary,
+                                foregroundColor: sheetColors.onPrimary,
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 16,
                                 ),
@@ -1718,10 +1718,12 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                   vertical: 16,
                                 ),
                                 side: BorderSide(
-                                  color: claimed ? Colors.grey : kAccent,
+                                  color: claimed
+                                      ? sheetColors.outline
+                                      : kAccent,
                                 ),
                                 foregroundColor: claimed
-                                    ? Colors.grey.shade800
+                                    ? sheetColors.onSurfaceVariant
                                     : kAccent,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -1739,8 +1741,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                  color: dayungSoftSurface(ctx),
+                  border: Border(top: BorderSide(color: dayungBorder(ctx))),
                 ),
                 child: _bottomSheetActions(status, claim),
               ),
@@ -1752,6 +1754,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -1759,10 +1762,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: dayungSoftSurface(context),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 18, color: Colors.grey.shade700),
+            child: Icon(icon, size: 18, color: colors.onSurfaceVariant),
           ),
           const SizedBox(width: 12),
           Text(
@@ -1770,16 +1773,16 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+              color: colors.onSurfaceVariant,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
-                color: Colors.black87,
+                color: colors.onSurface,
                 fontWeight: FontWeight.w500,
               ),
               overflow: TextOverflow.ellipsis,

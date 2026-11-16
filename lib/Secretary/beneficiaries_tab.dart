@@ -1110,7 +1110,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
   Widget build(BuildContext context) {
     final beneficiariesGrouped = _filteredGrouped(_beneficiariesByUser);
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

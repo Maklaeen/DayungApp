@@ -1528,7 +1528,7 @@ class _RegisterState extends State<Register> {
     }
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Center(
@@ -1692,7 +1692,7 @@ class _RegisterState extends State<Register> {
     final isSmall = width < 350;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true,
       body: Builder(
         builder: (rootContext) {

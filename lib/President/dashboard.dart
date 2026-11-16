@@ -16,6 +16,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/pages/reports.dart' as reports;
+import 'package:capstone_app/shared/dayung_role_navigation_bar.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -60,7 +61,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Map<String, dynamic>? _latestAnnouncement;
   bool _loadingAnnouncement = true;
   int _currentIndex = 0;
-  bool _showNavBar = true;
   int? _dayungUnitId;
   List<int> _managedUnitIds = [];
   int? get _primaryUnitId =>
@@ -79,22 +79,18 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      if (!_scrollController.hasClients) return;
-      final maxScroll = _scrollController.position.maxScrollExtent;
-      final current = _scrollController.position.pixels;
-      if (current >= maxScroll && _showNavBar) {
-        setState(() => _showNavBar = false);
-      } else if (current < maxScroll && !_showNavBar) {
-        setState(() => _showNavBar = true);
-      }
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provUnit = context.read<DayungRoleProvider>().unitId;
       _maybeOnProviderUnitChanged(provUnit);
     });
     _initLoad();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _maybeOnProviderUnitChanged(int? newUnitId) async {
@@ -415,7 +411,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
     final provUnit = context.watch<DayungRoleProvider>().unitId;
     if (provUnit != _lastRoleUnitId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -423,62 +418,68 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       });
     }
 
-    final wide = width > 820;
-
     return Container(
       decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
       child: Stack(
         children: [
           SafeArea(
             child: Column(
-              children: [
-                _buildModernHeader(showMenuButton: true),
-                _buildContentArea(wide),
-              ],
+              children: [_buildModernHeader(), _buildContentArea()],
             ),
           ),
-          _buildFloatingNavBar(wide),
+          _buildFloatingNavBar(),
         ],
       ),
     );
   }
 
-  Widget _buildModernHeader({bool showMenuButton = true}) {
+  Widget _buildModernHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       child: Column(
         children: [
           Row(
             children: [
-              if (showMenuButton)
-                Builder(
-                  builder: (context) => Container(
-                    padding: const EdgeInsets.all(1),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E40AF).withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+              Semantics(
+                button: true,
+                label: 'Open menu',
+                onTap: () => Scaffold.of(context).openDrawer(),
+                child: ExcludeSemantics(
+                  child: Builder(
+                    builder: (context) => Container(
+                      padding: const EdgeInsets.all(1),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.menu_rounded,
+                          color: Colors.white,
                         ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.menu_rounded, color: Colors.white),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
+                        onPressed: () => Scaffold.of(context).openDrawer(),
+                      ),
                     ),
                   ),
                 ),
-              if (showMenuButton) const SizedBox(width: 16),
+              ),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Dayung',
-                      style: TextStyle(
+                    Text(
+                      _selectedDayungUnit,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
@@ -491,10 +492,13 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               ),
               _buildModernIconButton(
                 icon: Icons.notifications_active_rounded,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const NotificationPage()),
-                ).then((_) => _load()),
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationPage()),
+                  );
+                  await _load();
+                },
                 badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
               ),
             ],
@@ -504,9 +508,11 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             children: [
               Expanded(
                 child: dayungGreetingPanel(
-                  child: const Text(
-                    'Good Morning,\nPresident!',
-                    style: TextStyle(
+                  child: Text(
+                    'Good Morning,\n${_fullName.isEmpty ? 'President' : _fullName}!',
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 28,
                       fontWeight: FontWeight.w900,
@@ -517,47 +523,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   ),
                 ),
               ),
-              // GestureDetector(
-              //   onTap: () async {
-              //     final prevUnitId = context
-              //         .read<DayungUnitProvider>()
-              //         .currentUnitId;
-              //     await Navigator.push(
-              //       context,
-              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
-              //     );
-              //     if (!mounted) return;
-              //     final newUnitId = context
-              //         .read<DayungUnitProvider>()
-              //         .currentUnitId;
-              //     if (prevUnitId != newUnitId) {
-              //       context.read<DayungRoleProvider>().refreshRoles(newUnitId);
-              //     }
-              //   },
-              //   child: Container(
-              //     padding: const EdgeInsets.all(4),
-              //     decoration: BoxDecoration(
-              //       color: Colors.white.withOpacity(0.2),
-              //       borderRadius: BorderRadius.circular(32),
-              //       boxShadow: [
-              //         BoxShadow(
-              //           color: Colors.black.withOpacity(0.1),
-              //           blurRadius: 8,
-              //           offset: const Offset(0, 2),
-              //         ),
-              //       ],
-              //     ),
-              //     child: const CircleAvatar(
-              //       radius: 28,
-              //       backgroundColor: Colors.white,
-              //       child: Icon(
-              //         Icons.person,
-              //         size: 34,
-              //         color: Color(0xFF1E40AF),
-              //       ),
-              //     ),
-              //   ),
-              // ),
             ],
           ),
         ],
@@ -565,25 +530,96 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     );
   }
 
-  Widget _buildContentArea(bool wide) {
+  Widget _buildModernIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    return Semantics(
+      button: true,
+      label: 'Notifications',
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Tooltip(
+              message: 'Notifications',
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: onTap,
+                    child: Icon(icon, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ),
+            if (badge != null)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    badge,
+                    style: const TextStyle(
+                      fontFamily: 'OpenSans',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentArea() {
     return Expanded(
       child: Container(
         decoration: BoxDecoration(
           color: dayungSurface(context),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [dayungTopShadow(context)],
         ),
         child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           child: RefreshIndicator(
-            onRefresh: _load, // or your refresh method
-            edgeOffset: 68,
+            onRefresh: _load,
+            edgeOffset: 16,
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: IndexedStack(
@@ -598,143 +634,19 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     );
   }
 
-  Widget _buildFloatingNavBar(bool wide) {
+  Widget _buildFloatingNavBar() {
     return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 20,
+      left: 16,
+      right: 16,
+      bottom: MediaQuery.paddingOf(context).bottom + 8,
       child: Center(
-        child: IgnorePointer(
-          ignoring: !_showNavBar,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 300),
-            opacity: _showNavBar ? 1 : 0,
-            child: Container(
-              height: 80,
-              margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: dayungSurface(context),
-                borderRadius: BorderRadius.circular(40),
-                border: Border.all(color: dayungBorder(context)),
-                boxShadow: [dayungElevatedShadow(context)],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(Icons.dashboard_rounded, "Home", 0),
-                  _buildNavItem(Icons.trending_up_rounded, "Contributions", 1),
-                  _buildNavItem(Icons.assignment_rounded, "Claims", 2),
-                ],
-              ),
-            ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: DayungRoleNavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) =>
+                setState(() => _currentIndex = index),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    String? badge,
-  }) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
-              child: Icon(icon, color: Colors.white, size: 20),
-            ),
-          ),
-        ),
-        if (badge != null)
-          Positioned(
-            right: -2,
-            top: -2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Text(
-                badge,
-                style: const TextStyle(
-                  fontFamily: 'OpenSans',
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final selected = _currentIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF1E40AF).withValues(alpha: 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: selected
-                  ? const Color(0xFF1E40AF)
-                  : const Color(0xFF6B7280),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected
-                    ? const Color(0xFF1E40AF)
-                    : const Color(0xFF6B7280),
-                height: 1.0,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
         ),
       ),
     );
@@ -744,43 +656,68 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Widget _buildHomePage(BuildContext context) {
     final dashboardUnitId = _effectiveUnitId(context);
 
-    return SingleChildScrollView(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── New shared overview (Row 1 stats, Row 2 chart, Row 3 collections) ──
-          if (dashboardUnitId != null)
-            PresSecDashboardOverview(
-              key: ValueKey(dashboardUnitId),
-              dayungUnitId: dashboardUnitId,
-              onNavigateToMembers: () async {
-                final navigator = Navigator.of(context);
-                final ids = await _managedDayungIds();
-                if (!mounted) return;
-                navigator.push(
-                  MaterialPageRoute(
-                    builder: (_) => PresidentMembersPage(dayungUnitIds: ids),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding = constraints.maxWidth < 400 ? 16.0 : 24.0;
+        final bottomPadding = dayungRoleNavigationClearance(context);
+        return SingleChildScrollView(
+          controller: _scrollController,
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            20,
+            horizontalPadding,
+            bottomPadding,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (dashboardUnitId != null)
+                    PresSecDashboardOverview(
+                      key: ValueKey(dashboardUnitId),
+                      dayungUnitId: dashboardUnitId,
+                      responsiveLayout: true,
+                      onNavigateToMembers: () async {
+                        final navigator = Navigator.of(context);
+                        final ids = await _managedDayungIds();
+                        if (!mounted) return;
+                        navigator.push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                PresidentMembersPage(dayungUnitIds: ids),
+                          ),
+                        );
+                      },
+                      onNavigateToDeceased: () {
+                        final effectiveUnitId = _effectiveUnitId(context);
+                        if (effectiveUnitId == null) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RecentDeathNotices(
+                              dayungUnitId: effectiveUnitId,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  const SizedBox(height: 24),
+                  _UpcomingAnnouncementCard(
+                    loading: _loadingAnnouncement,
+                    announcement: _latestAnnouncement,
                   ),
-                );
-              },
-              onNavigateToDeceased: () {
-                final effectiveUnitId = _effectiveUnitId(context);
-                if (effectiveUnitId == null) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        RecentDeathNotices(dayungUnitId: effectiveUnitId),
-                  ),
-                );
-              },
+                  const SizedBox(height: 24),
+                  _buildQuickActions(),
+                  const SizedBox(height: 24),
+                  _ContributionBarChartCard(dayungUnitIds: _managedUnitIds),
+                ],
+              ),
             ),
-          const SizedBox(height: 24),
-          _buildQuickActions(),
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -797,7 +734,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               fontSize: 20,
               fontWeight: FontWeight.w800,
               color: Color(0xFF1E40AF),
-              fontFamily: 'Montserrat',
             ),
           ),
           const SizedBox(height: 16),
@@ -954,7 +890,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
                 color: Color(0xFF1F2937),
-                fontFamily: 'Montserrat',
               ),
             ),
             const SizedBox(height: 2),
@@ -970,240 +905,178 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   }
 
   Widget _buildQuickActions() {
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    final actionCardHeight = isMobile ? 156.0 : 140.0;
-    final quickAccessCardHeight = isMobile ? 142.0 : 110.0;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: dayungSectionCardDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1E40AF),
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: actionCardHeight,
-                  child: _modernActionCard(
-                    icon: Icons.campaign_rounded,
-                    title: 'Post Announcement',
-                    color: const Color(0xFF3B82F6),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PostAnnouncementPage(),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: actionCardHeight,
-                  child: _modernActionCard(
-                    icon: Icons.payments_rounded,
-                    title: 'Pay Contribution',
-                    color: const Color(0xFF10B981),
-                    onTap: () async {
-                      final ids = await _managedDayungIds();
-                      if (ids.isEmpty || !mounted) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              PresidentPaymentPage(dayungUnitId: ids.first),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: actionCardHeight,
-                  child: _modernActionCard(
-                    icon: Icons.rule_rounded,
-                    title: 'Manage User Preferences',
-                    color: const Color(0xFF6366F1),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ManageRulesPagePres(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: actionCardHeight,
-                  child: _modernActionCard(
-                    icon: Icons.bar_chart_rounded,
-                    title: 'Collector Progress',
-                    color: const Color(0xFF8B5CF6),
-                    onTap: () {
-                      final unitId = _effectiveUnitId(context);
-                      if (unitId == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Select a Dayung first'),
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              CollectorProgressPage(dayungUnitId: unitId),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: actionCardHeight,
-                  child: _modernActionCard(
-                    icon: Icons.sms_outlined,
-                    title: 'Announcement for SMS',
-                    color: const Color(0xFF0891B2),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const SmsAnnouncementPage(),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: actionCardHeight,
-                  child: _modernActionCard(
-                    icon: Icons.assessment_rounded,
-                    title: 'Reports',
-                    color: const Color(0xFF0D47A1),
-                    onTap: () {
-                      final unitId = _effectiveUnitId(context);
-                      if (unitId == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Select a Dayung first'),
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => reports.ReportsPage(unitId: unitId),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Quick Access',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1E40AF),
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final crossAxisCount = isMobile ? 2 : 4;
-              final cardWidth =
-                  (constraints.maxWidth - (12 * (crossAxisCount - 1))) /
-                  crossAxisCount;
-
-              return GridView.count(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: cardWidth / quickAccessCardHeight,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _modernActionCard(
-                    icon: Icons.bar_chart_rounded,
-                    title: 'Contributions',
-                    color: kPrimary,
-                    onTap: () => setState(() => _currentIndex = 1),
-                  ),
-                  _modernActionCard(
-                    icon: Icons.assignment_rounded,
-                    title: 'Claims',
-                    color: const Color(0xFFEF4444),
-                    onTap: () => setState(() => _currentIndex = 2),
-                  ),
-                  _modernActionCard(
-                    icon: Icons.description_rounded,
-                    title: 'Required Application',
-                    color: const Color(0xFF6366F1),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const RequiredApplicationsPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _modernActionCard(
-                    icon: Icons.history_rounded,
-                    title: 'Activity',
-                    color: const Color(0xFF0891B2),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PresidentActivityPage(),
-                      ),
-                    ).then((_) => _load()),
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          _UpcomingAnnouncementCard(
-            loading: _loadingAnnouncement,
-            announcement: _latestAnnouncement,
-          ),
-          const SizedBox(height: 16),
-          _ContributionBarChartCard(dayungUnitIds: _managedUnitIds),
-        ],
+    final managementActions = [
+      _PresidentDashboardAction(
+        icon: Icons.campaign_rounded,
+        title: 'Post Announcement',
+        color: Theme.of(context).colorScheme.primary,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PostAnnouncementPage()),
+        ),
       ),
+      _PresidentDashboardAction(
+        icon: Icons.payments_rounded,
+        title: 'Pay Contribution',
+        color: Theme.of(context).colorScheme.secondary,
+        onTap: () async {
+          final ids = await _managedDayungIds();
+          if (ids.isEmpty || !mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PresidentPaymentPage(dayungUnitId: ids.first),
+            ),
+          );
+        },
+      ),
+      _PresidentDashboardAction(
+        icon: Icons.rule_rounded,
+        title: 'Manage User Preferences',
+        color: Theme.of(context).colorScheme.tertiary,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ManageRulesPagePres()),
+        ),
+      ),
+      _PresidentDashboardAction(
+        icon: Icons.bar_chart_rounded,
+        title: 'Collector Progress',
+        color: Theme.of(context).colorScheme.primary,
+        onTap: () {
+          final unitId = _effectiveUnitId(context);
+          if (unitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CollectorProgressPage(dayungUnitId: unitId),
+            ),
+          );
+        },
+      ),
+      _PresidentDashboardAction(
+        icon: Icons.sms_outlined,
+        title: 'Announcement for SMS',
+        color: Theme.of(context).colorScheme.secondary,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SmsAnnouncementPage()),
+        ),
+      ),
+      _PresidentDashboardAction(
+        icon: Icons.assessment_rounded,
+        title: 'Reports',
+        color: Theme.of(context).colorScheme.tertiary,
+        onTap: () {
+          final unitId = _effectiveUnitId(context);
+          if (unitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => reports.ReportsPage(unitId: unitId),
+            ),
+          );
+        },
+      ),
+    ];
+    final quickAccessActions = [
+      _PresidentDashboardAction(
+        icon: Icons.bar_chart_rounded,
+        title: 'Contributions',
+        color: Theme.of(context).colorScheme.primary,
+        onTap: () => setState(() => _currentIndex = 1),
+      ),
+      _PresidentDashboardAction(
+        icon: Icons.assignment_rounded,
+        title: 'Claims',
+        color: Theme.of(context).colorScheme.error,
+        onTap: () => setState(() => _currentIndex = 2),
+      ),
+      _PresidentDashboardAction(
+        icon: Icons.description_rounded,
+        title: 'Required Application',
+        color: Theme.of(context).colorScheme.tertiary,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const RequiredApplicationsPage()),
+        ),
+      ),
+      _PresidentDashboardAction(
+        icon: Icons.history_rounded,
+        title: 'Activity',
+        color: Theme.of(context).colorScheme.secondary,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PresidentActivityPage()),
+        ).then((_) => _load()),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildActionSection('Management tools', managementActions),
+        const SizedBox(height: 24),
+        _buildActionSection('Quick access', quickAccessActions),
+      ],
+    );
+  }
+
+  Widget _buildActionSection(
+    String title,
+    List<_PresidentDashboardAction> actions,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth < 520
+                ? 1
+                : constraints.maxWidth < 900
+                ? 2
+                : 3;
+            const spacing = 12.0;
+            final itemWidth =
+                (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: actions
+                  .map(
+                    (action) => SizedBox(
+                      width: itemWidth,
+                      child: _modernActionCard(
+                        icon: action.icon,
+                        title: action.title,
+                        color: action.color,
+                        onTap: action.onTap,
+                      ),
+                    ),
+                  )
+                  .toList(),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -1214,84 +1087,67 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     VoidCallback? onTap,
     int badgeCount = 0,
   }) {
-    final isCompact = MediaQuery.of(context).size.width < 360;
-    final isMobile = MediaQuery.of(context).size.width < 600;
-    final titleFontSize = isCompact ? 12.0 : 14.0;
-    final contentGap = isCompact ? 6.0 : 8.0;
-
     return Material(
       color: Colors.transparent,
-      child: InkWell(
+      child: Semantics(
+        button: true,
+        label: badgeCount > 0 ? '$title, $badgeCount items' : title,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: color.withValues(alpha: 0.1),
-        highlightColor: color.withValues(alpha: 0.05),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: dayungSurface(context),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: dayungBorder(context)),
-            boxShadow: [dayungElevatedShadow(context)],
-          ),
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            padding: const EdgeInsets.all(16),
-            child: Stack(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.start,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: color.withValues(alpha: 0.1),
+          highlightColor: color.withValues(alpha: 0.05),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: dayungSurface(context),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: dayungBorder(context)),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 88),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      width: 48,
+                      height: 48,
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(icon, color: color, size: 20),
+                      child: Icon(icon, color: color, size: 24),
                     ),
-                    SizedBox(height: contentGap),
-                    Flexible(
+                    const SizedBox(width: 12),
+                    Expanded(
                       child: Text(
                         title,
-                        maxLines: isMobile ? 3 : 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        style: TextStyle(
-                          fontSize: titleFontSize,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontFamily: 'Montserrat',
                         ),
                       ),
+                    ),
+                    if (badgeCount > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '$badgeCount',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      size: 24,
                     ),
                   ],
                 ),
-                if (badgeCount > 0)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDC2626),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '$badgeCount',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1369,6 +1225,20 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       ),
     );
   }
+}
+
+class _PresidentDashboardAction {
+  const _PresidentDashboardAction({
+    required this.icon,
+    required this.title,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final Color color;
+  final VoidCallback onTap;
 }
 
 /* ------------------------- SIMPLE BAR CHART CARD ------------------------ */
@@ -1463,6 +1333,8 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final chartColor = theme.colorScheme.primary;
     final barLabels = _yearTotals.keys.toList()..sort();
     final barValues = barLabels.map((y) => _yearTotals[y] ?? 0).toList();
     final maxY = barValues.isNotEmpty
@@ -1482,24 +1354,22 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: kPrimary.withValues(alpha: 0.1),
+                    color: dayungAccentSurface(context, chartColor),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.bar_chart_rounded,
-                    color: kPrimary,
+                    color: chartColor,
                     size: 20,
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Contribution Records',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: kNeutralText,
-                    letterSpacing: 0.3,
+                Expanded(
+                  child: Text(
+                    'Contribution Records',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -1533,7 +1403,7 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                       value: _recordCount.toString(),
                     ),
                   ),
-                  Container(width: 1, height: 36, color: kBorderColor),
+                  Container(width: 1, height: 36, color: dayungBorder(context)),
                   Expanded(
                     child: _ChartStat(
                       label: 'Total Paid',
@@ -1572,9 +1442,9 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                                 padding: const EdgeInsets.only(right: 8.0),
                                 child: Text(
                                   value.toInt().toString(),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 10,
-                                    color: Colors.black54,
+                                    color: theme.colorScheme.onSurfaceVariant,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -1593,9 +1463,11 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                                         ),
                                         child: Text(
                                           barLabels[idx],
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 12,
-                                            color: kSubText,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
                                           ),
                                         ),
                                       )
@@ -1623,13 +1495,13 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                             barRods: [
                               BarChartRodData(
                                 toY: barValues[i],
-                                color: const Color(0xFF2D63D6),
+                                color: chartColor,
                                 width: 22,
                                 borderRadius: BorderRadius.circular(4),
                                 backDrawRodData: BackgroundBarChartRodData(
                                   show: true,
                                   toY: maxY,
-                                  color: const Color(0xFFE5E7EB),
+                                  color: dayungSoftSurface(context),
                                 ),
                               ),
                             ],
@@ -1639,7 +1511,7 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                     ),
             ),
             const SizedBox(height: 4),
-            const _MiniLegendRow(),
+            _MiniLegendRow(color: chartColor),
           ],
         ),
       ),
@@ -1648,20 +1520,20 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
 }
 
 class _MiniLegendRow extends StatelessWidget {
-  const _MiniLegendRow();
+  const _MiniLegendRow({required this.color});
+
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _dot(const Color(0xFF2D63D6)),
+        _dot(color),
         const SizedBox(width: 6),
         Text(
           'batches',
-          style: TextStyle(
-            fontFamily: 'OpenSans',
-            fontSize: 12,
-            color: kSubText,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -1688,21 +1560,15 @@ class _ChartStat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(
-            fontFamily: 'Montserrat',
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: kNeutralText,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(
-            fontFamily: 'OpenSans',
-            fontSize: 12,
-            color: kSubText,
-            fontWeight: FontWeight.w600,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -1721,10 +1587,27 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     if (loading) {
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: const Center(child: CircularProgressIndicator()),
+        padding: const EdgeInsets.all(20),
+        decoration: dayungSectionCardDecoration(context, radius: 18),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                'Loading latest announcement…',
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+          ],
+        ),
       );
     }
     if (announcement == null) {
@@ -1736,42 +1619,27 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: kPrimary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.campaign_rounded,
-                    color: kPrimary,
-                    size: 20,
-                  ),
+                Icon(
+                  Icons.campaign_rounded,
+                  color: theme.colorScheme.primary,
+                  size: 24,
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Latest Announcement',
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 18,
-                      height: 1.3,
-                      color: kNeutralText,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.2,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'No announcements posted yet for your managed Dayung units.',
-              style: TextStyle(
-                fontFamily: 'OpenSans',
-                fontSize: 13,
-                height: 1.5,
-                color: kSubText,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -1799,32 +1667,20 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: kPrimary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.campaign_rounded,
-                  color: kPrimary,
-                  size: 20,
-                ),
+              Icon(
+                Icons.campaign_rounded,
+                color: theme.colorScheme.primary,
+                size: 24,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Latest Announcement',
-                      style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 18,
-                        height: 1.3,
-                        color: kNeutralText,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.2,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     if (dateStr.isNotEmpty) ...[
@@ -1835,16 +1691,16 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: kPrimary.withValues(alpha: 0.08),
+                          color: dayungAccentSurface(
+                            context,
+                            theme.colorScheme.primary,
+                          ),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
                           dateStr,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: kPrimary,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Montserrat',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: theme.colorScheme.primary,
                           ),
                         ),
                       ),
@@ -1857,11 +1713,7 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             title.isEmpty ? 'Untitled announcement' : title,
-            style: const TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 16,
-              height: 1.35,
-              color: kNeutralText,
+            style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1869,13 +1721,8 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               body,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'OpenSans',
-                fontSize: 13,
-                height: 1.5,
-                color: kSubText,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],

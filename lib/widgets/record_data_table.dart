@@ -53,7 +53,7 @@ class RecordDataTable extends StatelessWidget {
         headingTextStyle ??
         (modernStyle
             ? TextStyle(
-                color: isDark ? colors.onSurface : const Color(0xFF0D47A1),
+                color: isDark ? colors.onSurface : colors.primary,
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 fontFamily: 'Montserrat',
@@ -92,9 +92,7 @@ class RecordDataTable extends StatelessWidget {
                         }
                         return index.isEven
                             ? colors.surface
-                            : (isDark
-                                  ? colors.surfaceContainerLow
-                                  : const Color(0xFFF5F8FC));
+                            : colors.surfaceContainerLow;
                       }),
                   cells: row.cells,
                 );
@@ -113,7 +111,7 @@ class RecordDataTable extends StatelessWidget {
             (modernStyle
                 ? (isDark
                       ? colors.surfaceContainerHigh
-                      : const Color(0xFFEAF2FC))
+                      : colors.primaryContainer)
                 : colors.surfaceContainerHighest.withValues(alpha: 0.55)),
       ),
       headingTextStyle: effectiveHeadingTextStyle,

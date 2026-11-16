@@ -207,12 +207,11 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-    final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.3);
 
     // Modern "No Dayung" UI
     if (widget.dayungUnitId == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: Column(
             children: [
@@ -439,7 +438,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: Column(
             children: [
@@ -592,13 +591,11 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                                   _modernList(
                                     context,
                                     _members,
-                                    textScale,
                                     isWide,
                                   ),
                                   _modernList(
                                     context,
                                     _beneficiaries,
-                                    textScale,
                                     isWide,
                                     isBeneficiaryTab: true,
                                   ),
@@ -620,7 +617,6 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   Widget _modernList(
     BuildContext context,
     List<Map<String, dynamic>> items,
-    double textScale,
     bool isWide, {
     bool isBeneficiaryTab = false,
   }) {

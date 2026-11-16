@@ -695,7 +695,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     final bool isMobile = width < 600;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Stack(
           children: [

@@ -264,7 +264,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     final result = await showModalBottomSheet<_ClaimAddressPickResult>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

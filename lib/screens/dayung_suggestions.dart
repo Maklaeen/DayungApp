@@ -511,7 +511,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
     final isWide = width >= 720;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

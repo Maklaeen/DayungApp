@@ -341,7 +341,7 @@ class _MembersContributionHistoryState
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
       // appBar: AppBar(
-      //   backgroundColor: kBg,
+      //   backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       //   elevation: 0,
       //   title: Text(
       //     'Contribution History',

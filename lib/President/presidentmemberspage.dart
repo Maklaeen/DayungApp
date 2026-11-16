@@ -871,7 +871,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -1220,7 +1220,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
                 backgroundImage: profileUrl != null && profileUrl.isNotEmpty
                     ? NetworkImage(profileUrl)
                     : null,
-                backgroundColor: kBg,
+                backgroundColor: Theme.of(context).scaffoldBackgroundColor,
                 radius: 16,
                 child: profileUrl == null || profileUrl.isEmpty
                     ? Text(

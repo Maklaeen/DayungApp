@@ -793,7 +793,7 @@ class _CollectedFromCollectorsPageState
     final width = MediaQuery.of(context).size.width;
     final wide = width >= 860;
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

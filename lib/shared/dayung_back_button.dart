@@ -13,8 +13,8 @@ class DayungBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 44,
-      height: 44,
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: enabled ? 0.2 : 0.08),
         borderRadius: BorderRadius.circular(13),

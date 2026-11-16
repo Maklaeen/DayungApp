@@ -166,7 +166,7 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
         Supabase.instance.client.auth.currentUser != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

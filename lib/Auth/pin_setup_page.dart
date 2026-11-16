@@ -61,7 +61,7 @@ class _PinSetupPageState extends State<PinSetupPage> {
     final isWide = size.width > 600;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

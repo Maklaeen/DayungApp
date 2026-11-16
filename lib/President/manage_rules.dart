@@ -195,7 +195,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

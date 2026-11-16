@@ -320,7 +320,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     final filteredClaims = _visibleClaims;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [

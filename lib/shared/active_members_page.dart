@@ -4,8 +4,6 @@ import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:intl/intl.dart';
 
 const Color _kPrimary = Color(0xFF0D47A1);
-const Color _kNeutralText = Color(0xFF1F2937);
-const Color _kSubText = Color(0xFF4B5563);
 const Color _kSuccess = Color(0xFF10B981);
 
 class ActiveMembersPage extends StatefulWidget {
@@ -17,6 +15,11 @@ class ActiveMembersPage extends StatefulWidget {
 }
 
 class _ActiveMembersPageState extends State<ActiveMembersPage> {
+  Color get _onSurface => Theme.of(context).colorScheme.onSurface;
+
+  Color get _onSurfaceVariant =>
+      Theme.of(context).colorScheme.onSurfaceVariant;
+
   static const int _pageSize = 10;
 
   final _sb = Supabase.instance.client;
@@ -312,10 +315,10 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
     final statusSection = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Membership status',
           style: TextStyle(
-            color: _kNeutralText,
+            color: _onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w800,
             fontFamily: 'Montserrat',
@@ -340,10 +343,10 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
     final dateSection = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Filter by date joined',
           style: TextStyle(
-            color: _kNeutralText,
+            color: _onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w800,
             fontFamily: 'Montserrat',
@@ -360,16 +363,16 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                 label: Text(mode),
                 selected: _dateFilterMode == mode,
                 onSelected: (_) => _setDateMode(mode),
-                selectedColor: const Color(0xFFEAF2FC),
+                selectedColor: Theme.of(context).colorScheme.primaryContainer,
                 labelStyle: TextStyle(
-                  color: _dateFilterMode == mode ? _kPrimary : _kSubText,
+                  color: _dateFilterMode == mode ? _kPrimary : _onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                   fontFamily: 'OpenSans',
                 ),
                 side: BorderSide(
                   color: _dateFilterMode == mode
                       ? _kPrimary.withValues(alpha: 0.35)
-                      : const Color(0xFFD1D5DB),
+                      : Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
             if (_dateFilterMode != 'Date')
@@ -448,7 +451,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                   _pageIndex = 0;
                 }),
                 icon: const Icon(Icons.filter_alt_off_rounded),
-                label: const Text('Clear date'),
+                label: Text('Clear date'),
               ),
           ],
         ),
@@ -463,9 +466,11 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
           margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           padding: EdgeInsets.all(isWide ? 20 : 16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
             boxShadow: [
               BoxShadow(
                 color: _kPrimary.withValues(alpha: 0.04),
@@ -483,7 +488,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                       width: 1,
                       height: 62,
                       margin: const EdgeInsets.symmetric(horizontal: 24),
-                      color: const Color(0xFFE5E7EB),
+                      color: Theme.of(context).colorScheme.outlineVariant,
                     ),
                     Expanded(flex: 7, child: dateSection),
                   ],
@@ -512,7 +517,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
       }),
       selectedColor: color.withValues(alpha: 0.12),
       labelStyle: TextStyle(
-        color: selected ? color : _kSubText,
+        color: selected ? color : _onSurfaceVariant,
         fontSize: 15,
         fontWeight: FontWeight.w800,
         fontFamily: 'OpenSans',
@@ -520,7 +525,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
       side: BorderSide(
         color: selected
             ? color.withValues(alpha: 0.4)
-            : const Color(0xFFD1D5DB),
+            : Theme.of(context).colorScheme.outlineVariant,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
     );
@@ -530,7 +535,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
     return InputDecoration(
       labelText: label,
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -770,10 +775,10 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
     final membersPerGroup = await showDialog<int>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text(
+        title: Text(
           'Generate Service Groups',
           style: TextStyle(
-            color: _kNeutralText,
+            color: _onSurface,
             fontWeight: FontWeight.w800,
             fontFamily: 'Montserrat',
           ),
@@ -791,17 +796,17 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
               children: [
                 Text(
                   'Total active members: $totalMembers',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: _kPrimary,
                     fontWeight: FontWeight.w700,
                     fontFamily: 'OpenSans',
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Members Per Group',
                   style: TextStyle(
-                    color: _kNeutralText,
+                    color: _onSurface,
                     fontWeight: FontWeight.w700,
                     fontFamily: 'Montserrat',
                   ),
@@ -827,7 +832,9 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
+                          fillColor: Theme.of(
+                            dialogContext,
+                          ).colorScheme.surfaceContainerLow,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -856,8 +863,8 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                   selectedCount > 0
                       ? 'This will create ${(totalMembers / selectedCount).ceil()} service groups.'
                       : 'Enter a number between 1 and $totalMembers.',
-                  style: const TextStyle(
-                    color: _kSubText,
+                  style: TextStyle(
+                    color: _onSurfaceVariant,
                     fontSize: 12,
                     fontFamily: 'OpenSans',
                   ),
@@ -869,22 +876,22 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
               final shouldReset = await showDialog<bool>(
                 context: dialogContext,
                 builder: (confirmationContext) => AlertDialog(
-                  title: const Text('Reset service groups?'),
-                  content: const Text(
+                  title: Text('Reset service groups?'),
+                  content: Text(
                     'The group value for all service checklist participants will be changed to NO GROUPS.',
                   ),
                   actions: [
                     TextButton(
                       onPressed: () =>
                           Navigator.of(confirmationContext).pop(false),
-                      child: const Text('Cancel'),
+                      child: Text('Cancel'),
                     ),
                     ElevatedButton(
                       onPressed: () =>
@@ -893,7 +900,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                         backgroundColor: _kPrimary,
                         foregroundColor: Colors.white,
                       ),
-                      child: const Text('Reset Groups'),
+                      child: Text('Reset Groups'),
                     ),
                   ],
                 ),
@@ -902,7 +909,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
               Navigator.of(dialogContext).pop();
               await _resetServiceGroups(serviceChecklistId);
             },
-            child: const Text('Reset Groups'),
+            child: Text('Reset Groups'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -918,7 +925,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
               backgroundColor: _kPrimary,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Generate'),
+            child: Text('Generate'),
           ),
         ],
       ),
@@ -936,7 +943,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -1002,7 +1009,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                     ),
                     child: Text(
                       '${_filtered.length}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
                         fontSize: 14,
@@ -1023,10 +1030,12 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                     color: _kPrimary,
                   ),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: Theme.of(context).colorScheme.surface,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -1071,8 +1080,8 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '${_serviceGroups.length} service groups  |  $_membersPerGroup members per group  |  $_activeMemberCount active members',
-                    style: const TextStyle(
-                      color: _kSubText,
+                    style: TextStyle(
+                      color: _onSurfaceVariant,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       fontFamily: 'OpenSans',
@@ -1098,10 +1107,10 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                               color: _kPrimary.withValues(alpha: 0.8),
                             ),
                             const SizedBox(height: 12),
-                            const Text(
+                            Text(
                               'Failed to load active members',
                               style: TextStyle(
-                                color: _kNeutralText,
+                                color: _onSurface,
                                 fontSize: 16,
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.w700,
@@ -1111,8 +1120,8 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                             const SizedBox(height: 8),
                             Text(
                               _error!,
-                              style: const TextStyle(
-                                color: _kSubText,
+                              style: TextStyle(
+                                color: _onSurfaceVariant,
                                 fontSize: 12,
                                 fontFamily: 'OpenSans',
                               ),
@@ -1125,7 +1134,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                                 backgroundColor: _kPrimary,
                                 foregroundColor: Colors.white,
                               ),
-                              child: const Text('Retry'),
+                              child: Text('Retry'),
                             ),
                           ],
                         ),
@@ -1139,7 +1148,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                           Icon(
                             Icons.people_outline,
                             size: 56,
-                            color: _kSubText.withValues(alpha: 0.5),
+                            color: _onSurfaceVariant.withValues(alpha: 0.5),
                           ),
                           const SizedBox(height: 12),
                           Text(
@@ -1147,7 +1156,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                                 ? 'No inactive members found'
                                 : 'No members found',
                             style: TextStyle(
-                              color: _kSubText,
+                              color: _onSurfaceVariant,
                               fontSize: 16,
                               fontFamily: 'Montserrat',
                               fontWeight: FontWeight.w600,
@@ -1217,8 +1226,8 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                                 ),
                                 Text(
                                   'Page ${_pageIndex + 1} of $_pageCount',
-                                  style: const TextStyle(
-                                    color: _kNeutralText,
+                                  style: TextStyle(
+                                    color: _onSurface,
                                     fontWeight: FontWeight.w700,
                                     fontFamily: 'Montserrat',
                                   ),
@@ -1279,7 +1288,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
             child: profileUrl.isEmpty
                 ? Text(
                     name.isNotEmpty ? name[0].toUpperCase() : 'M',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: _kSuccess,
                     ),
@@ -1295,18 +1304,18 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: _kNeutralText,
+                    color: _onSurface,
                     fontFamily: 'Montserrat',
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Date joined: ${joinedDate == null ? '—' : DateFormat.yMMMd().add_jm().format(joinedDate)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    color: _kSubText,
+                    color: _onSurfaceVariant,
                     fontFamily: 'OpenSans',
                   ),
                 ),
@@ -1319,9 +1328,9 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                       Expanded(
                         child: Text(
                           'Ended ${DateFormat.yMMMd().format(endedDate)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: _kSubText,
+                            color: _onSurfaceVariant,
                             fontFamily: 'OpenSans',
                           ),
                         ),
@@ -1361,7 +1370,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                 child: profileUrl.isEmpty
                     ? Text(
                         name.isNotEmpty ? name[0].toUpperCase() : 'M',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: _kSuccess,
                         ),
@@ -1374,10 +1383,10 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
-                    color: _kNeutralText,
+                    color: _onSurface,
                     fontFamily: 'Montserrat',
                   ),
                 ),
@@ -1392,7 +1401,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
               joinedAt == null
                   ? '—'
                   : DateFormat.yMMMd().add_jm().format(joinedAt),
-              style: const TextStyle(color: _kNeutralText),
+              style: TextStyle(color: _onSurface),
             ),
           ),
         ),
@@ -1404,7 +1413,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
               status != 'Inactive' || endedAt == null
                   ? '—'
                   : DateFormat.yMMMd().add_jm().format(endedAt),
-              style: const TextStyle(color: _kSubText),
+              style: TextStyle(color: _onSurfaceVariant),
             ),
           ),
         ),
@@ -1415,9 +1424,9 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
   Widget _membershipStatusBadge(String status) {
     final isActive = status == 'Active';
     final color = isActive ? _kSuccess : const Color(0xFFC62828);
-    final background = isActive
-        ? const Color(0xFFF0FDF4)
-        : const Color(0xFFFEF2F2);
+    final background = color.withValues(
+      alpha: Theme.of(context).brightness == Brightness.dark ? 0.18 : 0.08,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(

@@ -659,7 +659,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         navigator.pop(null);
       },
       child: Scaffold(
-        backgroundColor: kBg,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: Column(
             children: [

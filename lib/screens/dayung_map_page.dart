@@ -902,7 +902,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     final dist = _distanceToDayung();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAF7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           Positioned.fill(

@@ -18,12 +18,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
 // Additional colors for notification-specific styling
-const kText = Color(0xFF111827);
-const kSubText = Color(0xFF6B7280);
 const kPrimaryLight = Color(0xFF3B82F6);
 const kAccentDark = Color(0xFF059669);
-const kCardBg = Color(0xFFFFFFFF);
-const kBorderColor = Color(0xFFE5E7EB);
 const kSuccess = Color(0xFF10B981);
 const double kEdge = 16;
 
@@ -48,16 +44,20 @@ class NotificationPage extends StatefulWidget {
   @override
   State<NotificationPage> createState() => _NotificationPageState();
 
-  static Widget _emptyState({required bool isWide}) {
+  static Widget _emptyState({
+    required BuildContext context,
+    required bool isWide,
+  }) {
+    final colors = Theme.of(context).colorScheme;
     return Center(
       child: Container(
         margin: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
         padding: EdgeInsets.all(isWide ? 32 : 24),
         decoration: BoxDecoration(
-          color: kCardBg,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: kBorderColor.withValues(alpha: 0.3),
+            color: colors.outlineVariant.withValues(alpha: 0.3),
             width: 1,
           ),
           boxShadow: [
@@ -94,7 +94,7 @@ class NotificationPage extends StatefulWidget {
               style: TextStyle(
                 fontSize: isWide ? 22 : 20,
                 fontWeight: FontWeight.w800,
-                color: kText,
+                color: colors.onSurface,
                 fontFamily: 'Montserrat',
                 letterSpacing: 0.3,
               ),
@@ -104,7 +104,7 @@ class NotificationPage extends StatefulWidget {
               'No new notifications at the moment.',
               style: TextStyle(
                 fontSize: isWide ? 16 : 15,
-                color: kSubText,
+                color: colors.onSurfaceVariant,
                 fontFamily: 'OpenSans',
                 fontWeight: FontWeight.w500,
               ),
@@ -116,6 +116,7 @@ class NotificationPage extends StatefulWidget {
   }
 
   static Widget _notificationCard({
+    required BuildContext context,
     required String title,
     required String message,
     required String category,
@@ -129,6 +130,7 @@ class NotificationPage extends StatefulWidget {
     required bool isUnread,
     required VoidCallback onTap,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Semantics(
       label: '$title. $message. $time.',
       button: true,
@@ -142,12 +144,12 @@ class NotificationPage extends StatefulWidget {
             borderRadius: BorderRadius.circular(20),
             child: Ink(
               decoration: BoxDecoration(
-                color: isUnread ? surfaceColor : kCardBg,
+                color: isUnread ? surfaceColor : colors.surface,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: isUnread
                       ? accentColor.withValues(alpha: 0.35)
-                      : kBorderColor.withValues(alpha: 0.8),
+                      : colors.outlineVariant.withValues(alpha: 0.8),
                   width: 1.2,
                 ),
                 boxShadow: [
@@ -208,20 +210,18 @@ class NotificationPage extends StatefulWidget {
                                   vertical: 7,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFEF2F2),
+                                  color: colors.errorContainer,
                                   borderRadius: BorderRadius.circular(999),
                                   border: Border.all(
-                                    color: const Color(
-                                      0xFFB91C1C,
-                                    ).withValues(alpha: 0.2),
+                                    color: colors.error.withValues(alpha: 0.2),
                                   ),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'Unread',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
-                                    color: Color(0xFF991B1B),
+                                    color: colors.onErrorContainer,
                                     fontFamily: 'Montserrat',
                                   ),
                                 ),
@@ -234,7 +234,7 @@ class NotificationPage extends StatefulWidget {
                           style: TextStyle(
                             fontSize: isWide ? 20 : 19,
                             fontWeight: FontWeight.w800,
-                            color: kText,
+                            color: colors.onSurface,
                             fontFamily: 'Montserrat',
                             height: 1.25,
                           ),
@@ -247,7 +247,7 @@ class NotificationPage extends StatefulWidget {
                           style: TextStyle(
                             fontSize: isWide ? 17 : 16,
                             height: 1.55,
-                            color: kText,
+                            color: colors.onSurface,
                             fontFamily: 'OpenSans',
                             fontWeight: FontWeight.w600,
                           ),
@@ -257,18 +257,18 @@ class NotificationPage extends StatefulWidget {
                         const SizedBox(height: 14),
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.access_time_rounded,
                               size: 18,
-                              color: kSubText,
+                              color: colors.onSurfaceVariant,
                             ),
                             const SizedBox(width: 7),
                             Expanded(
                               child: Text(
                                 time,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 16,
-                                  color: kSubText,
+                                  color: colors.onSurfaceVariant,
                                   fontFamily: 'OpenSans',
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -295,6 +295,8 @@ class NotificationPage extends StatefulWidget {
 }
 
 class _NotificationPageState extends State<NotificationPage> {
+  ColorScheme get colors => Theme.of(context).colorScheme;
+
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _announcementLogs = [];
   String? _announcementLogWarning;
@@ -457,9 +459,9 @@ class _NotificationPageState extends State<NotificationPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: kCardBg,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: kBorderColor),
+        border: Border.all(color: colors.outlineVariant),
         boxShadow: const [
           BoxShadow(
             color: Color(0x22000000),
@@ -564,7 +566,7 @@ class _NotificationPageState extends State<NotificationPage> {
                   Text(
                     'Message',
                     style: TextStyle(
-                      color: kSubText,
+                      color: colors.onSurfaceVariant,
                       fontSize: isWide ? 16 : 14,
                       fontWeight: FontWeight.w700,
                       fontFamily: 'OpenSans',
@@ -575,15 +577,15 @@ class _NotificationPageState extends State<NotificationPage> {
                     width: double.infinity,
                     padding: EdgeInsets.all(isWide ? 22 : 18),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF7F9FC),
+                      color: colors.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: kBorderColor),
+                      border: Border.all(color: colors.outlineVariant),
                     ),
                     child: SelectableText(
                       message,
                       style: TextStyle(
                         fontSize: isWide ? 18 : 16,
-                        color: kText,
+                        color: colors.onSurface,
                         fontFamily: 'OpenSans',
                         fontWeight: FontWeight.w600,
                         height: 1.6,
@@ -595,7 +597,7 @@ class _NotificationPageState extends State<NotificationPage> {
                     width: double.infinity,
                     padding: EdgeInsets.all(isWide ? 20 : 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF5F9FF),
+                      color: dayungAccentSurface(context, kPrimary),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: kPrimary.withValues(alpha: 0.16),
@@ -629,7 +631,7 @@ class _NotificationPageState extends State<NotificationPage> {
                               ? 'Exact date unavailable'
                               : exactDate,
                           style: TextStyle(
-                            color: kText,
+                            color: colors.onSurface,
                             fontSize: isWide ? 18 : 17,
                             fontWeight: FontWeight.w700,
                             fontFamily: 'OpenSans',
@@ -639,8 +641,8 @@ class _NotificationPageState extends State<NotificationPage> {
                           const SizedBox(height: 5),
                           Text(
                             time,
-                            style: const TextStyle(
-                              color: kSubText,
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
                               fontFamily: 'OpenSans',
@@ -1139,17 +1141,17 @@ class _NotificationPageState extends State<NotificationPage> {
   Color _itemSurface(Map<String, dynamic> item) {
     switch (_itemKind(item)) {
       case _NotificationKind.announcement:
-        return const Color(0xFFF5F9FF);
+        return dayungAccentSurface(context, _itemAccent(item));
       case _NotificationKind.pendingPayment:
-        return const Color(0xFFFFFBEB);
+        return dayungAccentSurface(context, _itemAccent(item));
       case _NotificationKind.recentDeath:
-        return const Color(0xFFFFF1F2);
+        return dayungAccentSurface(context, _itemAccent(item));
       case _NotificationKind.membership:
-        return const Color(0xFFF0FDF4);
+        return dayungAccentSurface(context, _itemAccent(item));
       case _NotificationKind.application:
-        return const Color(0xFFECFDF5);
+        return dayungAccentSurface(context, _itemAccent(item));
       case _NotificationKind.other:
-        return const Color(0xFFF8FAFC);
+        return colors.surfaceContainerLow;
     }
   }
 
@@ -1275,13 +1277,13 @@ class _NotificationPageState extends State<NotificationPage> {
             child: Center(child: CircularProgressIndicator(color: kPrimary)),
           )
         : _announcementLogs.isEmpty
-        ? const Padding(
+        ? Padding(
             padding: EdgeInsets.all(20),
             child: Text(
               'No announcement logs yet for this Dayung.',
               style: TextStyle(
                 fontSize: 16,
-                color: kSubText,
+                color: colors.onSurfaceVariant,
                 fontFamily: 'OpenSans',
               ),
             ),
@@ -1292,15 +1294,15 @@ class _NotificationPageState extends State<NotificationPage> {
             cardStyle: true,
             fillAvailableWidth: true,
             showCheckboxColumn: false,
-            headingRowColor: const Color(0xFFEAF2FC),
-            headingTextStyle: const TextStyle(
-              color: kPrimary,
+            headingRowColor: colors.primaryContainer,
+            headingTextStyle: TextStyle(
+              color: colors.primary,
               fontSize: 16,
               fontWeight: FontWeight.w800,
               fontFamily: 'Montserrat',
             ),
-            dataTextStyle: const TextStyle(
-              color: kText,
+            dataTextStyle: TextStyle(
+              color: colors.onSurface,
               fontSize: 16,
               fontWeight: FontWeight.w600,
               fontFamily: 'OpenSans',
@@ -1338,7 +1340,7 @@ class _NotificationPageState extends State<NotificationPage> {
                       child: _buildTableBadge(
                         label: category,
                         color: kPrimary,
-                        background: const Color(0xFFF5F9FF),
+                        background: dayungAccentSurface(context, kPrimary),
                       ),
                     ),
                   ),
@@ -1349,7 +1351,7 @@ class _NotificationPageState extends State<NotificationPage> {
                         (announcement['body'] ?? '').toString(),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(height: 1.4),
+                        style: TextStyle(height: 1.4),
                       ),
                     ),
                   ),
@@ -1369,7 +1371,7 @@ class _NotificationPageState extends State<NotificationPage> {
                       width: 180,
                       child: Text(
                         _formatAnnouncementDateTime(announcement['created_at']),
-                        style: const TextStyle(height: 1.4),
+                        style: TextStyle(height: 1.4),
                       ),
                     ),
                   ),
@@ -1403,10 +1405,10 @@ class _NotificationPageState extends State<NotificationPage> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: kText,
+                        color: colors.onSurface,
                         fontFamily: 'Montserrat',
                       ),
                     ),
@@ -1414,15 +1416,15 @@ class _NotificationPageState extends State<NotificationPage> {
                     _buildTableBadge(
                       label: category,
                       color: kPrimary,
-                      background: const Color(0xFFF5F9FF),
+                      background: dayungAccentSurface(context, kPrimary),
                     ),
                     const SizedBox(height: 14),
                     Text(
                       description.isEmpty ? 'No description' : description,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         height: 1.45,
-                        color: kText,
+                        color: colors.onSurface,
                         fontFamily: 'OpenSans',
                       ),
                     ),
@@ -1459,13 +1461,13 @@ class _NotificationPageState extends State<NotificationPage> {
               children: [
                 const Icon(Icons.history_rounded, color: kPrimary, size: 24),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Announcement Logs',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: kText,
+                      color: colors.onSurface,
                       fontFamily: 'Montserrat',
                     ),
                   ),
@@ -1473,10 +1475,10 @@ class _NotificationPageState extends State<NotificationPage> {
                 if (!_loading)
                   Text(
                     '${_announcementLogs.length} record${_announcementLogs.length == 1 ? '' : 's'}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: kSubText,
+                      color: colors.onSurfaceVariant,
                       fontFamily: 'OpenSans',
                     ),
                   ),
@@ -1489,15 +1491,15 @@ class _NotificationPageState extends State<NotificationPage> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
+                color: colors.tertiaryContainer,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFDE68A)),
+                border: Border.all(color: colors.tertiary),
               ),
               child: Text(
                 warning,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: Color(0xFF92400E),
+                  color: colors.onTertiaryContainer,
                   fontFamily: 'OpenSans',
                 ),
               ),
@@ -1516,23 +1518,23 @@ class _NotificationPageState extends State<NotificationPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: kSubText, size: 20),
+        Icon(icon, color: colors.onSurfaceVariant, size: 20),
         const SizedBox(width: 8),
         Text(
           '$label: ',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: kSubText,
+            color: colors.onSurfaceVariant,
             fontFamily: 'OpenSans',
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: kText,
+              color: colors.onSurface,
               fontFamily: 'OpenSans',
             ),
           ),
@@ -1684,7 +1686,7 @@ class _NotificationPageState extends State<NotificationPage> {
                           ),
                     label: Text(
                       _markingAllRead ? 'Updating...' : 'Mark all read',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
                         fontFamily: 'OpenSans',
@@ -1696,7 +1698,7 @@ class _NotificationPageState extends State<NotificationPage> {
                         horizontal: 10,
                         vertical: 8,
                       ),
-                      textStyle: const TextStyle(fontSize: 14),
+                      textStyle: TextStyle(fontSize: 14),
                     ),
                   ),
                 ],
@@ -1757,7 +1759,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                       style: TextStyle(
                                         fontSize: isWide ? 18 : 16,
                                         fontWeight: FontWeight.w800,
-                                        color: kText,
+                                        color: colors.onSurface,
                                         fontFamily: 'Montserrat',
                                       ),
                                     ),
@@ -1771,19 +1773,28 @@ class _NotificationPageState extends State<NotificationPage> {
                                           label: 'Pending Payment',
                                           count: pendingPaymentCount,
                                           color: const Color(0xFFB45309),
-                                          background: const Color(0xFFFFFBEB),
+                                          background: dayungAccentSurface(
+                                            context,
+                                            const Color(0xFFB45309),
+                                          ),
                                         ),
                                         _buildTopCategoryChip(
                                           label: 'Announcement',
                                           count: announcementCount,
                                           color: kPrimary,
-                                          background: const Color(0xFFF5F9FF),
+                                          background: dayungAccentSurface(
+                                            context,
+                                            kPrimary,
+                                          ),
                                         ),
                                         _buildTopCategoryChip(
                                           label: 'Recent Death',
                                           count: recentDeathCount,
                                           color: const Color(0xFFBE123C),
-                                          background: const Color(0xFFFFF1F2),
+                                          background: dayungAccentSurface(
+                                            context,
+                                            const Color(0xFFBE123C),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -1802,7 +1813,7 @@ class _NotificationPageState extends State<NotificationPage> {
                               padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
                             )
                           : _items.isEmpty
-                          ? NotificationPage._emptyState(isWide: isWide)
+                          ? NotificationPage._emptyState(context: context, isWide: isWide)
                           : isWide
                           ? Padding(
                               padding: const EdgeInsets.fromLTRB(
@@ -1816,15 +1827,15 @@ class _NotificationPageState extends State<NotificationPage> {
                                 cardStyle: true,
                                 fillAvailableWidth: true,
                                 showCheckboxColumn: false,
-                                headingRowColor: const Color(0xFFEAF2FC),
-                                headingTextStyle: const TextStyle(
-                                  color: kPrimary,
+                                headingRowColor: colors.primaryContainer,
+                                headingTextStyle: TextStyle(
+                                  color: colors.primary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
                                   fontFamily: 'Montserrat',
                                 ),
-                                dataTextStyle: const TextStyle(
-                                  color: kText,
+                                dataTextStyle: TextStyle(
+                                  color: colors.onSurface,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                   fontFamily: 'OpenSans',
@@ -1852,10 +1863,10 @@ class _NotificationPageState extends State<NotificationPage> {
                                   return DataRow(
                                     color: WidgetStatePropertyAll(
                                       isUnread
-                                          ? const Color(0xFFF3F8FF)
+                                          ? colors.primaryContainer
                                           : i.isEven
-                                          ? Colors.white
-                                          : const Color(0xFFF8FAFD),
+                                          ? colors.surface
+                                          : colors.surfaceContainerLow,
                                     ),
                                     cells: [
                                       DataCell(
@@ -1889,7 +1900,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                                     fontWeight: isUnread
                                                         ? FontWeight.w800
                                                         : FontWeight.w700,
-                                                    color: kText,
+                                                    color: colors.onSurface,
                                                   ),
                                                 ),
                                               ),
@@ -1927,7 +1938,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                             _itemMessage(n),
                                             maxLines: 3,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               height: 1.45,
                                               fontSize: 16,
                                             ),
@@ -1946,7 +1957,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                           width: 150,
                                           child: Text(
                                             _formatTime(n['created_at']),
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 16,
                                               height: 1.4,
                                             ),
@@ -1957,11 +1968,11 @@ class _NotificationPageState extends State<NotificationPage> {
                                         _buildTableBadge(
                                           label: isUnread ? 'Unread' : 'Read',
                                           color: isUnread
-                                              ? const Color(0xFF991B1B)
-                                              : const Color(0xFF166534),
+                                              ? colors.error
+                                              : colors.secondary,
                                           background: isUnread
-                                              ? const Color(0xFFFEF2F2)
-                                              : const Color(0xFFF0FDF4),
+                                              ? colors.errorContainer
+                                              : colors.secondaryContainer,
                                           icon: isUnread
                                               ? Icons.mark_email_unread_rounded
                                               : Icons.mark_email_read_rounded,
@@ -1991,6 +2002,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 12),
                                     child: NotificationPage._notificationCard(
+                                      context: context,
                                       title: _itemTitle(item),
                                       message: _itemMessage(item),
                                       category: category,

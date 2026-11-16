@@ -18,10 +18,12 @@ import 'package:capstone_app/Treasurer/assign_collectors_page.dart';
 import 'package:capstone_app/Treasurer/treasurer_collector_view.dart';
 import 'package:capstone_app/Treasurer/treasurer_overall_reports.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
+import 'package:capstone_app/shared/dayung_role_navigation_bar.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -726,305 +728,326 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     required String title,
     required String value,
     required Color color,
+    required IconData icon,
     VoidCallback? onTap,
   }) {
-    final isMobile = MediaQuery.of(context).size.width < 840;
-    final card = Container(
+    final colors = Theme.of(context).colorScheme;
+    final contents = Container(
+      constraints: const BoxConstraints(minHeight: 116),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context, radius: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: isMobile ? 15 : 13,
-              height: 1.25,
-              fontWeight: FontWeight.w700,
-              color: color.withValues(alpha: 0.9),
-            ),
-          ),
-          const SizedBox(height: 14),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: isMobile ? 30 : 26,
-                fontWeight: FontWeight.w800,
-                color: color,
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 22),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (onTap != null)
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.onSurfaceVariant,
+                  size: 22,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
       ),
     );
-    if (onTap == null) return card;
-    return GestureDetector(onTap: onTap, child: card);
+    if (onTap == null) return contents;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: contents,
+      ),
+    );
   }
 
   Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Access',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1E40AF),
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildModernActionCard(
-          icon: Icons.account_balance_wallet_rounded,
-          title: 'Contribution Confirmation',
-          color: const Color(0xFF3B82F6),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => LedgerBalancePage(dayungUnitId: _dayungUnitId!),
-              ),
-            ).then((_) => _fetchAll());
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.receipt_long_rounded,
-          title: 'Collection Reports',
-          color: const Color(0xFF0F766E),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    CollectedFromCollectorsPage(dayungUnitId: _dayungUnitId!),
-              ),
+    final colors = Theme.of(context).colorScheme;
+    final actions = [
+      _buildModernActionCard(
+        icon: Icons.account_balance_wallet_rounded,
+        title: 'Contribution Confirmation',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
             );
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.account_balance_wallet_rounded,
-          title: 'Manage Fund',
-          color: const Color(0xFF3B82F6),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ManageFundPage(dayungUnitId: _dayungUnitId!),
-              ),
-            ).then((_) => _fetchAll());
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.history_rounded,
-          title: 'Payment Release History',
-          color: const Color(0xFF0D9488),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    PaymentReleaseHistoryPage(dayungUnitId: _dayungUnitId!),
-              ),
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => LedgerBalancePage(dayungUnitId: _dayungUnitId!),
+            ),
+          ).then((_) => _fetchAll());
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.receipt_long_rounded,
+        title: 'Collection Reports',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
             );
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.payments_rounded,
-          title: 'Advance Payment',
-          color: const Color(0xFF2563EB),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    TreasurerPaymentPage(dayungUnitId: _dayungUnitId!),
-              ),
-            ).then((_) => _fetchAll());
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.qr_code_2_rounded,
-          title: 'Open GCash QR',
-          color: const Color(0xFFF59E0B),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
-              ),
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  CollectedFromCollectorsPage(dayungUnitId: _dayungUnitId!),
+            ),
+          );
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.account_balance_wallet_rounded,
+        title: 'Manage Fund',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
             );
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.group_add_rounded,
-          title: 'Assign Collectors',
-          color: const Color(0xFF8B5CF6),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    AssignCollectorsPage(dayungUnitId: _dayungUnitId!),
-              ),
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ManageFundPage(dayungUnitId: _dayungUnitId!),
+            ),
+          ).then((_) => _fetchAll());
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.history_rounded,
+        title: 'Payment Release History',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
             );
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.people_alt_rounded,
-          title: 'Membership',
-          color: const Color(0xFF8B5CF6),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => MembershipPage(dayungUnitId: _dayungUnitId!),
-              ),
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  PaymentReleaseHistoryPage(dayungUnitId: _dayungUnitId!),
+            ),
+          );
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.payments_rounded,
+        title: 'Advance Payment',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
             );
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.people_rounded,
-          title: 'Paid & Unpaid Members',
-          color: const Color(0xFF0D9488),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    PaidUnpaidMembersPage(dayungUnitId: _dayungUnitId!),
-              ),
-            ).then((_) => _fetchAll());
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.groups_rounded,
-          title: 'Collector Records',
-          color: const Color(0xFF0D47A1),
-          onTap: () {
-            if (_dayungUnitId == null) return;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    TreasurerCollectorListPage(dayungUnitId: _dayungUnitId!),
-              ),
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  TreasurerPaymentPage(dayungUnitId: _dayungUnitId!),
+            ),
+          ).then((_) => _fetchAll());
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.qr_code_2_rounded,
+        title: 'Open GCash QR',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
             );
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.assessment_rounded,
-          title: 'Overall Reports',
-          color: const Color(0xFF2E7D32),
-          onTap: () {
-            if (_dayungUnitId == null) return;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    TreasurerOverallReportsPage(dayungUnitId: _dayungUnitId!),
-              ),
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
+            ),
+          );
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.group_add_rounded,
+        title: 'Assign Collectors',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
             );
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.analytics_rounded,
-          title: 'Reports',
-          color: const Color(0xFF0D9488),
-          onTap: () {
-            if (_dayungUnitId == null) return;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    shared_reports.ReportsPage(unitId: _dayungUnitId),
-              ),
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  AssignCollectorsPage(dayungUnitId: _dayungUnitId!),
+            ),
+          );
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.people_alt_rounded,
+        title: 'Membership',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
             );
-          },
-        ),
-      ],
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MembershipPage(dayungUnitId: _dayungUnitId!),
+            ),
+          );
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.people_rounded,
+        title: 'Paid & Unpaid Members',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  PaidUnpaidMembersPage(dayungUnitId: _dayungUnitId!),
+            ),
+          ).then((_) => _fetchAll());
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.groups_rounded,
+        title: 'Collector Records',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  TreasurerCollectorListPage(dayungUnitId: _dayungUnitId!),
+            ),
+          );
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.assessment_rounded,
+        title: 'Overall Reports',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  TreasurerOverallReportsPage(dayungUnitId: _dayungUnitId!),
+            ),
+          );
+        },
+      ),
+      _buildModernActionCard(
+        icon: Icons.analytics_rounded,
+        title: 'Reports',
+        color: colors.primary,
+        onTap: () {
+          if (_dayungUnitId == null) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => shared_reports.ReportsPage(unitId: _dayungUnitId),
+            ),
+          );
+        },
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final columns = constraints.maxWidth < 380 || textScale > 1.5
+            ? 1
+            : constraints.maxWidth < 900
+            ? 2
+            : 3;
+        const spacing = 12.0;
+        final cardWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Treasurer tools',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: colors.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: actions
+                  .map((action) => SizedBox(width: cardWidth, child: action))
+                  .toList(),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1048,10 +1071,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 Container(
+                  width: 48,
+                  height: 48,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.1),
@@ -1061,152 +1086,24 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: color.withValues(alpha: 0.6),
-                  size: 16,
+                  Icons.chevron_right_rounded,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  size: 22,
                 ),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildRecentActivity() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Recent Activity',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: dayungSectionCardDecoration(context, radius: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: dayungAccentSurface(
-                        context,
-                        const Color(0xFFEC4899),
-                        lightAlpha: 0.08,
-                        darkAlpha: 0.14,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.family_restroom_rounded,
-                      color: Color(0xFFEC4899),
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Death Notice Queue',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: dayungTextColor(context),
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      if (_dayungUnitId == null) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              RecentDeathNotices(dayungUnitId: _dayungUnitId),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      'View All',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF3B82F6),
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              if (_recentDeaths.isEmpty)
-                const Text(
-                  'No recent activity yet.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6B7280),
-                    fontFamily: 'OpenSans',
-                  ),
-                )
-              else
-                ..._recentDeaths
-                    .take(5)
-                    .map(
-                      (name) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF3B82F6),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                name,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF111827),
-                                  fontFamily: 'OpenSans',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -1300,39 +1197,29 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   }
 
   Widget _buildDeathNoticesSection() {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(10),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+          decoration: dayungSectionCardDecoration(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Text(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compactHeader =
+                      constraints.maxWidth < 340 ||
+                      MediaQuery.textScalerOf(context).scale(1) > 1.3;
+                  final title = Text(
                     'Death Notices',
-                    style: TextStyle(
-                      fontSize: 18,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: colors.onSurface,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E40AF),
-                      fontFamily: 'Montserrat',
                     ),
-                  ),
-                  const Spacer(),
-                  TextButton(
+                  );
+                  final viewAll = TextButton(
                     onPressed: () {
                       if (_dayungUnitId == null) return;
                       Navigator.push(
@@ -1343,17 +1230,31 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                         ),
                       );
                     },
-                    child: const Text(
+                    child: Text(
                       'View All',
-                      style: TextStyle(
-                        fontSize: 14,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: colors.primary,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF3B82F6),
-                        fontFamily: 'Montserrat',
                       ),
                     ),
-                  ),
-                ],
+                  );
+
+                  if (compactHeader) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        title,
+                        Align(alignment: Alignment.centerRight, child: viewAll),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: title),
+                      viewAll,
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               if (_loading)
@@ -1362,12 +1263,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   child: Center(child: CircularProgressIndicator()),
                 )
               else if (_recentDeaths.isEmpty)
-                const Text(
+                Text(
                   'No death notices yet.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF6B7280),
-                    fontWeight: FontWeight.w500,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
                   ),
                 )
               else
@@ -1378,24 +1277,25 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: dayungSoftSurface(context),
                           borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: dayungBorder(context)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.notifications_active_rounded,
-                              color: Color(0xFF0D47A1),
+                              color: colors.primary,
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 name,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF111827),
-                                ),
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: colors.onSurface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                               ),
                             ),
                           ],
@@ -1729,69 +1629,55 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   }
 
   Widget _monthlyCollectionCard() {
+    final colors = Theme.of(context).colorScheme;
     final totals = _monthlyCollected;
     final maxY = totals.isNotEmpty
         ? totals.reduce((a, b) => a > b ? a : b)
         : 0.0;
     final chartMax = maxY <= 0 ? 100.0 : maxY * 1.25;
-    const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    final compactChart = MediaQuery.sizeOf(context).width < 420;
 
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0D47A1).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  'Today: ₱${_todayCollected.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0D47A1),
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${DateTime.now().year}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B7280),
-                  fontFamily: 'OpenSans',
-                ),
-              ),
-            ],
+          Text(
+            'Monthly collections',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 4),
+          Text(
+            'Paid contributions by month in ${DateTime.now().year}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
           SizedBox(
             height: 220,
             child: BarChart(
               BarChartData(
                 maxY: chartMax,
+                groupsSpace: compactChart ? 4 : 12,
                 barTouchData: BarTouchData(
                   enabled: true,
                   touchTooltipData: BarTouchTooltipData(
@@ -1799,23 +1685,25 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                       final month = months[group.x.toInt()];
                       return BarTooltipItem(
                         '$month\n',
-                        const TextStyle(
-                          color: Colors.white,
+                        TextStyle(
+                          color: colors.onInverseSurface,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
                         children: [
                           TextSpan(
-                            text: '₱${rod.toY.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              color: Colors.white70,
+                            text: _formatCurrency(rod.toY),
+                            style: TextStyle(
+                              color: colors.onInverseSurface.withValues(
+                                alpha: 0.8,
+                              ),
                               fontSize: 11,
                             ),
                           ),
                         ],
                       );
                     },
-                    getTooltipColor: (group) => Colors.blueGrey.shade900,
+                    getTooltipColor: (group) => colors.inverseSurface,
                   ),
                 ),
                 titlesData: FlTitlesData(
@@ -1829,23 +1717,20 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 42,
+                      reservedSize: 68,
                       interval: chartMax / 4,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          '₱${value.toInt()}',
-                          style: const TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 10,
-                          ),
-                        );
-                      },
+                      getTitlesWidget: (value, meta) => Text(
+                        _formatCurrency(value, decimalDigits: 0),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
                     ),
                   ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 24,
+                      reservedSize: 28,
                       getTitlesWidget: (value, meta) {
                         final index = value.toInt();
                         if (index < 0 || index >= months.length) {
@@ -1854,12 +1739,14 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                         return SideTitleWidget(
                           meta: meta,
                           child: Text(
-                            months[index],
-                            style: const TextStyle(
-                              color: Color(0xFF6B7280),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            compactChart
+                                ? months[index].substring(0, 1)
+                                : months[index].substring(0, 3),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         );
                       },
@@ -1870,10 +1757,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   show: true,
                   drawVerticalLine: false,
                   horizontalInterval: chartMax / 4,
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.grey.withValues(alpha: 0.15),
-                    strokeWidth: 1,
-                  ),
+                  getDrawingHorizontalLine: (value) =>
+                      FlLine(color: dayungBorder(context), strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(
@@ -1883,8 +1768,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                     barRods: [
                       BarChartRodData(
                         toY: totals[index],
-                        color: const Color(0xFF0D47A1),
-                        width: 14,
+                        color: colors.primary,
+                        width: compactChart ? 8 : 14,
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ],
@@ -1898,20 +1783,18 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             children: [
               Expanded(
                 child: Text(
-                  'Monthly Cash Collection',
-                  style: const TextStyle(
-                    fontSize: 16,
+                  'Collected this year',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colors.onSurface,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF111827),
                   ),
                 ),
               ),
               Text(
-                'Total: ₱${totals.fold(0.0, (sum, value) => sum + value).toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 14,
+                _formatCurrency(totals.fold(0.0, (sum, value) => sum + value)),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: colors.primary,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B7280),
                 ),
               ),
             ],
@@ -1922,70 +1805,89 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   }
 
   Widget _recentCollectionsAndDueMembersSection() {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(10),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+          decoration: dayungSectionCardDecoration(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Recent Collections',
-                style: TextStyle(
-                  fontSize: 18,
+              Text(
+                'Recent collections',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: colors.onSurface,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E40AF),
-                  fontFamily: 'Montserrat',
                 ),
               ),
               const SizedBox(height: 12),
-              if (_recentCollections.isEmpty)
-                const Text(
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_recentCollections.isEmpty)
+                Text(
                   'No recent collections yet.',
-                  style: TextStyle(color: Color(0xFF6B7280)),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
                 )
               else
-                ..._recentCollections.map(
-                  (row) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                ..._recentCollections.map((row) {
+                  final date = _formatCollectionDate(row['date']);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Icon(
+                          Icons.check_circle_outline_rounded,
+                          color: colors.secondary,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            row['member_name'] ?? 'Member',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (row['member_name'] ?? 'Member').toString(),
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: colors.onSurface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                              if (date.isNotEmpty)
+                                Text(
+                                  date,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: colors.onSurfaceVariant,
+                                      ),
+                                ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          _formatAmount(row['amount']),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: Color(0xFF0D47A1),
+                        Flexible(
+                          child: Text(
+                            _formatAmount(row['amount']),
+                            textAlign: TextAlign.end,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: colors.primary,
+                                  fontWeight: FontWeight.w800,
+                                ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
+                  );
+                }),
             ],
           ),
         ),
@@ -2079,7 +1981,24 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     final value = amount is num
         ? amount.toDouble()
         : double.tryParse('$amount') ?? 0.0;
-    return '₱${value.toStringAsFixed(0)}';
+    return _formatCurrency(value);
+  }
+
+  String _formatCurrency(dynamic amount, {int decimalDigits = 2}) {
+    final value = amount is num
+        ? amount.toDouble()
+        : double.tryParse('$amount') ?? 0.0;
+    return NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: decimalDigits,
+    ).format(value);
+  }
+
+  String _formatCollectionDate(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '');
+    if (date == null) return '';
+    return DateFormat('MMM d, yyyy').format(date.toLocal());
   }
 
   List<Widget> get _pages => [
@@ -2131,7 +2050,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   ],
                 ),
               ),
-              _buildFloatingNavBar(wide),
+              _buildFloatingNavBar(),
             ],
           ),
         ),
@@ -2150,7 +2069,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               ],
             ),
           ),
-          _buildFloatingNavBar(wide),
+          _buildFloatingNavBar(),
         ],
       ),
     );
@@ -2181,6 +2100,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                       ],
                     ),
                     child: IconButton(
+                      tooltip: 'Open menu',
                       icon: const Icon(Icons.menu_rounded, color: Colors.white),
                       onPressed: () => Scaffold.of(context).openDrawer(),
                     ),
@@ -2194,6 +2114,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                     Text(
                       _dayungLabel,
                       maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
@@ -2217,9 +2138,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             children: [
               Expanded(
                 child: dayungGreetingPanel(
-                  child: const Text(
-                    'Maayung buntag,\nTreasurer!',
-                    style: TextStyle(
+                  child: Text(
+                    'Good Morning,\n${_fullName.isEmpty ? 'Treasurer' : _fullName}!',
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       fontFamily: 'Montserrat',
                       fontSize: 28,
                       fontWeight: FontWeight.w900,
@@ -2230,37 +2153,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   ),
                 ),
               ),
-              // GestureDetector(
-              //   onTap: () {
-              //     Navigator.push(
-              //       context,
-              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
-              //     );
-              //   },
-              //   child: Container(
-              //     padding: const EdgeInsets.all(4),
-              //     decoration: BoxDecoration(
-              //       color: Colors.white.withOpacity(0.2),
-              //       borderRadius: BorderRadius.circular(32),
-              //       boxShadow: [
-              //         BoxShadow(
-              //           color: Colors.black.withOpacity(0.1),
-              //           blurRadius: 8,
-              //           offset: const Offset(0, 2),
-              //         ),
-              //       ],
-              //     ),
-              //     child: const CircleAvatar(
-              //       radius: 28,
-              //       backgroundColor: Colors.white,
-              //       child: Icon(
-              //         Icons.person,
-              //         size: 34,
-              //         color: Color(0xFF1E40AF),
-              //       ),
-              //     ),
-              //   ),
-              // ),
             ],
           ),
         ],
@@ -2293,34 +2185,26 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  Widget _buildFloatingNavBar(bool wide) {
+  Widget _buildFloatingNavBar() {
     return Positioned(
       left: 0,
       right: 0,
-      bottom: 20,
+      bottom: MediaQuery.paddingOf(context).bottom + 8,
       child: Center(
         child: IgnorePointer(
           ignoring: !_showNavBar,
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 300),
             opacity: _showNavBar ? 1 : 0,
-            child: Container(
-              height: 80,
-              margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: dayungSurface(context),
-                borderRadius: BorderRadius.circular(40),
-                border: Border.all(color: dayungBorder(context)),
-                boxShadow: [dayungElevatedShadow(context)],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildNavItem(Icons.dashboard_rounded, "Home", 0),
-                  _buildNavItem(Icons.trending_up_rounded, "Contributions", 1),
-                  _buildNavItem(Icons.assignment_rounded, "Claims", 2),
-                ],
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: DayungRoleNavigationBar(
+                  selectedIndex: _tab,
+                  onDestinationSelected: (index) =>
+                      setState(() => _tab = index),
+                ),
               ),
             ),
           ),
@@ -2337,23 +2221,33 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
-              child: Icon(icon, color: Colors.white, size: 20),
+        Semantics(
+          button: true,
+          label: 'Notifications',
+          onTap: onTap,
+          child: ExcludeSemantics(
+            child: Tooltip(
+              message: 'Notifications',
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: onTap,
+                    child: Icon(icon, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -2393,70 +2287,28 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final selected = _tab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _tab = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF1E40AF).withValues(alpha: 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: selected
-                  ? const Color(0xFF1E40AF)
-                  : const Color(0xFF6B7280),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected
-                    ? const Color(0xFF1E40AF)
-                    : const Color(0xFF6B7280),
-                height: 1.0,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _homePage() {
     return RefreshIndicator(
       onRefresh: _fetchAll,
       edgeOffset: 68,
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          dayungRoleNavigationClearance(context),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildOverviewSection(),
             const SizedBox(height: 24),
-            _buildQuickActions(),
-            const SizedBox(height: 24),
-            _buildRecentActivity(),
-            const SizedBox(height: 24),
-            // Temporarily hidden; keep the section implementation for easy restoration.
-            // _buildCollectedSection(),
-            const SizedBox(height: 24),
             _monthlyCollectionCard(),
             const SizedBox(height: 24),
             _recentCollectionsAndDueMembersSection(),
+            const SizedBox(height: 24),
+            _buildQuickActions(),
             const SizedBox(height: 24),
             _buildDeathNoticesSection(),
           ],
@@ -2466,44 +2318,45 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   }
 
   Widget _buildOverviewSection() {
-    final isMobile = MediaQuery.of(context).size.width < 840;
+    final colors = Theme.of(context).colorScheme;
     final cards = [
+      _buildStatCard(
+        title: 'Current Funds',
+        value: _loading ? '—' : _formatCurrency(_currentFunds),
+        color: colors.primary,
+        icon: Icons.account_balance_wallet_rounded,
+      ),
+      _buildStatCard(
+        title: 'Collected Today',
+        value: _loading ? '—' : _formatCurrency(_todayCollected),
+        color: colors.secondary,
+        icon: Icons.payments_rounded,
+      ),
+      _buildStatCard(
+        title: 'Pending Contributions',
+        value: _loading ? '—' : _formatCurrency(_pendingAmount),
+        color: colors.tertiary,
+        icon: Icons.pending_actions_rounded,
+      ),
+      _buildStatCard(
+        title: 'Members with Pending Payments',
+        value: _loading ? '—' : '$_pendingMembers',
+        color: colors.tertiary,
+        icon: Icons.person_search_rounded,
+      ),
       _buildStatCard(
         title: 'Active Members',
         value: _loading ? '—' : '$_activeMembers',
-        color: const Color(0xFF3B82F6),
+        color: colors.primary,
+        icon: Icons.groups_rounded,
         onTap: _openActiveMembersPage,
       ),
       _buildStatCard(
         title: 'Removed / Inactive',
         value: _loading ? '—' : '$_removedMembers',
-        color: const Color(0xFFEF4444),
+        color: colors.error,
+        icon: Icons.person_off_rounded,
         onTap: () => _openNamesOnlyMembersPage('Removed Members', ['removed']),
-      ),
-      // _buildStatCard(
-      //   title: 'Today’s Deceased',
-      //   value: _loading ? '—' : '$_todayDeceased',
-      //   color: const Color(0xFF8B5CF6),
-      // ),
-      _buildStatCard(
-        title: 'Current Funds',
-        value: _loading ? '—' : '₱${_currentFunds.toStringAsFixed(0)}',
-        color: const Color(0xFF0D47A1),
-      ),
-      // _buildStatCard(
-      //   title: 'Collected by Collectors',
-      //   value: _loading ? '—' : '₱${_collectorCollected.toStringAsFixed(0)}',
-      //   color: const Color(0xFF10B981),
-      // ),
-      // _buildStatCard(
-      //   title: 'Pending Members',
-      //   value: _loading ? '—' : '$_pendingMembers',
-      //   color: const Color(0xFFF59E0B),
-      // ),
-      _buildStatCard(
-        title: 'Today’s Collected',
-        value: _loading ? '—' : '₱${_todayCollected.toStringAsFixed(0)}',
-        color: const Color(0xFF2563EB),
       ),
     ];
 
@@ -2513,21 +2366,19 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Overview',
-            style: TextStyle(
-              fontSize: 20,
+          Text(
+            'Financial overview',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: colors.onSurface,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1E40AF),
-              fontFamily: 'Montserrat',
             ),
           ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth < 320
+              final columns = constraints.maxWidth < 500
                   ? 1
-                  : constraints.maxWidth < 840
+                  : constraints.maxWidth < 900
                   ? 2
                   : 3;
               const spacing = 12.0;
@@ -2537,13 +2388,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 spacing: spacing,
                 runSpacing: spacing,
                 children: cards
-                    .map(
-                      (card) => SizedBox(
-                        width: cardWidth,
-                        height: isMobile ? 150 : 130,
-                        child: card,
-                      ),
-                    )
+                    .map((card) => SizedBox(width: cardWidth, child: card))
                     .toList(),
               );
             },

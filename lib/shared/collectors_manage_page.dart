@@ -3,9 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color _kPrimary = Color(0xFF0D47A1);
-const Color _kPrimaryDark = Color(0xFF083366);
-const Color _kNeutralText = Color(0xFF1F2937);
-const Color _kSubText = Color(0xFF4B5563);
 const Color _kDanger = Color(0xFFEF4444);
 const Color _kSuccess = Color(0xFF10B981);
 
@@ -18,6 +15,11 @@ class CollectorsManagePage extends StatefulWidget {
 }
 
 class _CollectorsManagePageState extends State<CollectorsManagePage> {
+  Color get _onSurface => Theme.of(context).colorScheme.onSurface;
+
+  Color get _onSurfaceVariant =>
+      Theme.of(context).colorScheme.onSurfaceVariant;
+
   static const int _pageSize = 10;
 
   final _sb = Supabase.instance.client;
@@ -355,8 +357,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
         height: MediaQuery.of(context).size.height * 0.75,
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -366,7 +368,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: Theme.of(context).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -377,19 +379,19 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                 children: [
                   Text(
                     'Assign $roleLabel',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: _kPrimaryDark,
+                      color: _onSurface,
                       fontFamily: 'Montserrat',
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Choose an active member to serve as $roleLabel for this unit.',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: _kSubText,
+                      color: _onSurfaceVariant,
                       fontFamily: 'OpenSans',
                     ),
                   ),
@@ -404,7 +406,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                         padding: const EdgeInsets.all(20),
                         child: Text(
                           'No active members are available to assign as $roleLabel.',
-                          style: const TextStyle(color: _kSubText),
+                          style: TextStyle(color: _onSurfaceVariant),
                         ),
                       ),
                     )
@@ -444,7 +446,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                     name.isNotEmpty
                                         ? name[0].toUpperCase()
                                         : 'M',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: _kPrimary,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -452,7 +454,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                 : null,
                           ),
                           title: Text(name),
-                          subtitle: const Text('Active member'),
+                          subtitle: Text('Active member'),
                           trailing: currentId == userId
                               ? const Icon(Icons.check_circle, color: _kSuccess)
                               : null,
@@ -482,9 +484,11 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: assigned ? const Color(0xFFF9FAFB) : const Color(0xFFF8FAFC),
+        color: assigned
+            ? Theme.of(context).colorScheme.surfaceContainerLow
+            : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
@@ -497,7 +501,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
             child: profileUrl.isEmpty
                 ? Text(
                     title.isNotEmpty ? title[0] : 'R',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: _kPrimary,
                       fontWeight: FontWeight.bold,
                     ),
@@ -511,19 +515,19 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
-                    color: _kNeutralText,
+                    color: _onSurface,
                     fontFamily: 'Montserrat',
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   assigned ? name : 'Not assigned',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: _kSubText,
+                    color: _onSurfaceVariant,
                     fontFamily: 'OpenSans',
                   ),
                 ),
@@ -538,7 +542,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
             ),
             child: Text(
               assigned ? 'Change' : 'Assign',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontFamily: 'Montserrat',
               ),
@@ -571,8 +575,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
 
           return Container(
             height: MediaQuery.of(context).size.height * 0.75,
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
@@ -582,7 +586,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: Theme.of(context).colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -591,12 +595,12 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Assign Collector',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: _kPrimaryDark,
+                          color: _onSurface,
                           fontFamily: 'Montserrat',
                         ),
                       ),
@@ -609,7 +613,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                             color: _kPrimary,
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
+                          fillColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerLow,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
@@ -626,10 +632,10 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                 const SizedBox(height: 8),
                 Expanded(
                   child: filtered.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
                             'No available members',
-                            style: TextStyle(color: _kSubText),
+                            style: TextStyle(color: _onSurfaceVariant),
                           ),
                         )
                       : ListView.builder(
@@ -655,7 +661,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                         name.isNotEmpty
                                             ? name[0].toUpperCase()
                                             : 'M',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           color: _kPrimary,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -664,7 +670,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                               ),
                               title: Text(
                                 name,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontFamily: 'Montserrat',
                                 ),
@@ -689,7 +695,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                   ),
                                   elevation: 0,
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'Assign',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
@@ -712,7 +718,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -786,12 +792,18 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                           Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.surface,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.grey.shade200),
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.shadow.withValues(alpha: 0.04),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -815,12 +827,12 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                       ),
                                     ),
                                     const SizedBox(width: 12),
-                                    const Text(
+                                    Text(
                                       'Assigned Collectors',
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,
-                                        color: _kNeutralText,
+                                        color: _onSurface,
                                         fontFamily: 'Montserrat',
                                       ),
                                     ),
@@ -831,17 +843,21 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                   Container(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF8FAFC),
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceContainerLow,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Colors.grey.shade200,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.outlineVariant,
                                       ),
                                     ),
-                                    child: const Center(
+                                    child: Center(
                                       child: Text(
                                         'No collectors assigned yet',
                                         style: TextStyle(
-                                          color: _kSubText,
+                                          color: _onSurfaceVariant,
                                           fontFamily: 'OpenSans',
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -900,12 +916,18 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                           Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.surface,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.grey.shade200),
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.shadow.withValues(alpha: 0.04),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -932,10 +954,10 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                     Expanded(
                                       child: Text(
                                         'Active Members (${_activeMembers.length})',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w800,
-                                          color: _kNeutralText,
+                                          color: _onSurface,
                                           fontFamily: 'Montserrat',
                                         ),
                                       ),
@@ -1014,7 +1036,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         backgroundColor: _kPrimary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.person_add_rounded),
-        label: const Text(
+        label: Text(
           'Add Collector',
           style: TextStyle(
             fontWeight: FontWeight.w700,
@@ -1054,8 +1076,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _kNeutralText,
+                  style: TextStyle(
+                    color: _onSurface,
                     fontWeight: FontWeight.w700,
                     fontFamily: 'Montserrat',
                   ),
@@ -1063,9 +1085,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                 const SizedBox(height: 4),
                 Text(
                   '${_assignedCounts[userId] ?? 0} members · ${phone.isEmpty ? 'No phone number' : phone}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: _kSubText,
+                    color: _onSurfaceVariant,
                     fontFamily: 'OpenSans',
                   ),
                 ),
@@ -1113,8 +1135,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
           ),
           Text(
             'Page ${pageIndex + 1} of ${_pageCount(itemCount)}',
-            style: const TextStyle(
-              color: _kNeutralText,
+            style: TextStyle(
+              color: _onSurface,
               fontWeight: FontWeight.w700,
               fontFamily: 'Montserrat',
             ),
@@ -1145,8 +1167,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: _kNeutralText,
+            style: TextStyle(
+              color: _onSurface,
               fontWeight: FontWeight.w700,
               fontFamily: 'Montserrat',
             ),
@@ -1154,13 +1176,13 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
           const SizedBox(height: 4),
           Row(
             children: [
-              const Icon(Icons.badge_outlined, size: 14, color: _kSubText),
+              Icon(Icons.badge_outlined, size: 14, color: _onSurfaceVariant),
               const SizedBox(width: 5),
-              const Text(
+              Text(
                 'Assigned collector:',
                 style: TextStyle(
                   fontSize: 12,
-                  color: _kSubText,
+                  color: _onSurfaceVariant,
                   fontFamily: 'OpenSans',
                   fontWeight: FontWeight.w600,
                 ),
@@ -1173,7 +1195,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12,
-                    color: assignedCollectorId.isEmpty ? _kSubText : _kPrimary,
+                    color: assignedCollectorId.isEmpty ? _onSurfaceVariant : _kPrimary,
                     fontFamily: 'OpenSans',
                     fontWeight: FontWeight.w700,
                   ),
@@ -1225,7 +1247,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           'Assign Collector',
           style: TextStyle(
             fontWeight: FontWeight.w800,
@@ -1234,12 +1256,12 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         ),
         content: Text(
           'Assign $name as a collector?',
-          style: const TextStyle(fontFamily: 'OpenSans'),
+          style: TextStyle(fontFamily: 'OpenSans'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1253,7 +1275,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
+            child: Text(
               'Assign',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
@@ -1273,8 +1295,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
         height: MediaQuery.of(context).size.height * 0.6,
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -1284,7 +1306,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: Theme.of(context).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1295,19 +1317,19 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                 children: [
                   Text(
                     'Assign collector for $memberName',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: _kPrimaryDark,
+                      color: _onSurface,
                       fontFamily: 'Montserrat',
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Choose which collector should be responsible for this approved member.',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: _kSubText,
+                      color: _onSurfaceVariant,
                       fontFamily: 'OpenSans',
                     ),
                   ),
@@ -1322,7 +1344,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                         padding: const EdgeInsets.all(20),
                         child: Text(
                           'No collectors are assigned yet. Add a collector first to assign this member.',
-                          style: const TextStyle(color: _kSubText),
+                          style: TextStyle(color: _onSurfaceVariant),
                         ),
                       ),
                     )
@@ -1335,8 +1357,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                       itemBuilder: (_, index) {
                         if (index == 0) {
                           return ListTile(
-                            title: const Text('Unassign collector'),
-                            subtitle: const Text(
+                            title: Text('Unassign collector'),
+                            subtitle: Text(
                               'Leave this member without an assigned collector.',
                             ),
                             leading: const Icon(Icons.clear, color: _kDanger),
@@ -1420,7 +1442,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
+        title: Text(
           'Remove Collector',
           style: TextStyle(
             fontWeight: FontWeight.w800,
@@ -1429,12 +1451,12 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         ),
         content: Text(
           'Remove $name as a collector?',
-          style: const TextStyle(fontFamily: 'OpenSans'),
+          style: TextStyle(fontFamily: 'OpenSans'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1448,7 +1470,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
+            child: Text(
               'Remove',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),

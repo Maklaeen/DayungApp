@@ -806,7 +806,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
