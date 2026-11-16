@@ -1,5 +1,4 @@
 import 'package:capstone_app/Providers/apptheme_provider.dart';
-import 'package:capstone_app/shared/dayung_theme_mode_selector.dart';
 import 'package:capstone_app/shared/dayung_role_navigation_bar.dart';
 import 'package:capstone_app/ui/theme/dayung_theme.dart';
 import 'package:flutter/material.dart';
@@ -43,28 +42,29 @@ void main() {
     );
   });
 
-  test('saved theme mode loads and selected mode persists', () async {
+  test('saved dark preference is reset to the light default', () async {
     SharedPreferences.setMockInitialValues({'theme_mode': 'dark'});
     final theme = AppTheme();
 
+    expect(theme.mode, ThemeMode.light);
     await theme.load();
-    expect(theme.mode, ThemeMode.dark);
-
-    await theme.set(ThemeMode.system);
+    expect(theme.mode, ThemeMode.light);
     final preferences = await SharedPreferences.getInstance();
-    expect(preferences.getString('theme_mode'), 'system');
-    expect(theme.mode, ThemeMode.system);
+    expect(preferences.getString('theme_mode'), 'light');
 
     final restoredTheme = AppTheme();
     await restoredTheme.load();
-    expect(restoredTheme.mode, ThemeMode.system);
+    expect(restoredTheme.mode, ThemeMode.light);
   });
 
-  testWidgets('active MaterialApp follows the selected theme mode', (
+  testWidgets('active MaterialApp stays light when device prefers dark', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({'theme_mode': 'dark'});
     final theme = AppTheme();
-    await theme.set(ThemeMode.light);
+    await theme.load();
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
 
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -83,74 +83,6 @@ void main() {
       ),
     );
     expect(find.text('Brightness.light'), findsOneWidget);
-
-    await theme.set(ThemeMode.dark);
-    await tester.pumpAndSettle();
-    expect(find.text('Brightness.dark'), findsOneWidget);
-
-    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
-    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-    await theme.set(ThemeMode.system);
-    await tester.pumpAndSettle();
-    expect(find.text('Brightness.dark'), findsOneWidget);
-  });
-
-  testWidgets('theme selector applies and persists a choice at large text', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(320, 720);
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    SharedPreferences.setMockInitialValues({});
-    final appTheme = AppTheme();
-    await appTheme.load();
-
-    await tester.pumpWidget(
-      ChangeNotifierProvider.value(
-        value: appTheme,
-        child: Builder(
-          builder: (context) => MaterialApp(
-            theme: buildDayungTheme(Brightness.light),
-            darkTheme: buildDayungTheme(Brightness.dark),
-            themeMode: context.watch<AppTheme>().mode,
-            home: MediaQuery(
-              data: const MediaQueryData(
-                size: Size(320, 720),
-                textScaler: TextScaler.linear(2),
-              ),
-              child: Scaffold(
-                body: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const DayungThemeModeSelector(),
-                      Builder(
-                        builder: (context) =>
-                            Text(Theme.of(context).brightness.toString()),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Current mode: System'), findsOneWidget);
-    await tester.tap(find.text('Dark').first);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Current mode: Dark'), findsOneWidget);
-    expect(find.text('Brightness.dark'), findsOneWidget);
-    expect(
-      (await SharedPreferences.getInstance()).getString('theme_mode'),
-      'dark',
-    );
     expect(tester.takeException(), isNull);
   });
 

@@ -1,10 +1,8 @@
 import 'dart:convert';
 
-import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 
 class SuperAdminSettingsPage extends StatefulWidget {
   const SuperAdminSettingsPage({super.key});
@@ -142,61 +140,7 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final appTheme = context.watch<AppTheme>();
     final colors = Theme.of(context).colorScheme;
-    final appearancePanel = _Panel(
-      title: 'Appearance',
-      subtitle:
-          'Set the app to follow the device theme or force light or dark mode across dashboards.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SegmentedButton<ThemeMode>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment<ThemeMode>(
-                value: ThemeMode.system,
-                icon: Icon(Icons.brightness_auto_rounded),
-                label: Text('System'),
-              ),
-              ButtonSegment<ThemeMode>(
-                value: ThemeMode.light,
-                icon: Icon(Icons.light_mode_rounded),
-                label: Text('Light'),
-              ),
-              ButtonSegment<ThemeMode>(
-                value: ThemeMode.dark,
-                icon: Icon(Icons.dark_mode_rounded),
-                label: Text('Dark'),
-              ),
-            ],
-            selected: <ThemeMode>{appTheme.mode},
-            onSelectionChanged: (selection) async {
-              if (selection.isEmpty) {
-                return;
-              }
-              await context.read<AppTheme>().set(selection.first);
-            },
-          ),
-          const SizedBox(height: 14),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: kSuperAdminPrimary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              'Current mode: ${_themeModeDescription(appTheme.mode)}',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: colors.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
 
     final onboardingPanel = _Panel(
       title: 'Onboarding Rules',
@@ -328,8 +272,6 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
                     children: [
                       const _SettingsHero(),
                       const SizedBox(height: 18),
-                      appearancePanel,
-                      const SizedBox(height: 18),
                       _Panel(
                         title: 'Access Control',
                         subtitle:
@@ -452,17 +394,6 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
         borderSide: BorderSide(color: colors.primary, width: 1.8),
       ),
     );
-  }
-
-  String _themeModeDescription(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return 'System default';
-      case ThemeMode.light:
-        return 'Light mode';
-      case ThemeMode.dark:
-        return 'Dark mode';
-    }
   }
 }
 

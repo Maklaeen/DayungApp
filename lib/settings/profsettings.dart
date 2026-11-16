@@ -4,7 +4,6 @@ import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:capstone_app/shared/dayung_theme_mode_selector.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:http/http.dart' as http;
@@ -479,8 +478,6 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionCard(child: const DayungThemeModeSelector()),
-                    const SizedBox(height: 18),
                     Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 18),
