@@ -1161,16 +1161,12 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
     try {
       await _supabase.rpc(
-        'reject_application',
-        params: {'p_application_id': applicationId},
+        'reject_application_with_reason',
+        params: {
+          'p_application_id': applicationId,
+          'p_rejection_reason': reason,
+        },
       );
-      await _supabase
-          .from('applications')
-          .update({
-            'rejection_reason': reason,
-            'rejection_date': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', applicationId);
       if (!mounted) return;
       _fetchApplications(forUnitId: _currentUnitId);
     } on PostgrestException catch (e) {

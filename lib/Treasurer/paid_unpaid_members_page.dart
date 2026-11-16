@@ -747,7 +747,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
       child: InputDecorator(
         isEmpty: selectedName == null,
         decoration: InputDecoration(
-          labelText: 'Select deceased member',
+          labelText: selectedName == null ? null : 'Select deceased member',
           filled: true,
           fillColor: Colors.white,
           enabled: isEnabled,
@@ -900,31 +900,45 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _kPageBg,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: _kBorder),
-                            ),
-                            child: TabBar(
-                              controller: _tabController,
-                              labelColor: const Color(0xFF0D47A1),
-                              unselectedLabelColor: const Color(0xFF64748B),
-                              indicator: BoxDecoration(
-                                color: const Color(
-                                  0xFF0D47A1,
-                                ).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(999),
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 480),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _kPageBg,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(color: _kBorder),
+                                ),
+                                child: TabBar(
+                                  controller: _tabController,
+                                  dividerColor: Colors.transparent,
+                                  splashFactory: NoSplash.splashFactory,
+                                  overlayColor:
+                                      const WidgetStatePropertyAll<Color>(
+                                        Colors.transparent,
+                                      ),
+                                  labelColor: const Color(0xFF0D47A1),
+                                  labelStyle: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  unselectedLabelColor: const Color(0xFF64748B),
+                                  indicator: BoxDecoration(
+                                    color: const Color(
+                                      0xFF0D47A1,
+                                    ).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  tabs: const [
+                                    Tab(text: 'Paid'),
+                                    Tab(text: 'Unpaid'),
+                                  ],
+                                ),
                               ),
-                              tabs: const [
-                                Tab(text: 'Paid'),
-                                Tab(text: 'Unpaid'),
-                              ],
                             ),
                           ),
                           const SizedBox(height: 12),

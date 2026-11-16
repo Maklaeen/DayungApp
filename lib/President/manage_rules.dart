@@ -11,6 +11,25 @@ const kPrimary = Color(0xFF0D47A1);
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
 
+bool _parseRuleBoolean(dynamic value) {
+  if (value == null) return false;
+  if (value is bool) return value;
+  if (value is num && (value == 0 || value == 1)) return value == 1;
+
+  switch (value.toString().trim().toLowerCase()) {
+    case 'true':
+    case 'yes':
+    case '1':
+      return true;
+    case 'false':
+    case 'no':
+    case '0':
+      return false;
+    default:
+      throw FormatException('Unexpected has_service value: $value');
+  }
+}
+
 class ManageRulesPagePres extends StatefulWidget {
   const ManageRulesPagePres({super.key});
 
@@ -73,7 +92,8 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       if (_unitId != null) {
         await _loadRules(_unitId!);
       }
-    } catch (_) {
+    } catch (e) {
+      _showError('Failed to load rules: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -97,34 +117,41 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   }
 
   Future<void> _loadRules(int unitId) async {
-    try {
-      final row = await sb
-          .from('dayung_rules')
-          .select('''
+    final row = await sb
+        .from('dayung_rules')
+        .select('''
             meeting_frequency, collection_fee_range, membership_payment, penalty_payment, payment_method, has_service, exactamountformembership, exactamountforcollection, exactpenaltypayment, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}
             ''')
-          .eq('dayung_unit_id', unitId)
-          .maybeSingle();
+        .eq('dayung_unit_id', unitId)
+        .maybeSingle();
 
-      _selectedMeetingFrequency = row?['meeting_frequency'];
-      _selectedRegistrationFeeRange = row?['collection_fee_range'];
-      _selectedMembershipPayment = row?['membership_payment'];
-      _selectedPenaltyPayment = row?['penalty_payment'];
-      _selectedPaymentMethodDropdown = row?['payment_method'];
-      _hasService = row?['has_service'] == true;
-      for (final label in dayungServiceTagLabels) {
-        final column = dayungServiceTagColumns[label]!;
-        _selectedServiceTags[label] = row?[column] == true;
-      }
-      _exactAmountForMembership = row?['exactamountformembership'];
-      _exactAmountForCollection = row?['exactamountforcollection'];
-      _exactPenaltyPayment = row?['exactpenaltypayment']?.toString();
-      _exactAmountController.text = _exactAmountForMembership ?? '';
-      _exactCollectionAmountController.text = _exactAmountForCollection ?? '';
-      _exactPenaltyPaymentController.text = _exactPenaltyPayment ?? '';
+    _selectedMeetingFrequency = row?['meeting_frequency']?.toString();
+    _selectedRegistrationFeeRange = row?['collection_fee_range']?.toString();
+    _selectedMembershipPayment = row?['membership_payment']?.toString();
+    _selectedPenaltyPayment = row?['penalty_payment']?.toString();
+    _selectedPaymentMethodDropdown = row?['payment_method']?.toString();
+    _hasService = _parseRuleBoolean(row?['has_service']);
+    for (final label in dayungServiceTagLabels) {
+      final column = dayungServiceTagColumns[label]!;
+      _selectedServiceTags[label] = row?[column] == true;
+    }
+    _exactAmountForMembership = row?['exactamountformembership']?.toString();
+    _exactAmountForCollection = row?['exactamountforcollection']?.toString();
+    _exactPenaltyPayment = row?['exactpenaltypayment']?.toString();
+    _exactAmountController.text = _exactAmountForMembership ?? '';
+    _exactCollectionAmountController.text = _exactAmountForCollection ?? '';
+    _exactPenaltyPaymentController.text = _exactPenaltyPayment ?? '';
 
+    if (mounted) {
       setState(() {});
-    } catch (_) {}
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _save() async {
@@ -512,6 +539,8 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                   setState(() => _loading = true);
                   try {
                     await _loadRules(v);
+                  } catch (e) {
+                    _showError('Failed to load rules: $e');
                   } finally {
                     if (mounted) setState(() => _loading = false);
                   }
