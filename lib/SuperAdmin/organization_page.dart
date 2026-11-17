@@ -1,4 +1,6 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
+import 'package:capstone_app/shared/dayung_map_error_snackbar.dart';
+import 'package:capstone_app/shared/dayung_map_resize_handle.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -88,10 +90,11 @@ class _SuperAdminOrganizationPageState
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      showDayungMapErrorSnackBar(
+        context,
+        title: 'Unable to get location',
+        message: error.toString().replaceFirst('Exception: ', ''),
+        icon: Icons.location_off_rounded,
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -555,6 +558,7 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
   final _mapController = MapController();
   late ll.LatLng _selected;
   bool _locating = false;
+  double? _mapHeightOverride;
 
   @override
   void initState() {
@@ -597,53 +601,181 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
     }
   }
 
+  void _zoomMap(double delta) {
+    final camera = _mapController.camera;
+    _mapController.move(camera.center, camera.zoom + delta);
+  }
+
+  Widget _buildMapControls() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _mapControlButton(
+            icon: Icons.zoom_in_rounded,
+            tooltip: 'Zoom in',
+            onTap: () => _zoomMap(1),
+          ),
+          _mapControlButton(
+            icon: Icons.zoom_out_rounded,
+            tooltip: 'Zoom out',
+            onTap: () => _zoomMap(-1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mapControlButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return IconButton(
+      onPressed: onTap,
+      tooltip: tooltip,
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      padding: EdgeInsets.zero,
+      icon: Icon(icon, color: const Color(0xFF1E40AF), size: 21),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final mapHeight = (MediaQuery.sizeOf(context).height * 0.48).clamp(
-      220.0,
-      430.0,
-    );
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final defaultMapHeight = (screenHeight * 0.52)
+        .clamp(180.0, 480.0)
+        .toDouble();
+    final maxMapHeight = (screenHeight * 0.65)
+        .clamp(defaultMapHeight, 600.0)
+        .toDouble();
+    final mapHeight = (_mapHeightOverride ?? defaultMapHeight)
+        .clamp(180.0, maxMapHeight)
+        .toDouble();
+    const controlsHeight = 88.0;
     return AlertDialog(
       title: const Text('Choose Organization Location'),
       content: SizedBox(
-        height: mapHeight,
+        height: mapHeight + controlsHeight + 40,
         child: Column(
           children: [
-            Expanded(
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: _selected,
-                  initialZoom: 15,
-                  onTap: (_, point) => setState(() => _selected = point),
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'capstone_app',
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _selected,
-                        width: 48,
-                        height: 48,
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          color: Colors.redAccent,
-                          size: 42,
+            SizedBox(
+              height: mapHeight,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(
+                  children: [
+                    FlutterMap(
+                      mapController: _mapController,
+                      options: MapOptions(
+                        initialCenter: _selected,
+                        initialZoom: 15,
+                        interactionOptions: const InteractionOptions(
+                          flags:
+                              InteractiveFlag.all & ~InteractiveFlag.rotate,
+                        ),
+                        onTap: (_, point) => setState(() => _selected = point),
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'capstone_app',
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: _selected,
+                              width: 48,
+                              height: 48,
+                              child: const Icon(
+                                Icons.location_on_rounded,
+                                color: Color(0xFF10B981),
+                                size: 42,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const RichAttributionWidget(
+                          alignment: AttributionAlignment.bottomRight,
+                          showFlutterMapAttribution: false,
+                          attributions: [
+                            TextSourceAttribution('OpenStreetMap contributors'),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Positioned(
+                      bottom: 12,
+                      right: 12,
+                      child: _buildMapControls(),
+                    ),
+                    Positioned(
+                      left: 12,
+                      bottom: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.touch_app_outlined,
+                              color: Color(0xFF1E40AF),
+                              size: 16,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Tap map to select',
+                              style: TextStyle(
+                                color: Color(0xFF1E40AF),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                  const RichAttributionWidget(
-                    attributions: [
-                      TextSourceAttribution('OpenStreetMap contributors'),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
+            ),
+            DayungMapResizeHandle(
+              tooltip: 'Drag to resize map',
+              onResize: (deltaY) {
+                setState(() {
+                  _mapHeightOverride = (mapHeight + deltaY)
+                      .clamp(180.0, maxMapHeight)
+                      .toDouble();
+                });
+              },
             ),
             const SizedBox(height: 8),
             Align(

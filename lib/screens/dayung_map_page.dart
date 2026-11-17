@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:capstone_app/config/app_config.dart';
 import 'package:capstone_app/pages/apply_membership.dart';
+import 'package:capstone_app/shared/dayung_map_error_snackbar.dart';
+import 'package:capstone_app/shared/dayung_map_resize_handle.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -147,11 +149,13 @@ class _DayungMapPageState extends State<DayungMapPage> {
   Map<String, dynamic>? _rules;
   List<Map<String, dynamic>> _requiredApplications = [];
   bool _loadingRules = true;
+  late final Future<void> _rulesLoadFuture;
   double? _compassHeading;
   StreamSubscription<CompassEvent>? compassStream;
   bool _applied = false;
   bool _submitting = false;
   int? _etaMinutes;
+  double _mapFlex = 65;
   int _lastCompassUpdateMs = 0;
   NavMode? _selectedMode;
 
@@ -189,7 +193,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
   void initState() {
     super.initState();
     _applied = widget.isApplied;
-    _fetchRules();
+    _rulesLoadFuture = _fetchRules();
 
     compassStream = FlutterCompass.events?.listen((event) {
       final heading = event.heading;
@@ -488,6 +492,29 @@ class _DayungMapPageState extends State<DayungMapPage> {
     );
   }
 
+  bool _isNoRouteResponse(String responseBody) {
+    final body = responseBody.toLowerCase();
+    return body.contains('no route') ||
+        body.contains('noroute') ||
+        body.contains('no segment') ||
+        body.contains('could not find routable point');
+  }
+
+  void _showRouteError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _routePoints = [];
+      _etaMinutes = null;
+    });
+    final noRoute = message == 'No route found, might take a flight.';
+    showDayungMapErrorSnackBar(
+      context,
+      title: noRoute ? 'Route unavailable' : 'Route preview error',
+      message: message,
+      icon: noRoute ? Icons.flight_takeoff_rounded : Icons.route_rounded,
+    );
+  }
+
   Future<void> _fetchRoute({String mode = 'foot-walking'}) async {
     if (_pos == null || dayungLat == null || dayungLng == null) return;
 
@@ -511,9 +538,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
       debugPrint('ORS status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final coords = data['features'][0]['geometry']['coordinates'];
-        final summary = data['features'][0]['properties']['summary'];
+        final features = data['features'] as List<dynamic>?;
+        if (features == null || features.isEmpty) {
+          _showRouteError('No route found, might take a flight.');
+          return;
+        }
+        final feature = features.first as Map<String, dynamic>;
+        final coords = feature['geometry']['coordinates'];
+        final summary = feature['properties']['summary'];
         final durationSeconds = summary['duration'];
+        if (!mounted) return;
         setState(() {
           _routePoints = coords
               .map<ml.LatLng>(
@@ -531,18 +565,15 @@ class _DayungMapPageState extends State<DayungMapPage> {
         });
       } else {
         debugPrint('ORS error body: ${response.body}');
-        if (mounted) {
-          setState(() {
-            _routePoints = [];
-            _etaMinutes = null;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to fetch route')),
-          );
-        }
+        _showRouteError(
+          _isNoRouteResponse(response.body)
+              ? 'No route found, might take a flight.'
+              : 'Failed to fetch route',
+        );
       }
     } catch (e) {
       debugPrint('ORS fetch error: $e');
+      _showRouteError('Unable to fetch route preview.');
     }
   }
 
@@ -561,6 +592,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
     try {
       final response = await http.get(url);
       if (response.statusCode != 200) {
+        if (_isNoRouteResponse(response.body)) {
+          _showRouteError('No route found, might take a flight.');
+          return;
+        }
         throw StateError('OSRM status ${response.statusCode}');
       }
 
@@ -573,7 +608,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
           (route?['geometry'] as Map<String, dynamic>?)?['coordinates']
               as List<dynamic>?;
       if (coordinates == null || coordinates.length < 2) {
-        throw StateError('OSRM returned no route');
+        _showRouteError('No route found, might take a flight.');
+        return;
       }
 
       if (!mounted) return;
@@ -590,11 +626,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
       });
     } catch (error) {
       debugPrint('OSRM route error: $error');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to fetch route preview.')),
-        );
-      }
+      _showRouteError('Unable to fetch route preview.');
     }
   }
 
@@ -900,6 +932,84 @@ class _DayungMapPageState extends State<DayungMapPage> {
     }
 
     final dist = _distanceToDayung();
+    final compactMapControls = MediaQuery.sizeOf(context).width < 600;
+    final Widget? primaryMapChip;
+    if (_loadingLoc) {
+      primaryMapChip = _pillChip(
+        icon: Icons.gps_fixed,
+        label: 'Locating...',
+        color: kPrimaryDark,
+        pulse: true,
+      );
+    } else if (_permissionDenied) {
+      primaryMapChip = _pillChip(
+        icon: Icons.location_off,
+        label: 'Location denied',
+        color: kDanger,
+      );
+    } else if (dist != null) {
+      primaryMapChip = _pillChip(
+        icon: Icons.route,
+        label: _formatDistance(dist),
+        color: kPrimary,
+      );
+    } else if (_pos == null) {
+      primaryMapChip = _pillChip(
+        icon: Icons.location_searching,
+        label: 'No GPS fix',
+        color: kWarn,
+      );
+    } else {
+      primaryMapChip = null;
+    }
+    final mapStatusChips = <Widget>[
+      if (widget.isMember)
+        _pillChip(icon: Icons.verified, label: 'Your Dayung', color: kAccent)
+      else if (widget.isApplied)
+        _pillChip(
+          icon: Icons.check_circle_outline,
+          label: 'Applied',
+          color: kWarn,
+        ),
+      if (_etaMinutes != null)
+        _pillChip(
+          icon: Icons.timer,
+          label: 'ETA: $_etaMinutes min',
+          color: kPrimary,
+        ),
+      if (_selectedMode != null && _routePoints.isEmpty)
+        _pillChip(
+          icon: _selectedMode!.icon,
+          label: '${_selectedMode!.label} (no route)',
+          color: kSubtleText,
+        )
+      else if (_selectedMode != null)
+        _pillChip(
+          icon: _selectedMode!.icon,
+          label: _selectedMode!.label,
+          color: kPrimaryDark,
+        ),
+    ];
+    final mapControlButtons = <Widget>[
+      _fabIcon(icon: Icons.route, onTap: _showDirectionModeSheet),
+      _fabIcon(icon: Icons.flag_outlined, onTap: _centerOnDayung),
+      if (_pos != null) _fabIcon(icon: Icons.my_location, onTap: _centerOnUser),
+    ];
+    final mapControls = compactMapControls
+        ? _buildCompactMapControls()
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (
+                var index = 0;
+                index < mapControlButtons.length;
+                index++
+              ) ...[
+                if (index > 0) const SizedBox(height: 10),
+                mapControlButtons[index],
+              ],
+            ],
+          );
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -909,7 +1019,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
             child: Column(
               children: [
                 Expanded(
-                  flex: 52,
+                  flex: _mapFlex.round(),
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(
                       bottom: Radius.circular(34),
@@ -948,100 +1058,69 @@ class _DayungMapPageState extends State<DayungMapPage> {
                           right: 16,
                           child: _buildTopOverlay(),
                         ),
-                        Positioned(
-                          left: 16,
-                          bottom: 16,
-                          right: 16,
-                          child: Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: [
-                              if (!_loadingLoc &&
-                                  !_permissionDenied &&
-                                  dist != null)
-                                _pillChip(
-                                  icon: Icons.route,
-                                  label: _formatDistance(dist),
-                                  color: kPrimary,
+                        if (compactMapControls)
+                          Positioned(
+                            left: 16,
+                            right: 20,
+                            bottom: 16,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child:
+                                        primaryMapChip ??
+                                        const SizedBox.shrink(),
+                                  ),
                                 ),
-                              if (_loadingLoc)
-                                _pillChip(
-                                  icon: Icons.gps_fixed,
-                                  label: 'Locating...',
-                                  color: kPrimaryDark,
-                                  pulse: true,
-                                ),
-                              if (_permissionDenied)
-                                _pillChip(
-                                  icon: Icons.location_off,
-                                  label: 'Location denied',
-                                  color: kDanger,
-                                ),
-                              if (!_loadingLoc &&
-                                  !_permissionDenied &&
-                                  _pos == null)
-                                _pillChip(
-                                  icon: Icons.location_searching,
-                                  label: 'No GPS fix',
-                                  color: kWarn,
-                                ),
-                              if (widget.isMember)
-                                _pillChip(
-                                  icon: Icons.verified,
-                                  label: 'Your Dayung',
-                                  color: kAccent,
-                                )
-                              else if (widget.isApplied)
-                                _pillChip(
-                                  icon: Icons.check_circle_outline,
-                                  label: 'Applied',
-                                  color: kWarn,
-                                ),
-                              if (_etaMinutes != null)
-                                _pillChip(
-                                  icon: Icons.timer,
-                                  label: 'ETA: $_etaMinutes min',
-                                  color: kPrimary,
-                                ),
-                              if (_selectedMode != null && _routePoints.isEmpty)
-                                _pillChip(
-                                  icon: _selectedMode!.icon,
-                                  label: '${_selectedMode!.label} (no route)',
-                                  color: kSubtleText,
-                                )
-                              else if (_selectedMode != null)
-                                _pillChip(
-                                  icon: _selectedMode!.icon,
-                                  label: _selectedMode!.label,
-                                  color: kPrimaryDark,
-                                ),
-                            ],
+                                if (!_loadingLoc && !_permissionDenied) ...[
+                                  const SizedBox(width: 8),
+                                  mapControls,
+                                ],
+                              ],
+                            ),
+                          )
+                        else ...[
+                          if (!_loadingLoc && !_permissionDenied)
+                            Positioned(
+                              right: 16,
+                              top: MediaQuery.of(context).padding.top + 82,
+                              child: mapControls,
+                            ),
+                          Positioned(
+                            left: 16,
+                            bottom: 16,
+                            right: 16,
+                            child: Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                if (primaryMapChip != null) primaryMapChip,
+                                ...mapStatusChips,
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
+                        if (compactMapControls && mapStatusChips.isNotEmpty)
+                          Positioned(
+                            left: 16,
+                            right: 44,
+                            bottom: 72,
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: mapStatusChips,
+                            ),
+                          ),
                       ],
                     ),
                   ),
                 ),
-                Expanded(flex: 48, child: _infoPanel(dist)),
+                Expanded(flex: 100 - _mapFlex.round(), child: _infoPanel(dist)),
               ],
             ),
           ),
-          if (!_loadingLoc && !_permissionDenied)
-            Positioned(
-              right: 16,
-              top: MediaQuery.of(context).padding.top + 82,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _fabIcon(icon: Icons.route, onTap: _showDirectionModeSheet),
-                  const SizedBox(height: 10),
-                  _fabIcon(icon: Icons.flag_outlined, onTap: _centerOnDayung),
-                  const SizedBox(height: 10),
-                  if (_pos != null)
-                    _fabIcon(icon: Icons.my_location, onTap: _centerOnUser),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -1162,16 +1241,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 48,
-                        height: 5,
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
+                    DayungMapResizeHandle(
+                      onResize: (deltaY) {
+                        final screenHeight = MediaQuery.sizeOf(context).height;
+                        if (screenHeight <= 0) return;
+                        setState(() {
+                          _mapFlex = (_mapFlex + deltaY / screenHeight * 100)
+                              .clamp(35.0, 82.0)
+                              .toDouble();
+                        });
+                      },
                     ),
                     Text(
                       name,
@@ -1240,15 +1319,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
                     if (widget.allDayungs != null &&
                         widget.allDayungs!.isNotEmpty)
                       _nearbyScroller(),
-                    if (_loadingRules)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    else if (_rules != null || _requiredApplications.isNotEmpty)
-                      _rulesSection(_rules),
                     const Spacer(),
-                    _actionSection(dist),
+                    _actionSection(),
                   ],
                 ),
               ),
@@ -1448,6 +1520,85 @@ class _DayungMapPageState extends State<DayungMapPage> {
     );
   }
 
+  Future<void> _showRulesSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final size = MediaQuery.sizeOf(sheetContext);
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            width: size.width < 720 ? size.width : 720,
+            height: size.height * 0.72,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: kPanelBg,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 5,
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 12, 8),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Dayung Rules',
+                            style: TextStyle(
+                              color: kPrimaryDark,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close rules',
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: FutureBuilder<void>(
+                      future: _rulesLoadFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState != ConnectionState.done ||
+                            _loadingRules) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: _rulesSection(_rules),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _nearbyScroller() {
     final list = <Map<String, dynamic>>[];
     if (_pos != null && widget.allDayungs != null) {
@@ -1592,7 +1743,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     );
   }
 
-  Widget _actionSection(double? dist) {
+  Widget _actionSection() {
     Widget status() {
       if (widget.isMember) {
         return _infoRow(Icons.verified, 'This is your Dayung', kAccent);
@@ -1616,7 +1767,19 @@ class _DayungMapPageState extends State<DayungMapPage> {
           ),
         ],
         const SizedBox(height: 10),
-        if (dist != null) Align(alignment: Alignment.center),
+        OutlinedButton.icon(
+          onPressed: _showRulesSheet,
+          icon: const Icon(Icons.menu_book_outlined),
+          label: const Text('View Rules'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: kPrimary,
+            minimumSize: const Size.fromHeight(48),
+            side: BorderSide(color: kPrimary.withOpacity(.25)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1804,15 +1967,19 @@ class _DayungMapPageState extends State<DayungMapPage> {
     );
   }
 
-  Widget _fabIcon({required IconData icon, required VoidCallback onTap}) {
+  Widget _fabIcon({
+    required IconData icon,
+    required VoidCallback onTap,
+    double size = 64,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: SizedBox(
-          width: 64,
-          height: 64,
+          width: size,
+          height: size,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -1830,6 +1997,59 @@ class _DayungMapPageState extends State<DayungMapPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCompactMapControls() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _compactMapButton(
+            icon: Icons.route,
+            tooltip: 'Directions',
+            onTap: _showDirectionModeSheet,
+          ),
+          _compactMapButton(
+            icon: Icons.flag_outlined,
+            tooltip: 'Center on Dayung',
+            onTap: _centerOnDayung,
+          ),
+          if (_pos != null)
+            _compactMapButton(
+              icon: Icons.my_location,
+              tooltip: 'Center on me',
+              onTap: _centerOnUser,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _compactMapButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return IconButton(
+      onPressed: onTap,
+      tooltip: tooltip,
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      padding: EdgeInsets.zero,
+      icon: Icon(icon, color: kPrimaryDark, size: 21),
     );
   }
 
@@ -1942,7 +2162,12 @@ class _DayungMapPageState extends State<DayungMapPage> {
         rotateGesturesEnabled: true,
         tiltGesturesEnabled: false,
         minMaxZoomPreference: const ml.MinMaxZoomPreference(12, 20),
-        attributionButtonMargins: const Point(6, 6),
+        attributionButtonMargins:
+            MediaQuery.sizeOf(context).width < 600 &&
+                !_loadingLoc &&
+                !_permissionDenied
+            ? const Point(64, 16)
+            : const Point(6, 6),
         logoViewMargins: const Point(6, 6),
       ),
     );

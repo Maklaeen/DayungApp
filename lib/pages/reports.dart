@@ -1,5 +1,4 @@
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
-import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:capstone_app/shared/president_secretary_member_reports.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
@@ -695,110 +694,153 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Future<void> _showExportOptions() async {
-    final option = await showModalBottomSheet<_ReportExportOption>(
+    final option = await showDialog<_ReportExportOption>(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        final colors = Theme.of(context).colorScheme;
-        return SafeArea(
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
-              ),
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final colors = theme.colorScheme;
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 480,
+              maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.8,
             ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height * 0.8,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SecretarySheetHeader(
-                      title: 'Generate Report',
-                      subtitle: 'Choose a report to generate as a PDF.',
-                    ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.groups_rounded,
-                        color: colors.primary,
-                      ),
-                      title: const Text('Membership Activity'),
-                      onTap: () => Navigator.pop(
-                        context,
-                        _ReportExportOption.membershipActivity,
-                      ),
-                    ),
-                    if (_selectedIndividualMemberId != null)
-                      ListTile(
-                        leading: Icon(
-                          Icons.person_search_rounded,
-                          color: colors.primary,
-                        ),
-                        title: const Text('Individual Collection Report'),
-                        onTap: () => Navigator.pop(
-                          context,
-                          _ReportExportOption.individualCollection,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Export reports',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Choose what to include in the PDF.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 20),
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: Icon(Icons.groups_rounded, color: colors.primary),
+                    title: const Text('Membership Activity'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.pop(
+                      dialogContext,
+                      _ReportExportOption.membershipActivity,
+                    ),
+                  ),
+                  if (_selectedIndividualMemberId != null)
                     ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                       leading: Icon(
-                        Icons.assessment_rounded,
+                        Icons.person_search_rounded,
                         color: colors.primary,
                       ),
-                      title: const Text('Consolidated Collection Report'),
+                      title: const Text('Individual Collection Report'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => Navigator.pop(
-                        context,
-                        _ReportExportOption.consolidatedCollection,
+                        dialogContext,
+                        _ReportExportOption.individualCollection,
                       ),
                     ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.payments_rounded,
-                        color: colors.primary,
-                      ),
-                      title: const Text('Disbursement Activity'),
-                      onTap: () => Navigator.pop(
-                        context,
-                        _ReportExportOption.disbursementActivity,
-                      ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: Icon(
+                      Icons.assessment_rounded,
+                      color: colors.primary,
                     ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.account_balance_rounded,
-                        color: colors.primary,
-                      ),
-                      title: const Text(
-                        'Money Collected Per Collector (Monthly)',
-                      ),
-                      onTap: () => Navigator.pop(
-                        context,
-                        _ReportExportOption.moneyCollected,
-                      ),
+                    title: const Text('Consolidated Collection Report'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.pop(
+                      dialogContext,
+                      _ReportExportOption.consolidatedCollection,
                     ),
-                    ListTile(
-                      leading: Icon(
-                        Icons.person_add_alt_1_rounded,
-                        color: colors.primary,
-                      ),
-                      title: const Text('New Members Per Month'),
-                      onTap: () => Navigator.pop(
-                        context,
-                        _ReportExportOption.newMembers,
-                      ),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: Icon(
+                      Icons.payments_rounded,
+                      color: colors.primary,
                     ),
-                    ListTile(
-                      leading: Icon(Icons.print_rounded, color: colors.primary),
-                      title: const Text('All Reports'),
-                      onTap: () =>
-                          Navigator.pop(context, _ReportExportOption.all),
+                    title: const Text('Disbursement Activity'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.pop(
+                      dialogContext,
+                      _ReportExportOption.disbursementActivity,
                     ),
-                    const SizedBox(height: 12),
-                  ],
-                ),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: Icon(
+                      Icons.account_balance_rounded,
+                      color: colors.primary,
+                    ),
+                    title: const Text(
+                      'Money Collected Per Collector (Monthly)',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.pop(
+                      dialogContext,
+                      _ReportExportOption.moneyCollected,
+                    ),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: Icon(
+                      Icons.person_add_alt_1_rounded,
+                      color: colors.primary,
+                    ),
+                    title: const Text('New Members Per Month'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.pop(
+                      dialogContext,
+                      _ReportExportOption.newMembers,
+                    ),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: Icon(Icons.print_rounded, color: colors.primary),
+                    title: const Text('All reports'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () =>
+                        Navigator.pop(dialogContext, _ReportExportOption.all),
+                  ),
+                ],
               ),
             ),
           ),

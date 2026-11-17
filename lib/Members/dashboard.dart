@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:capstone_app/Members/gcash_payment_page.dart';
 import 'package:capstone_app/Members/memclaims.dart';
@@ -7,6 +8,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Secretary/service_tracker.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
@@ -46,6 +48,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   bool _handlingOverlay = false;
   bool _loadingPending = true;
   bool _loadingAdvancePayment = true;
+  bool _loadingRecentDeaths = true;
   bool _isBootstrapping = true;
   bool _loadingApplicationStatus = true;
   bool _hasAppliedBefore = false;
@@ -84,18 +87,21 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   Future<void> _bootstrapDashboard() async {
     try {
       await _reloadDayungFromPrefs();
-      await _loadUserData();
-      if (!mounted) return;
-      await Future.wait([
+    } finally {
+      if (mounted) setState(() => _isBootstrapping = false);
+    }
+
+    if (!mounted) return;
+    unawaited(_loadUserData());
+    unawaited(
+      Future.wait<void>([
         _fetchActiveMembers(),
         _fetchRecentDeaths(),
         _fetchPendingPayments(),
         _fetchAdvancePayment(),
         _fetchPendingApplication(),
-      ]);
-    } finally {
-      if (mounted) setState(() => _isBootstrapping = false);
-    }
+      ]).then<void>((_) {}),
+    );
   }
 
   void _maybeOnProviderUnitChanged(int? newUnitId) async {
@@ -516,6 +522,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   Future<void> _fetchRecentDeaths() async {
+    if (!mounted) return;
+    setState(() => _loadingRecentDeaths = true);
     try {
       final unitId = _asInt(_selectedDayungUnitObj?['id']);
       if (unitId == null) {
@@ -540,6 +548,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       }
     } catch (_) {
       _recentCertificates = [];
+    } finally {
+      if (mounted) {
+        setState(() => _loadingRecentDeaths = false);
+      }
     }
   }
 
@@ -686,6 +698,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   Widget _buildHomePage(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (_isBootstrapping) {
+          return const DayungPageSkeleton(
+            layout: DayungSkeletonLayout.dashboard,
+            padding: EdgeInsets.fromLTRB(24, 20, 24, 24),
+          );
+        }
+
         final horizontalPadding = constraints.maxWidth < 400 ? 16.0 : 24.0;
         return SingleChildScrollView(
           controller: _scrollController,
@@ -701,73 +720,52 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_isBootstrapping || _loadingApplicationStatus)
-                    _buildDashboardLoadingState()
-                  else ...[
-                    if (_hasPendingApplication)
-                      _buildPendingApplicationNotice(),
-                    if (!_hasAppliedBefore && !_hasPendingApplication)
-                      _buildNoApplicationNotice(),
-                    if (_hasPendingApplication || !_hasAppliedBefore)
-                      const SizedBox(height: 24),
-                    _overviewSection(),
+                  if (!_loadingApplicationStatus && _hasPendingApplication)
+                    _buildPendingApplicationNotice(),
+                  if (!_loadingApplicationStatus &&
+                      !_hasAppliedBefore &&
+                      !_hasPendingApplication)
+                    _buildNoApplicationNotice(),
+                  if (!_loadingApplicationStatus &&
+                      (_hasPendingApplication || !_hasAppliedBefore))
                     const SizedBox(height: 24),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (constraints.maxWidth < 760) {
-                          return Column(
-                            children: [
-                              _buildNextPaymentCard(false),
-                              const SizedBox(height: 12),
-                              _buildAdvancePaymentCard(),
-                            ],
-                          );
-                        }
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  _overviewSection(),
+                  const SizedBox(height: 24),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth < 760) {
+                        return Column(
+                          children: [
+                            _buildNextPaymentCard(false),
+                            const SizedBox(height: 12),
+                            _buildAdvancePaymentCard(),
+                          ],
+                        );
+                      }
+                      return IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Expanded(child: _buildNextPaymentCard(true)),
                             const SizedBox(width: 16),
-                            Expanded(child: _buildAdvancePaymentCard()),
+                            Expanded(
+                              child: _buildAdvancePaymentCard(isWide: true),
+                            ),
                           ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    _modernActionCards(),
-                    const SizedBox(height: 24),
-                    _modernRecentActivity(),
-                  ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _modernActionCards(),
+                  const SizedBox(height: 24),
+                  _modernRecentActivity(),
                 ],
               ),
             ),
           ),
         );
       },
-    );
-  }
-
-  Widget _buildDashboardLoadingState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: dayungSectionCardDecoration(context, radius: 16),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              'Loading your dashboard…',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1122,7 +1120,15 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             ),
           ),
           const SizedBox(height: 8),
-          if (display.isEmpty)
+          if (_loadingRecentDeaths)
+            Column(
+              children: [
+                _recentDeathsSkeletonLine(theme, 110),
+                const SizedBox(height: 8),
+                _recentDeathsSkeletonLine(theme, 78),
+              ],
+            )
+          else if (display.isEmpty)
             Text(
               'No recent notices',
               textAlign: TextAlign.center,
@@ -1148,6 +1154,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   .toList(),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _recentDeathsSkeletonLine(ThemeData theme, double width) {
+    return Container(
+      width: width,
+      height: 12,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
       ),
     );
   }
@@ -1367,7 +1384,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           },
           icon: const Icon(Icons.search_rounded),
           label: const Text('Find more Dayung units'),
-          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
         );
 
         return Container(
@@ -1783,7 +1800,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(isWide ? 24 : 20),
-      margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: dayungAccentSurface(
           context,
@@ -1876,7 +1892,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     );
   }
 
-  Widget _buildAdvancePaymentCard() {
+  Widget _buildAdvancePaymentCard({bool isWide = false}) {
     final amount = _loadingAdvancePayment
         ? 'Loading…'
         : '₱ ${_advancePaymentAmount.toStringAsFixed(2)}';
@@ -1885,7 +1901,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isWide ? 24 : 20),
       decoration: dayungAccentCardDecoration(
         context,
         accent: accent,

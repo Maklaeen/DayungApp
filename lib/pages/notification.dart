@@ -1813,7 +1813,10 @@ class _NotificationPageState extends State<NotificationPage> {
                               padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
                             )
                           : _items.isEmpty
-                          ? NotificationPage._emptyState(context: context, isWide: isWide)
+                          ? NotificationPage._emptyState(
+                              context: context,
+                              isWide: isWide,
+                            )
                           : isWide
                           ? Padding(
                               padding: const EdgeInsets.fromLTRB(

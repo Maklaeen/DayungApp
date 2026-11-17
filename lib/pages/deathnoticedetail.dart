@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:async';
-import 'package:capstone_app/Secretary/secretary_ui.dart';
+import 'package:capstone_app/shared/dayung_map_error_snackbar.dart';
+import 'package:capstone_app/shared/dayung_map_resize_handle.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geocoding/geocoding.dart';
@@ -135,12 +137,13 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   List<ll.LatLng> _webRoutePoints = [];
 
   StreamSubscription<Position>? _posSub;
-  final bool _autoFollow = true;
+  bool _autoFollow = true;
   double? _initialDistance;
   static const double _fadeRemoveThreshold = 40;
 
   bool _loading = false;
   String? _error;
+  double? _mapHeightOverride;
 
   @override
   void initState() {
@@ -436,19 +439,44 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     );
   }
 
-  void _zoomWebMap(double delta) {
-    if (!kIsWeb) return;
-    final camera = _webMapController.camera;
-    _webMapController.move(camera.center, camera.zoom + delta);
+  void _toggleFollow() {
+    if (_userLat == null || _userLng == null) return;
+    final shouldFollow = !_autoFollow;
+    setState(() => _autoFollow = shouldFollow);
+    if (shouldFollow) _centerOnUser();
+  }
+
+  void _stopFollowingOnMapGesture() {
+    if (!_autoFollow || !mounted) return;
+    setState(() => _autoFollow = false);
+  }
+
+  void _zoomMap(double delta) {
+    if (kIsWeb) {
+      final camera = _webMapController.camera;
+      _webMapController.move(camera.center, camera.zoom + delta);
+      return;
+    }
+    if (_mapController == null) return;
+    _mapController!.animateCamera(
+      delta > 0 ? ml.CameraUpdate.zoomIn() : ml.CameraUpdate.zoomOut(),
+    );
   }
 
   Widget _pillChip(String label, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: color.withValues(alpha: .55), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -471,8 +499,125 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   String _formatDistance(double m) {
     return m >= 1000
-        ? '${(m / 1000).toStringAsFixed(2)} km away'
-        : '${m.toStringAsFixed(0)} m away';
+        ? '${(m / 1000).toStringAsFixed(2)} km'
+        : '${m.toStringAsFixed(0)} m';
+  }
+
+  Widget _buildLocationStatusChip() {
+    if (_locPermissionDenied) {
+      return _pillChip(
+        'Location unavailable',
+        Icons.location_off_rounded,
+        const Color(0xFFDC2626),
+      );
+    }
+    if (_distanceMeters != null) {
+      return _pillChip(
+        _formatDistance(_distanceMeters!),
+        Icons.route_rounded,
+        const Color(0xFF0D47A1),
+      );
+    }
+    return _pillChip(
+      'Locating...',
+      Icons.gps_fixed_rounded,
+      const Color(0xFF0D47A1),
+    );
+  }
+
+  Widget _buildCompactMapControls() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _compactMapButton(
+            icon: Icons.route_rounded,
+            tooltip: 'Open route',
+            onTap: _openRouteInMaps,
+          ),
+          _compactMapButton(
+            icon: Icons.location_on_outlined,
+            tooltip: 'Center on vigil',
+            onTap: _centerOnVigil,
+          ),
+          if (_userLat != null && _userLng != null)
+            _compactMapButton(
+              icon: _autoFollow
+                  ? Icons.my_location_rounded
+                  : Icons.location_searching_rounded,
+              tooltip: _autoFollow ? 'Stop following' : 'Follow my location',
+              onTap: _toggleFollow,
+              selected: _autoFollow,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _compactMapButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    bool selected = false,
+  }) {
+    return IconButton(
+      onPressed: onTap,
+      tooltip: tooltip,
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      padding: EdgeInsets.zero,
+      icon: Icon(
+        icon,
+        color: selected ? const Color(0xFF0D47A1) : const Color(0xFF475569),
+        size: 21,
+      ),
+    );
+  }
+
+  Widget _buildDesktopMapControls() {
+    return Column(
+      children: [
+        _MapIconBtn(
+          tooltip: 'Zoom in',
+          icon: Icons.zoom_in_rounded,
+          onTap: () => _zoomMap(1),
+        ),
+        const SizedBox(height: 8),
+        _MapIconBtn(
+          tooltip: 'Zoom out',
+          icon: Icons.zoom_out_rounded,
+          onTap: () => _zoomMap(-1),
+        ),
+        const SizedBox(height: 8),
+        _MapIconBtn(
+          tooltip: 'Center on vigil',
+          icon: Icons.location_on_outlined,
+          onTap: _centerOnVigil,
+        ),
+        if (_userLat != null && _userLng != null) ...[
+          const SizedBox(height: 8),
+          _MapIconBtn(
+            tooltip: _autoFollow ? 'Stop following' : 'Follow my location',
+            icon: _autoFollow
+                ? Icons.my_location_rounded
+                : Icons.location_searching_rounded,
+            onTap: _toggleFollow,
+          ),
+        ],
+      ],
+    );
   }
 
   Future<Map<String, dynamic>?> _fetchNoticeRecord({
@@ -768,57 +913,10 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }
 
   Widget _buildLocationWarningCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF4F2),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFF7C9C4)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFE0DC),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.location_off_rounded,
-              color: Color(0xFFD84C3F),
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Location unavailable',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF7A1F16),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _locationWarning ?? _missingLocationMessage,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: Color(0xFFA3362B),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return DayungMapErrorCard(
+      title: 'Location unavailable',
+      message: _locationWarning ?? _missingLocationMessage,
+      icon: Icons.location_off_rounded,
     );
   }
 
@@ -826,7 +924,15 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.sizeOf(context);
     final screenHeight = screenSize.height;
-    final mapHeight = screenSize.width >= 720 ? 360.0 : 240.0;
+    final isWide = screenSize.width >= 720;
+    final compactMapControls = screenSize.width < 600;
+    final defaultMapHeight = (screenHeight * (isWide ? 0.58 : 0.40))
+        .clamp(isWide ? 360.0 : 240.0, isWide ? 560.0 : 440.0)
+        .toDouble();
+    final maxMapHeight = (screenHeight * 0.65).clamp(280.0, 700.0).toDouble();
+    final mapHeight = (_mapHeightOverride ?? defaultMapHeight)
+        .clamp(200.0, maxMapHeight)
+        .toDouble();
     final detailHeight = screenHeight * (screenSize.width >= 720 ? 0.9 : 0.75);
     final name = (_fName ?? '').trim().isEmpty ? 'Unknown' : _fName!.trim();
     final dDate = _fDateOfDeath;
@@ -850,11 +956,48 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
           style: const TextStyle(decoration: TextDecoration.none),
           child: Column(
             children: [
-              const SecretaryPageHeader(
-                title: 'Vigil Details',
-                subtitle: 'Location and remembrance details',
-                icon: Icons.location_on_rounded,
-                usePaymentStyle: true,
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Vigil Details',
+                            style: TextStyle(
+                              color: Color(0xFF0F172A),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Location and remembrance details',
+                            style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close details',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: const Color(0xFF475569),
+                      ),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
               ),
               // Content
               Expanded(
@@ -981,161 +1124,99 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                                   borderRadius: BorderRadius.circular(20),
                                   child: Stack(
                                     children: [
-                                      _buildModernMap(
-                                        _fLat!,
-                                        _fLng!,
-                                        mapHeight: mapHeight,
+                                      Listener(
+                                        behavior: HitTestBehavior.translucent,
+                                        onPointerMove: (_) =>
+                                            _stopFollowingOnMapGesture(),
+                                        child: _buildModernMap(
+                                          _fLat!,
+                                          _fLng!,
+                                          mapHeight: mapHeight,
+                                        ),
                                       ),
-                                      // ml.MapLibreMap(
-                                      //   key: ValueKey('map_${_fLat}_$_fLng'),
-                                      //   styleString:
-                                      //       'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
-                                      //   initialCameraPosition: ml.CameraPosition(
-                                      //     target: ml.LatLng(_fLat!, _fLng!),
-                                      //     zoom: 16,
-                                      //   ),
-                                      //   onMapCreated: _onMapCreated,
-                                      //   onStyleLoadedCallback: _onStyleLoaded,
-                                      //   myLocationEnabled: false,
-                                      //   rotateGesturesEnabled: true,
-                                      //   tiltGesturesEnabled: false,
-                                      //   compassEnabled: false,
-                                      //   attributionButtonMargins: const Point(
-                                      //     6,
-                                      //     6,
-                                      //   ),
-                                      //   logoViewMargins: const Point(6, 6),
-                                      // ),
-                                      if (_autoFollow)
+                                      if (compactMapControls)
                                         Positioned(
-                                          top: 16,
-                                          left: 16,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 7,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.65,
+                                          left: 12,
+                                          right: 12,
+                                          bottom: 40,
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Align(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child:
+                                                      _buildLocationStatusChip(),
+                                                ),
                                               ),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: const [
-                                                Icon(
-                                                  Icons.center_focus_strong,
-                                                  color: Colors.white,
-                                                  size: 18,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text(
-                                                  'Following',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13.5,
-                                                    letterSpacing: 0.2,
+                                              const SizedBox(width: 8),
+                                              _buildCompactMapControls(),
+                                            ],
+                                          ),
+                                        )
+                                      else ...[
+                                        Positioned(
+                                          top: 12,
+                                          right: 12,
+                                          child: _buildDesktopMapControls(),
+                                        ),
+                                        Positioned(
+                                          left: 12,
+                                          bottom: 40,
+                                          child: _buildLocationStatusChip(),
+                                        ),
+                                        Positioned(
+                                          right: 12,
+                                          bottom: 40,
+                                          child: ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.white,
+                                              foregroundColor: const Color(
+                                                0xFF0D47A1,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12,
                                                   ),
-                                                ),
-                                              ],
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              elevation: 3,
+                                            ),
+                                            onPressed: _openRouteInMaps,
+                                            icon: const Icon(
+                                              Icons.route_rounded,
+                                              size: 20,
+                                            ),
+                                            label: const Text(
+                                              'Route',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                              ),
                                             ),
                                           ),
                                         ),
+                                      ],
                                       Positioned(
-                                        left: 12,
-                                        bottom: 12,
-                                        child: _locPermissionDenied
-                                            ? _pillChip(
-                                                'Location denied',
-                                                Icons.location_off,
-                                                Colors.red,
-                                              )
-                                            : (_distanceMeters != null
-                                                  ? _pillChip(
-                                                      _formatDistance(
-                                                        _distanceMeters!,
-                                                      ),
-                                                      Icons.route,
-                                                      const Color(0xFF0D47A1),
-                                                    )
-                                                  : _pillChip(
-                                                      'Locating...',
-                                                      Icons.gps_fixed,
-                                                      const Color(0xFF0D47A1),
-                                                    )),
-                                      ),
-                                      // Route button
-                                      Positioned(
-                                        right: 12,
-                                        bottom: 12,
-                                        child: ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.white,
-                                            foregroundColor: const Color(
-                                              0xFF0D47A1,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 14,
-                                              vertical: 8,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                          ),
-                                          onPressed: _openRouteInMaps,
-                                          icon: const Icon(
-                                            Icons.directions,
-                                            size: 18,
-                                          ),
-                                          label: const Text(
-                                            'Route',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: DayungMapResizeHandle(
+                                          onResize: (deltaY) {
+                                            setState(() {
+                                              _mapHeightOverride =
+                                                  (mapHeight + deltaY)
+                                                      .clamp(
+                                                        200.0,
+                                                        maxMapHeight,
+                                                      )
+                                                      .toDouble();
+                                            });
+                                          },
                                         ),
                                       ),
-                                      // Center buttons (vigil + user)
-                                      // Positioned(
-                                      //   right: 12,
-                                      //   top: 12,
-                                      //   child: Column(
-                                      //     children: [
-                                      //       _CenterBtn(
-                                      //         tooltip: 'Center on vigil',
-                                      //         icon: Icons.location_on,
-                                      //         enabled:
-                                      //             _fLat != null && _fLng != null,
-                                      //         onTap: _centerOnVigil,
-                                      //       ),
-                                      //       const SizedBox(height: 10),
-                                      //       _CenterBtn(
-                                      //         tooltip: 'Center on you',
-                                      //         icon: Icons.my_location,
-                                      //         enabled:
-                                      //             _userLat != null &&
-                                      //             _userLng != null,
-                                      //         onTap: _centerOnUser,
-                                      //       ),
-                                      //       const SizedBox(height: 10),
-                                      //       _CenterBtn(
-                                      //         tooltip: _autoFollow
-                                      //             ? 'Disable follow'
-                                      //             : 'Enable follow',
-                                      //         icon: _autoFollow
-                                      //             ? Icons.center_focus_strong
-                                      //             : Icons.center_focus_weak,
-                                      //         enabled: true,
-                                      //         onTap: _toggleFollow,
-                                      //       ),
-                                      //     ],
-                                      //   ),
-                                      // ),
                                     ],
                                   ),
                                 ),
@@ -1185,166 +1266,127 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   Widget _buildModernMap(double lat, double lng, {required double mapHeight}) {
     if (kIsWeb) {
-      return Stack(
-        children: [
-          SizedBox(
-            height: mapHeight,
-            child: FlutterMap(
-              mapController: _webMapController,
-              options: MapOptions(
-                initialCenter: ll.LatLng(lat, lng),
-                initialZoom: 15,
-                minZoom: 12,
-                maxZoom: 20,
-                interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+      return SizedBox(
+        height: mapHeight,
+        child: FlutterMap(
+          mapController: _webMapController,
+          options: MapOptions(
+            initialCenter: ll.LatLng(lat, lng),
+            initialZoom: 15,
+            minZoom: 12,
+            maxZoom: 20,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+            ),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'capstone_app',
+            ),
+            CircleLayer(
+              circles: [
+                CircleMarker(
+                  point: ll.LatLng(lat, lng),
+                  radius: 26,
+                  color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                  borderColor: const Color(0xFF10B981),
+                  borderStrokeWidth: 2,
                 ),
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'capstone_app',
-                ),
-                CircleLayer(
-                  circles: [
-                    CircleMarker(
-                      point: ll.LatLng(lat, lng),
-                      radius: 26,
-                      color: const Color(0xFF10B981).withValues(alpha: 0.2),
-                      borderColor: const Color(0xFF10B981),
-                      borderStrokeWidth: 2,
-                    ),
-                    if (_userLat != null && _userLng != null)
-                      CircleMarker(
-                        point: ll.LatLng(_userLat!, _userLng!),
-                        radius: 10,
-                        color: const Color(0xFF3B82F6),
-                        borderColor: Colors.white,
-                        borderStrokeWidth: 2,
-                      ),
-                  ],
-                ),
-                if (_webRoutePoints.length >= 2)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: _webRoutePoints,
-                        color: const Color(0xFF3B82F6),
-                        strokeWidth: 4,
-                      ),
-                    ],
+                if (_userLat != null && _userLng != null)
+                  CircleMarker(
+                    point: ll.LatLng(_userLat!, _userLng!),
+                    radius: 10,
+                    color: const Color(0xFF3B82F6),
+                    borderColor: Colors.white,
+                    borderStrokeWidth: 2,
                   ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: ll.LatLng(lat, lng),
-                      width: 52,
-                      height: 52,
+              ],
+            ),
+            if (_webRoutePoints.length >= 2)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: _webRoutePoints,
+                    color: const Color(0xFF3B82F6),
+                    strokeWidth: 4,
+                  ),
+                ],
+              ),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: ll.LatLng(lat, lng),
+                  width: 52,
+                  height: 52,
+                  child: const Icon(
+                    Icons.location_on_rounded,
+                    color: Color(0xFF10B981),
+                    size: 42,
+                  ),
+                ),
+                if (_userLat != null && _userLng != null)
+                  Marker(
+                    point: ll.LatLng(_userLat!, _userLng!),
+                    width: 34,
+                    height: 34,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
                       child: const Icon(
-                        Icons.location_on_rounded,
-                        color: Color(0xFF10B981),
-                        size: 42,
+                        Icons.my_location_rounded,
+                        color: Color(0xFF3B82F6),
+                        size: 20,
                       ),
                     ),
-                    if (_userLat != null && _userLng != null)
-                      Marker(
-                        point: ll.LatLng(_userLat!, _userLng!),
-                        width: 34,
-                        height: 34,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.my_location_rounded,
-                            color: Color(0xFF3B82F6),
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const RichAttributionWidget(
-                  alignment: AttributionAlignment.bottomLeft,
-                  showFlutterMapAttribution: false,
-                  attributions: [
-                    TextSourceAttribution('OpenStreetMap contributors'),
-                  ],
-                ),
+                  ),
               ],
             ),
-          ),
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Column(
-              children: [
-                _MapIconBtn(icon: Icons.zoom_in, onTap: () => _zoomWebMap(1)),
-                const SizedBox(height: 8),
-                _MapIconBtn(icon: Icons.zoom_out, onTap: () => _zoomWebMap(-1)),
-                const SizedBox(height: 8),
-                _MapIconBtn(icon: Icons.my_location, onTap: _centerOnUser),
-                const SizedBox(height: 8),
-                _MapIconBtn(icon: Icons.location_on, onTap: _centerOnVigil),
+            const RichAttributionWidget(
+              alignment: AttributionAlignment.bottomRight,
+              showFlutterMapAttribution: false,
+              attributions: [
+                TextSourceAttribution('OpenStreetMap contributors'),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       );
     }
-    return Stack(
-      children: [
-        SizedBox(
-          height: mapHeight,
-          child: ml.MapLibreMap(
-            styleString:
-                'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',
-            initialCameraPosition: ml.CameraPosition(
-              target: ml.LatLng(lat, lng),
-              zoom: 16,
-            ),
-            onMapCreated: (controller) async {
-              _mapController = controller;
-              await _onMapCreated(controller);
-            },
-            onStyleLoadedCallback: _onStyleLoaded,
-            myLocationEnabled: false,
-            compassEnabled: false,
-            rotateGesturesEnabled: true,
-            tiltGesturesEnabled: false,
-            minMaxZoomPreference: const ml.MinMaxZoomPreference(12, 20),
-            attributionButtonMargins: const Point(6, 6),
-            logoViewMargins: const Point(6, 6),
-            // Pinch and double-tap zoom are enabled by default
-          ),
+    final compactMapControls = MediaQuery.sizeOf(context).width < 600;
+    return SizedBox(
+      height: mapHeight,
+      child: ml.MapLibreMap(
+        styleString:
+            'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',
+        initialCameraPosition: ml.CameraPosition(
+          target: ml.LatLng(lat, lng),
+          zoom: 16,
         ),
-        // Overlay controls
-        Positioned(
-          top: 12,
-          right: 12,
-          child: Column(
-            children: [
-              _MapIconBtn(
-                icon: Icons.zoom_in,
-                onTap: () =>
-                    _mapController?.animateCamera(ml.CameraUpdate.zoomIn()),
-              ),
-              const SizedBox(height: 8),
-              _MapIconBtn(
-                icon: Icons.zoom_out,
-                onTap: () =>
-                    _mapController?.animateCamera(ml.CameraUpdate.zoomOut()),
-              ),
-              const SizedBox(height: 8),
-              _MapIconBtn(icon: Icons.my_location, onTap: _centerOnUser),
-              const SizedBox(height: 8),
-              _MapIconBtn(icon: Icons.location_on, onTap: _centerOnVigil),
-            ],
-          ),
-        ),
-      ],
+        onMapCreated: (controller) async {
+          _mapController = controller;
+          await _onMapCreated(controller);
+        },
+        onStyleLoadedCallback: _onStyleLoaded,
+        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+          Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+        },
+        myLocationEnabled: false,
+        compassEnabled: false,
+        dragEnabled: true,
+        scrollGesturesEnabled: true,
+        rotateGesturesEnabled: true,
+        tiltGesturesEnabled: false,
+        zoomGesturesEnabled: true,
+        minMaxZoomPreference: const ml.MinMaxZoomPreference(12, 20),
+        attributionButtonMargins: compactMapControls
+            ? const Point(64, 40)
+            : const Point(6, 6),
+        logoViewMargins: const Point(6, 6),
+      ),
     );
   }
 
@@ -1440,21 +1482,30 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
 class _MapIconBtn extends StatelessWidget {
   final IconData icon;
+  final String tooltip;
   final VoidCallback onTap;
-  const _MapIconBtn({required this.icon, required this.onTap});
+  const _MapIconBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 38,
-          height: 38,
-          child: Icon(icon, size: 20, color: Colors.black87),
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white,
+        shape: const CircleBorder(),
+        elevation: 2,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(icon, size: 21, color: const Color(0xFF1E40AF)),
+          ),
         ),
       ),
     );

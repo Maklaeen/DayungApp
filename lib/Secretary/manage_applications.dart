@@ -1323,6 +1323,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
   // New: open tracking sheet for a user
   Future<void> _openUserTracking({
+    required Map<String, dynamic> application,
     required String userId,
     required String userName,
     required int dayungUnitId,
@@ -1345,7 +1346,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             future: () async {
               final userFuture = _supabase
                   .from('users')
-                  .select('full_name, sex, dob, mobile_number, address')
+                  .select('full_name, email, sex, dob, mobile_number, address')
                   .eq('id', userId)
                   .single()
                   .catchError((_) => {});
@@ -1425,10 +1426,20 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               double progress = completed / total;
 
               final fullName = (user['full_name'] ?? userName ?? '').toString();
+              final email = (user['email'] ?? '').toString();
               final sex = (user['sex'] ?? '').toString();
               final dob = (user['dob'] ?? '').toString();
               final mobile = (user['mobile_number'] ?? '').toString();
               final address = (user['address'] ?? '').toString();
+              final applicationStatus = (application['status'] ?? '')
+                  .toString();
+              final statusLabel = applicationStatus.isEmpty
+                  ? 'Unknown'
+                  : '${applicationStatus[0].toUpperCase()}${applicationStatus.substring(1)}';
+              final rejectionReason = (application['rejection_reason'] ?? '')
+                  .toString()
+                  .trim();
+              final isRejected = applicationStatus == 'rejected';
 
               return Column(
                 children: [
@@ -1465,12 +1476,14 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                               onPressed: () => Navigator.pop(ctx),
                             ),
                             const SizedBox(width: 8),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Review Application',
+                                    applicationStatus == 'pending'
+                                        ? 'Review Application'
+                                        : 'Application Details',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w900,
@@ -1480,7 +1493,9 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    'Check applicant details and uploaded requirements before deciding.',
+                                    applicationStatus == 'pending'
+                                        ? 'Check applicant details and uploaded requirements before deciding.'
+                                        : 'Review the submitted details and application status.',
                                     style: TextStyle(
                                       color: Colors.white70,
                                       fontWeight: FontWeight.w600,
@@ -1547,6 +1562,10 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                             : 'No mobile',
                                       ),
                                       _sheetDetailRow(
+                                        Icons.email_rounded,
+                                        email.isNotEmpty ? email : 'No email',
+                                      ),
+                                      _sheetDetailRow(
                                         Icons.cake_rounded,
                                         dob.isNotEmpty ? dob : 'No birthday',
                                       ),
@@ -1562,6 +1581,135 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                       ),
                                     ],
                                   ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: kBorderColor),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Text(
+                                        'Application Details',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: kText,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _statusColor(
+                                          applicationStatus,
+                                        ).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        statusLabel,
+                                        style: TextStyle(
+                                          color: _statusColor(
+                                            applicationStatus,
+                                          ),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                _sheetDetailRow(
+                                  Icons.event_available_rounded,
+                                  'Applied: ${_formatAppliedDate(application['applied_at'])}',
+                                ),
+                                if (isRejected) ...[
+                                  _sheetDetailRow(
+                                    Icons.event_busy_rounded,
+                                    'Rejected on: ${_formatRejectionDate(application['rejection_date'])}',
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF5F5),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: kDanger.withValues(alpha: 0.2),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Rejection reason',
+                                          style: TextStyle(
+                                            color: kDanger,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        SelectableText(
+                                          rejectionReason.isEmpty
+                                              ? 'No reason recorded'
+                                              : rejectionReason,
+                                          style: const TextStyle(
+                                            color: kText,
+                                            fontSize: 14,
+                                            height: 1.45,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 8),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.fact_check_rounded,
+                                      size: 16,
+                                      color: kSubText,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Qualification:',
+                                      style: TextStyle(
+                                        color: kSubText,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _qualificationStatus(
+                                        userId,
+                                        dayungUnitId,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -1721,61 +1869,65 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                 ? () => _openCertificateViewer(marriageUrl)
                                 : null,
                           ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    color: kDanger,
-                                  ),
-                                  label: const Text(
-                                    'Reject',
-                                    style: TextStyle(color: kDanger),
-                                  ),
-                                  onPressed: () {
-                                    Navigator.pop(ctx);
-                                    if (applicationId != null) {
-                                      _reject(applicationId);
-                                    }
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size.fromHeight(48),
-                                    side: const BorderSide(color: kDanger),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                          if (applicationStatus == 'pending') ...[
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      color: kDanger,
+                                    ),
+                                    label: const Text(
+                                      'Reject',
+                                      style: TextStyle(color: kDanger),
+                                    ),
+                                    onPressed: () {
+                                      Navigator.pop(ctx);
+                                      if (applicationId != null) {
+                                        _reject(applicationId);
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(48),
+                                      side: const BorderSide(color: kDanger),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: FilledButton.icon(
-                                  icon: const Icon(Icons.check_circle_rounded),
-                                  label: const Text('Approve'),
-                                  onPressed: () {
-                                    Navigator.pop(ctx);
-                                    if (applicationId != null) {
-                                      _approve(
-                                        applicationId,
-                                        deceasedElsewhere: _deceasedUserIds
-                                            .contains(userId),
-                                      );
-                                    }
-                                  },
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: kSuccess,
-                                    foregroundColor: Colors.white,
-                                    minimumSize: const Size.fromHeight(48),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    icon: const Icon(
+                                      Icons.check_circle_rounded,
+                                    ),
+                                    label: const Text('Approve'),
+                                    onPressed: () {
+                                      Navigator.pop(ctx);
+                                      if (applicationId != null) {
+                                        _approve(
+                                          applicationId,
+                                          deceasedElsewhere: _deceasedUserIds
+                                              .contains(userId),
+                                        );
+                                      }
+                                    },
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: kSuccess,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size.fromHeight(48),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -2139,6 +2291,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () => _openUserTracking(
+                application: app,
                 userId: userId,
                 userName: userName,
                 dayungUnitId: dayungUnitId,
@@ -2146,7 +2299,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               ),
               icon: const Icon(Icons.visibility_rounded, size: 18),
               label: Text(
-                status == 'pending' ? 'Review application' : 'View details',
+                status == 'pending'
+                    ? 'Review application'
+                    : status == 'rejected'
+                    ? 'Review details'
+                    : 'View details',
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: kPrimary,
@@ -2291,6 +2448,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           children: [
             FilledButton.icon(
               onPressed: () => _openUserTracking(
+                application: app,
                 userId: userId,
                 userName: userName,
                 dayungUnitId: dayungUnitId,
@@ -2298,7 +2456,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               ),
               icon: const Icon(Icons.visibility_rounded, size: 18),
               label: Text(
-                status == 'pending' ? 'Review application' : 'View details',
+                status == 'pending'
+                    ? 'Review application'
+                    : status == 'rejected'
+                    ? 'Review details'
+                    : 'View details',
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: kPrimary,

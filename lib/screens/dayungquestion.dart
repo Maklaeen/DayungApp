@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:capstone_app/screens/dayung_map_page.dart';
+import 'package:capstone_app/shared/dayung_map_error_snackbar.dart';
 import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/utils/dayung_service_tags.dart';
 import 'package:capstone_app/utils/dayung_similarity.dart';
@@ -12,7 +13,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
+import 'package:flutter/foundation.dart' show Factory, kDebugMode, kIsWeb;
+import 'package:flutter/gestures.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -377,7 +379,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   @override
   Widget build(BuildContext context) {
     if (!widget.showPreferences) {
-      return Scaffold(backgroundColor: Theme.of(context).scaffoldBackgroundColor, body: SizedBox.shrink());
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: SizedBox.shrink(),
+      );
     }
 
     final width = MediaQuery.of(context).size.width;
@@ -1018,12 +1023,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                             final lng = unit['longitude'] as double?;
                             if (lat == null || lng == null) {
                               if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'No location set for this Dayung.',
-                                  ),
-                                ),
+                              showDayungMapErrorSnackBar(
+                                context,
+                                title: 'Location unavailable',
+                                message: 'No location set for this Dayung.',
+                                icon: Icons.location_off_rounded,
                               );
                               return;
                             }
@@ -1235,13 +1239,13 @@ class DayungMapPreview extends StatelessWidget {
       return SizedBox(
         height: 120,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
           child: FlutterMap(
             options: MapOptions(
               initialCenter: ll.LatLng(latitude, longitude),
               initialZoom: 14,
               interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.none,
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
             ),
             children: [
@@ -1256,9 +1260,9 @@ class DayungMapPreview extends StatelessWidget {
                     width: 36,
                     height: 36,
                     child: const Icon(
-                      Icons.location_on,
-                      color: Colors.redAccent,
-                      size: 28,
+                      Icons.location_on_rounded,
+                      color: kAccent,
+                      size: 32,
                     ),
                   ),
                 ],
@@ -1272,9 +1276,10 @@ class DayungMapPreview extends StatelessWidget {
     return SizedBox(
       height: 120,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         child: ml.MapLibreMap(
-          styleString: 'https://demotiles.maplibre.org/style.json',
+          styleString:
+              'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',
           initialCameraPosition: ml.CameraPosition(
             target: ml.LatLng(latitude, longitude),
             zoom: 14,
@@ -1289,12 +1294,16 @@ class DayungMapPreview extends StatelessWidget {
               ),
             );
           },
+          gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+            Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+          },
           myLocationEnabled: false,
           compassEnabled: false,
+          dragEnabled: true,
+          scrollGesturesEnabled: true,
           rotateGesturesEnabled: false,
           tiltGesturesEnabled: false,
-          scrollGesturesEnabled: false,
-          zoomGesturesEnabled: false,
+          zoomGesturesEnabled: true,
           attributionButtonMargins: const Point(8, 8),
           logoViewMargins: const Point(8, 8),
         ),

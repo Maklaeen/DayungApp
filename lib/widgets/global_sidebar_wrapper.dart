@@ -734,11 +734,13 @@ class _SidebarButton extends StatelessWidget {
                     child: Text(
                       label,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w600,
-                        color: selected ? color : theme.colorScheme.onSurface,
-                      ),
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                color: selected
+                                    ? color
+                                    : theme.colorScheme.onSurface,
+                              ),
                     ),
                   ),
                   if (badgeCount > 0)
