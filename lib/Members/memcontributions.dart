@@ -48,6 +48,8 @@ class _MembersContributionHistoryState
   // ignore: unused_field
   final bool _loading = false;
   List<Map<String, dynamic>> _paidContributions = [];
+  String _selectedStatus = 'all';
+  String? _contributionError;
   bool _loadingPaid = true;
 
   void _setStateSafe(VoidCallback fn) {
@@ -83,11 +85,12 @@ class _MembersContributionHistoryState
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
-    _notifChannel = Supabase.instance.client.channel(
+    final channel = Supabase.instance.client.channel(
       'member_contrib_notifications_$userId',
     );
+    _notifChannel = channel;
 
-    _notifChannel!.onPostgresChanges(
+    channel.onPostgresChanges(
       event: PostgresChangeEvent.insert,
       schema: 'public',
       table: 'notifications',
@@ -106,7 +109,7 @@ class _MembersContributionHistoryState
       },
     );
 
-    _notifChannel!.subscribe();
+    channel.subscribe();
   }
 
   void _showNotificationModal(String title, String body) {
@@ -221,13 +224,17 @@ class _MembersContributionHistoryState
   }
 
   Future<void> _fetchPaidContributions() async {
-    _setStateSafe(() => _loadingPaid = true);
+    _setStateSafe(() {
+      _loadingPaid = true;
+      _contributionError = null;
+    });
     final supabase = Supabase.instance.client;
     try {
       final uid = supabase.auth.currentUser?.id;
       if (uid == null) {
         _setStateSafe(() {
           _paidContributions = [];
+          _contributionError = null;
           _loadingPaid = false;
         });
         return;
@@ -243,18 +250,19 @@ class _MembersContributionHistoryState
             'id, amount, status, created_at, dayung_unit_id, userdeceased',
           )
           .eq('user_id', uid)
-          .eq('status', 'paid');
+          .inFilter('status', ['paid', 'unpaid', 'pending']);
 
       q = q.eq('dayung_unit_id', dayungId);
 
       final payments = List<Map<String, dynamic>>.from(
         await q.order('created_at', ascending: false),
       );
-      debugPrint('Paid contributions fetched: ${payments.length}');
+      debugPrint('Contributions fetched: ${payments.length}');
 
       if (payments.isEmpty) {
         _setStateSafe(() {
           _paidContributions = [];
+          _contributionError = null;
           _loadingPaid = false;
         });
         return;
@@ -280,27 +288,7 @@ class _MembersContributionHistoryState
         }
       }
 
-      final noticeIds = payments
-          .map((p) => p['death_notice_id'])
-          .where((id) => id != null)
-          .cast<int>()
-          .toSet()
-          .toList();
-
-      Map<String, Map<String, dynamic>> noticeById = {};
-      if (noticeIds.isNotEmpty) {
-        final notices = List<Map<String, dynamic>>.from(
-          await supabase
-              .from('death_notices')
-              .select('id, name, date_of_death')
-              .inFilter('id', noticeIds),
-        );
-        noticeById = {for (final n in notices) n['id'].toString(): n};
-      }
-
       final merged = payments.map((p) {
-        final nid = p['death_notice_id']?.toString();
-        final n = nid != null ? noticeById[nid] : null;
         final userDeceasedId = p['userdeceased']?.toString();
         final userDeceasedName =
             (userDeceasedId != null &&
@@ -312,18 +300,23 @@ class _MembersContributionHistoryState
           'amount': (p['amount'] is num)
               ? (p['amount'] as num).toDouble()
               : double.tryParse('${p['amount']}') ?? 0.0,
-          'date_of_death': n?['date_of_death'],
           'userdeceased': userDeceasedName,
+          'status': (p['status'] ?? '').toString().toLowerCase() == 'paid'
+              ? 'paid'
+              : 'unpaid',
         };
       }).toList();
 
       _setStateSafe(() {
         _paidContributions = merged;
+        _contributionError = null;
         _loadingPaid = false;
       });
-    } catch (_) {
+    } catch (error) {
+      debugPrint('Failed to fetch member contributions: $error');
       _setStateSafe(() {
         _paidContributions = [];
+        _contributionError = 'Unable to load contributions. Please try again.';
         _loadingPaid = false;
       });
     }
@@ -338,6 +331,14 @@ class _MembersContributionHistoryState
 
   @override
   Widget build(BuildContext context) {
+    final visibleContributions = _paidContributions
+        .where(
+          (contribution) =>
+              _selectedStatus == 'all' ||
+              contribution['status'] == _selectedStatus,
+        )
+        .toList();
+
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
       // appBar: AppBar(
@@ -403,41 +404,6 @@ class _MembersContributionHistoryState
                   ),
                 ),
               )
-            : _paidContributions.isEmpty
-            ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 60, 16, 32),
-                children: [
-                  Icon(
-                    Icons.receipt_long,
-                    size: 60,
-                    color: kSubtleText.withValues(alpha: .35),
-                  ),
-                  const SizedBox(height: 18),
-                  const Center(
-                    child: Text(
-                      'No paid contributions yet.',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: kSubtleText,
-                        fontFamily: 'OpenSans',
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: Text(
-                      'Your paid contributions will appear here.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: kSubText.withValues(alpha: .75),
-                        fontFamily: 'OpenSans',
-                      ),
-                    ),
-                  ),
-                ],
-              )
             : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
@@ -445,58 +411,144 @@ class _MembersContributionHistoryState
                   vertical: 16,
                 ),
                 children: [
-                  RecordDataTable(
-                    minWidth: 640,
-                    columns: const [
-                      DataColumn(label: Text('Amount')),
-                      DataColumn(label: Text('For deceased')),
-                      DataColumn(label: Text('Status')),
-                      DataColumn(label: Text('Date')),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final option in const [
+                        ('all', 'All'),
+                        ('paid', 'Paid'),
+                        ('unpaid', 'Unpaid'),
+                      ])
+                        ChoiceChip(
+                          label: Text(option.$2),
+                          selected: _selectedStatus == option.$1,
+                          onSelected: (_) {
+                            setState(() => _selectedStatus = option.$1);
+                          },
+                        ),
                     ],
-                    rows: _paidContributions.map((contrib) {
-                      final amount = contrib['amount'] ?? 0.0;
-                      final userDeceasedId =
-                          contrib['userdeceased'] ?? 'Unknown';
-                      final date = _fmtDate(contrib['date'] ?? '');
+                  ),
+                  const SizedBox(height: 12),
+                  if (_contributionError != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 40, 0, 24),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: kDanger,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _contributionError!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: kDanger,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _fetchPaidContributions,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (visibleContributions.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 40, 0, 24),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.receipt_long,
+                            size: 60,
+                            color: kSubtleText.withValues(alpha: .35),
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            _selectedStatus == 'all'
+                                ? 'No contributions yet.'
+                                : 'No $_selectedStatus contributions yet.',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: kSubtleText,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            _selectedStatus == 'all'
+                                ? 'Your contributions will appear here.'
+                                : 'Your $_selectedStatus contributions will appear here.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: kSubText.withValues(alpha: .75),
+                              fontFamily: 'OpenSans',
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    RecordDataTable(
+                      minWidth: 640,
+                      columns: const [
+                        DataColumn(label: Text('Amount')),
+                        DataColumn(label: Text('For deceased')),
+                        DataColumn(label: Text('Status')),
+                        DataColumn(label: Text('Date')),
+                      ],
+                      rows: visibleContributions.map((contrib) {
+                        final amount = contrib['amount'] ?? 0.0;
+                        final userDeceasedId =
+                            contrib['userdeceased'] ?? 'Unknown';
+                        final date = _fmtDate(contrib['date'] ?? '');
+                        final isPaid = contrib['status'] == 'paid';
+                        final statusColor = isPaid ? kAccent : kWarn;
 
-                      return DataRow(
-                        cells: [
-                          DataCell(
-                            Text(
-                              '₱${amount.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontWeight: FontWeight.bold,
-                                color: kText,
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Text(
+                                '₱${amount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontWeight: FontWeight.bold,
+                                  color: kText,
+                                ),
                               ),
                             ),
-                          ),
-                          DataCell(Text('For: $userDeceasedId')),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.check_circle,
-                                  color: kAccent,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Paid',
-                                  style: TextStyle(
-                                    color: kAccent,
-                                    fontWeight: FontWeight.w600,
+                            DataCell(Text('For: $userDeceasedId')),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isPaid ? Icons.check_circle : Icons.pending,
+                                    color: statusColor,
+                                    size: 20,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    isPaid ? 'Paid' : 'Unpaid',
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          DataCell(Text(date)),
-                        ],
-                      );
-                    }).toList(),
-                  ),
+                            DataCell(Text(date)),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                 ],
               ),
       ),

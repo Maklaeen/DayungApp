@@ -9,6 +9,7 @@ import 'package:capstone_app/Secretary/manage_applications.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
 import 'package:capstone_app/Secretary/service_tracker.dart';
+import 'package:capstone_app/President/manage_rules.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/pages/reports.dart';
@@ -1440,6 +1441,26 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: cardHeight,
+                  child: _modernActionCard(
+                    icon: Icons.rule_rounded,
+                    title: 'Manage User Preferences',
+                    color: Theme.of(context).colorScheme.tertiary,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ManageRulesPagePres(
+                          dayungUnitId: _dayungUnitId,
+                          secretaryAccess: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               // Certificates quick-access removed (kept as comment for reference)
               /*
               const SizedBox(width: 12),
@@ -1463,7 +1484,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               ),
               const SizedBox(width: 12),
               */
-              const Expanded(child: SizedBox()),
             ],
           ),
         ],

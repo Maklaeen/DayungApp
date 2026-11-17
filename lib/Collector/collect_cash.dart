@@ -282,7 +282,6 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
         for (final row in payments) (row['user_id'] ?? '').toString(),
         for (final row in payments) (row['collected_by'] ?? '').toString(),
-        // Ensure we fetch full names for deceased users referenced by claims
         for (final row in claims) (row['user_id'] ?? '').toString(),
       }..remove('');
 

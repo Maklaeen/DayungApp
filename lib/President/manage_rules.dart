@@ -31,7 +31,14 @@ bool _parseRuleBoolean(dynamic value) {
 }
 
 class ManageRulesPagePres extends StatefulWidget {
-  const ManageRulesPagePres({super.key});
+  const ManageRulesPagePres({
+    super.key,
+    this.dayungUnitId,
+    this.secretaryAccess = false,
+  });
+
+  final int? dayungUnitId;
+  final bool secretaryAccess;
 
   @override
   State<ManageRulesPagePres> createState() => _ManageRulesPagePresState();
@@ -88,7 +95,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   Future<void> _init() async {
     setState(() => _loading = true);
     try {
-      await _loadUnitsForPresident();
+      await _loadUnitsForCurrentUser();
       if (_unitId != null) {
         await _loadRules(_unitId!);
       }
@@ -99,20 +106,31 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     }
   }
 
-  Future<void> _loadUnitsForPresident() async {
+  Future<void> _loadUnitsForCurrentUser() async {
     final uid = sb.auth.currentUser?.id;
     if (uid == null) {
       _units = [];
       return;
     }
-    final res = await sb
-        .from('dayung_units')
-        .select('id,name')
-        .eq('president_id', uid as Object)
-        .order('name');
+    final res = widget.secretaryAccess
+        ? await sb
+              .from('dayung_units')
+              .select('id,name')
+              .eq('secretary_id', uid)
+              .order('name')
+        : await sb
+              .from('dayung_units')
+              .select('id,name')
+              .eq('president_id', uid)
+              .order('name');
     _units = List<Map<String, dynamic>>.from(res);
+    if (widget.dayungUnitId != null) {
+      _units = _units
+          .where((unit) => int.tryParse('${unit['id']}') == widget.dayungUnitId)
+          .toList();
+    }
     if (_units.isNotEmpty) {
-      _unitId = int.tryParse('${_units.first['id']}');
+      _unitId = widget.dayungUnitId ?? int.tryParse('${_units.first['id']}');
     }
   }
 

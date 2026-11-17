@@ -20,6 +20,7 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
   List<Map<String, dynamic>> _rules = [];
   int _announcementPage = 0;
   int _rulesPage = 0;
+  int _selectedLogTab = 0;
   bool _announcementsHaveMore = false;
   bool _rulesHaveMore = false;
   bool _loading = true;
@@ -268,160 +269,110 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 1100;
-            final isCompact = constraints.maxWidth < 600;
-            final horizontalPadding = isCompact ? 16.0 : 32.0;
+      body: DefaultTabController(
+        length: 2,
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 600;
+              final horizontalPadding = isCompact ? 16.0 : 32.0;
 
-            return RefreshIndicator(
-              onRefresh: _refreshAll,
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  20,
-                  horizontalPadding,
-                  36,
-                ),
-                children: [
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1240),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const _ActivityHero(),
-                          const SizedBox(height: 24),
-                          if (isWide)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: _ActivityLogSection(
-                                    number: '01',
-                                    title: 'Announcement log',
-                                    description:
-                                        'A clear record of announcements shared with members.',
-                                    icon: Icons.campaign_outlined,
-                                    columns: [
-                                      'Title',
-                                      'Category',
-                                      'Description',
-                                      'Posted by',
-                                      'Date and time',
-                                    ],
-                                    entries: _announcements,
-                                    loading: _announcementsLoading,
-                                    error: _announcementsError,
-                                    onRetry: _loadAnnouncements,
-                                    hasPreviousPage: _announcementPage > 0,
-                                    hasNextPage: _announcementsHaveMore,
-                                    onPreviousPage: () => _loadAnnouncements(
-                                      page: _announcementPage - 1,
-                                    ),
-                                    onNextPage: () => _loadAnnouncements(
-                                      page: _announcementPage + 1,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 20),
-                                Expanded(
-                                  child: _ActivityLogSection(
-                                    number: '02',
-                                    title: 'User preferences',
-                                    description:
-                                        'A record of changes made to unit rules and preferences.',
-                                    icon: Icons.tune_rounded,
-                                    columns: [
-                                      'Rule updated by',
-                                      'Rule Created',
-                                      'Last updated at',
-                                    ],
-                                    entries: _rules,
-                                    loading: _rulesLoading,
-                                    error: _rulesError,
-                                    onRetry: () => _loadRules(page: _rulesPage),
-                                    hasPreviousPage: _rulesPage > 0,
-                                    hasNextPage: _rulesHaveMore,
-                                    onPreviousPage: () =>
-                                        _loadRules(page: _rulesPage - 1),
-                                    onNextPage: () =>
-                                        _loadRules(page: _rulesPage + 1),
-                                    loadingMessage: 'Loading unit rules...',
-                                    errorMessage: 'Could not load unit rules',
-                                  ),
-                                ),
+              return RefreshIndicator(
+                onRefresh: _refreshAll,
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    20,
+                    horizontalPadding,
+                    36,
+                  ),
+                  children: [
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1240),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _ActivityHero(),
+                            const SizedBox(height: 24),
+                            TabBar(
+                              onTap: (index) {
+                                setState(() => _selectedLogTab = index);
+                              },
+                              tabs: const [
+                                Tab(text: 'Announcement log'),
+                                Tab(text: 'User preferences'),
                               ],
-                            )
-                          else ...[
-                            _ActivityLogSection(
-                              number: '01',
-                              title: 'Announcement log',
-                              description:
-                                  'A clear record of announcements shared with members.',
-                              icon: Icons.campaign_outlined,
-                              columns: const [
-                                'Title',
-                                'Category',
-                                'Description',
-                                'Posted by',
-                                'Date and time',
-                              ],
-                              entries: _announcements,
-                              loading: _announcementsLoading,
-                              error: _announcementsError,
-                              onRetry: _loadAnnouncements,
-                              hasPreviousPage: _announcementPage > 0,
-                              hasNextPage: _announcementsHaveMore,
-                              onPreviousPage: () => _loadAnnouncements(
-                                page: _announcementPage - 1,
-                              ),
-                              onNextPage: () => _loadAnnouncements(
-                                page: _announcementPage + 1,
-                              ),
                             ),
                             const SizedBox(height: 16),
-                            _ActivityLogSection(
-                              number: '02',
-                              title: 'User preferences',
-                              description:
-                                  'A record of changes made to unit rules and preferences.',
-                              icon: Icons.tune_rounded,
-                              columns: const [
-                                'Rule updated by',
-                                'Rule Created',
-                                'Last updated at',
-                              ],
-                              entries: _rules,
-                              loading: _rulesLoading,
-                              error: _rulesError,
-                              onRetry: () => _loadRules(page: _rulesPage),
-                              hasPreviousPage: _rulesPage > 0,
-                              hasNextPage: _rulesHaveMore,
-                              onPreviousPage: () =>
-                                  _loadRules(page: _rulesPage - 1),
-                              onNextPage: () =>
-                                  _loadRules(page: _rulesPage + 1),
-                              loadingMessage: 'Loading unit rules...',
-                              errorMessage: 'Could not load unit rules',
+                            if (_selectedLogTab == 0)
+                              _ActivityLogSection(
+                                number: '01',
+                                title: 'Announcement log',
+                                description:
+                                    'A clear record of announcements shared with members.',
+                                icon: Icons.campaign_outlined,
+                                columns: const [
+                                  'Title',
+                                  'Category',
+                                  'Description',
+                                  'Posted by',
+                                  'Date and time',
+                                ],
+                                entries: _announcements,
+                                loading: _announcementsLoading,
+                                error: _announcementsError,
+                                onRetry: _loadAnnouncements,
+                                hasPreviousPage: _announcementPage > 0,
+                                hasNextPage: _announcementsHaveMore,
+                                onPreviousPage: () => _loadAnnouncements(
+                                  page: _announcementPage - 1,
+                                ),
+                                onNextPage: () => _loadAnnouncements(
+                                  page: _announcementPage + 1,
+                                ),
+                              )
+                            else
+                              _ActivityLogSection(
+                                number: '02',
+                                title: 'User preferences',
+                                description:
+                                    'A record of changes made to unit rules and preferences.',
+                                icon: Icons.tune_rounded,
+                                columns: const [
+                                  'Rule updated by',
+                                  'Rule Created',
+                                  'Last updated at',
+                                ],
+                                entries: _rules,
+                                loading: _rulesLoading,
+                                error: _rulesError,
+                                onRetry: () => _loadRules(page: _rulesPage),
+                                hasPreviousPage: _rulesPage > 0,
+                                hasNextPage: _rulesHaveMore,
+                                onPreviousPage: () =>
+                                    _loadRules(page: _rulesPage - 1),
+                                onNextPage: () =>
+                                    _loadRules(page: _rulesPage + 1),
+                                loadingMessage: 'Loading unit rules...',
+                                errorMessage: 'Could not load unit rules',
+                              ),
+                            const SizedBox(height: 28),
+                            _RecentActivitySection(
+                              loading: _loading,
+                              error: _error,
+                              entries: _entries,
+                              onRetry: _loadActivity,
                             ),
                           ],
-                          const SizedBox(height: 28),
-                          _RecentActivitySection(
-                            loading: _loading,
-                            error: _error,
-                            entries: _entries,
-                            onRetry: _loadActivity,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -603,7 +554,10 @@ class _ActivityLogSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           RecordDataTable(
-            minWidth: columns.length * 150,
+            minWidth: columns.length * 170,
+            columnSpacing: 10,
+            horizontalMargin: 10,
+            useMobileCards: false,
             showCheckboxColumn: false,
             headingRowColor: dayungSoftSurface(context),
             border: TableBorder(
@@ -612,6 +566,14 @@ class _ActivityLogSection extends StatelessWidget {
             columns: [
               for (final column in columns)
                 DataColumn(
+                  columnWidth: switch (column) {
+                    'Title' => const FixedColumnWidth(170),
+                    'Category' => const FixedColumnWidth(150),
+                    'Description' => const FixedColumnWidth(200),
+                    'Posted by' => const FixedColumnWidth(150),
+                    'Date and time' => const FixedColumnWidth(180),
+                    _ => const FixedColumnWidth(180),
+                  },
                   label: Text(
                     column,
                     style: TextStyle(

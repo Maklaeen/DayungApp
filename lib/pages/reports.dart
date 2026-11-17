@@ -31,7 +31,15 @@ const List<String> _monthShortLabels = [
   'Dec',
 ];
 
-enum _ReportExportOption { moneyCollected, newMembers, all }
+enum _ReportExportOption {
+  membershipActivity,
+  individualCollection,
+  consolidatedCollection,
+  disbursementActivity,
+  moneyCollected,
+  newMembers,
+  all,
+}
 
 class ReportsService {
   final sb = Supabase.instance.client;
@@ -554,14 +562,34 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Widget _buildConsolidatedCollectionReport() {
+    final summaryRows = _consolidatedCollectionRows();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (collectionReportError != null)
+          const _CollectionReportNotice(
+            icon: Icons.cloud_off_rounded,
+            message: 'Collection details could not be loaded. Try refreshing.',
+          )
+        else if (summaryRows.isEmpty)
+          const _CollectionReportNotice(
+            icon: Icons.receipt_long_rounded,
+            message: 'No collection records are available.',
+          )
+        else
+          _ConsolidatedCollectionRows(rows: summaryRows),
+      ],
+    );
+  }
+
+  List<Map<String, dynamic>> _consolidatedCollectionRows() {
     final summaryRows =
         _reportMembers.map((member) {
-          final payments = collectionReportRows
-              .where((row) => row['userdeceased']?.toString() == member.id)
-              .toList();
-          final paidPayments = payments
+          final paidPayments = collectionReportRows
               .where(
                 (row) =>
+                    row['userdeceased']?.toString() == member.id &&
                     (row['status'] ?? '').toString().toLowerCase() == 'paid',
               )
               .toList();
@@ -607,24 +635,15 @@ class _ReportsPageState extends State<ReportsPage> {
                   b['deceased_member'] as String,
                 );
         });
+    return summaryRows;
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (collectionReportError != null)
-          const _CollectionReportNotice(
-            icon: Icons.cloud_off_rounded,
-            message: 'Collection details could not be loaded. Try refreshing.',
-          )
-        else if (summaryRows.isEmpty)
-          const _CollectionReportNotice(
-            icon: Icons.receipt_long_rounded,
-            message: 'No collection records are available.',
-          )
-        else
-          _ConsolidatedCollectionRows(rows: summaryRows),
-      ],
-    );
+  List<Map<String, dynamic>> _individualCollectionRows() {
+    final selectedId = _selectedIndividualMemberId;
+    if (selectedId == null) return [];
+    return collectionReportRows
+        .where((row) => row['userdeceased']?.toString() == selectedId)
+        .toList();
   }
 
   List<double> _moneyCollectedMonthlyTotals() {
@@ -679,6 +698,7 @@ class _ReportsPageState extends State<ReportsPage> {
     final option = await showModalBottomSheet<_ReportExportOption>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) {
         final colors = Theme.of(context).colorScheme;
         return SafeArea(
@@ -689,43 +709,97 @@ class _ReportsPageState extends State<ReportsPage> {
                 top: Radius.circular(28),
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SecretarySheetHeader(
-                  title: 'Print Reports',
-                  subtitle: 'Choose which graph to export as PDF.',
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SecretarySheetHeader(
+                      title: 'Generate Report',
+                      subtitle: 'Choose a report to generate as a PDF.',
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.groups_rounded,
+                        color: colors.primary,
+                      ),
+                      title: const Text('Membership Activity'),
+                      onTap: () => Navigator.pop(
+                        context,
+                        _ReportExportOption.membershipActivity,
+                      ),
+                    ),
+                    if (_selectedIndividualMemberId != null)
+                      ListTile(
+                        leading: Icon(
+                          Icons.person_search_rounded,
+                          color: colors.primary,
+                        ),
+                        title: const Text('Individual Collection Report'),
+                        onTap: () => Navigator.pop(
+                          context,
+                          _ReportExportOption.individualCollection,
+                        ),
+                      ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.assessment_rounded,
+                        color: colors.primary,
+                      ),
+                      title: const Text('Consolidated Collection Report'),
+                      onTap: () => Navigator.pop(
+                        context,
+                        _ReportExportOption.consolidatedCollection,
+                      ),
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.payments_rounded,
+                        color: colors.primary,
+                      ),
+                      title: const Text('Disbursement Activity'),
+                      onTap: () => Navigator.pop(
+                        context,
+                        _ReportExportOption.disbursementActivity,
+                      ),
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.account_balance_rounded,
+                        color: colors.primary,
+                      ),
+                      title: const Text(
+                        'Money Collected Per Collector (Monthly)',
+                      ),
+                      onTap: () => Navigator.pop(
+                        context,
+                        _ReportExportOption.moneyCollected,
+                      ),
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.person_add_alt_1_rounded,
+                        color: colors.primary,
+                      ),
+                      title: const Text('New Members Per Month'),
+                      onTap: () => Navigator.pop(
+                        context,
+                        _ReportExportOption.newMembers,
+                      ),
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.print_rounded, color: colors.primary),
+                      title: const Text('All Reports'),
+                      onTap: () =>
+                          Navigator.pop(context, _ReportExportOption.all),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                 ),
-                ListTile(
-                  leading: Icon(
-                    Icons.account_balance_rounded,
-                    color: colors.primary,
-                  ),
-                  title: const Text('Money Collected Per Collector (Monthly)'),
-                  onTap: () => Navigator.pop(
-                    context,
-                    _ReportExportOption.moneyCollected,
-                  ),
-                ),
-                ListTile(
-                  leading: Icon(
-                    Icons.person_add_alt_1_rounded,
-                    color: colors.primary,
-                  ),
-                  title: const Text('New Members Per Month'),
-                  onTap: () => Navigator.pop(
-                    context,
-                    _ReportExportOption.newMembers,
-                  ),
-                ),
-                ListTile(
-                  leading: Icon(Icons.print_rounded, color: colors.primary),
-                  title: const Text('All'),
-                  onTap: () =>
-                      Navigator.pop(context, _ReportExportOption.all),
-                ),
-                const SizedBox(height: 12),
-              ],
+              ),
             ),
           ),
         );
@@ -741,8 +815,12 @@ class _ReportsPageState extends State<ReportsPage> {
     final document = pw.Document(theme: pdfTheme);
     final moneyTotals = _moneyCollectedMonthlyTotals();
     final newMembersRows = _sortedNewMembersData();
+    final selectedMember = _reportMembers
+        .where((member) => member.id == _selectedIndividualMemberId)
+        .firstOrNull;
     final now = DateTime.now();
 
+    final includeAll = option == _ReportExportOption.all;
     document.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -762,8 +840,129 @@ class _ReportsPageState extends State<ReportsPage> {
             pw.SizedBox(height: 20),
           ];
 
-          if (option == _ReportExportOption.moneyCollected ||
-              option == _ReportExportOption.all) {
+          if (includeAll || option == _ReportExportOption.membershipActivity) {
+            widgets.add(
+              _buildPdfTableSection(
+                title: 'Membership Activity',
+                headers: const [
+                  'Members Added',
+                  'Members Removed',
+                  'Members Deceased',
+                  'Beneficiaries Deceased',
+                ],
+                rows: [
+                  [
+                    '${memberActivitySummary['added'] ?? 0}',
+                    '${memberActivitySummary['removed'] ?? 0}',
+                    '${memberActivitySummary['deceasedMembers'] ?? 0}',
+                    '${memberActivitySummary['deceasedBeneficiaries'] ?? 0}',
+                  ],
+                ],
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 20));
+          }
+
+          if ((includeAll ||
+                  option == _ReportExportOption.individualCollection) &&
+              selectedMember != null) {
+            final rows = _individualCollectionRows();
+            final paidTotal = rows.fold<double>(0, (total, row) {
+              if ((row['status'] ?? '').toString().toLowerCase() != 'paid') {
+                return total;
+              }
+              return total + _reportAmount(row['amount']);
+            });
+            widgets.add(
+              _buildPdfTableSection(
+                title: 'Individual Collection Report - ${selectedMember.name}',
+                subtitle:
+                    'Total collected: ${_formatReportCurrency(paidTotal)}',
+                headers: const ['Contributor', 'Date', 'Amount', 'Status'],
+                rows: rows
+                    .map(
+                      (row) => [
+                        (row['contributor_name'] ?? 'Unknown contributor')
+                            .toString(),
+                        _formatReportDate(_paymentDate(row)),
+                        _formatReportCurrency(_reportAmount(row['amount'])),
+                        _paymentStatus(row),
+                      ],
+                    )
+                    .toList(),
+                emptyMessage: collectionReportError == null
+                    ? 'No collection records are available for this member.'
+                    : 'Collection details could not be loaded.',
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 20));
+          }
+
+          if (includeAll ||
+              option == _ReportExportOption.consolidatedCollection) {
+            widgets.add(
+              _buildPdfTableSection(
+                title: 'Consolidated Collection Report',
+                headers: const [
+                  'Deceased Member',
+                  'Collected',
+                  'Collection Date',
+                  'Status',
+                  'Claim Status',
+                ],
+                rows: _consolidatedCollectionRows()
+                    .map(
+                      (row) => [
+                        '${row['deceased_member']}',
+                        _formatReportCurrency(row['collected']),
+                        _formatReportDate(row['date']),
+                        '${row['status']}',
+                        '${row['claim_status']}',
+                      ],
+                    )
+                    .toList(),
+                emptyMessage: collectionReportError == null
+                    ? 'No collection records are available.'
+                    : 'Collection details could not be loaded.',
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 20));
+          }
+
+          if (includeAll ||
+              option == _ReportExportOption.disbursementActivity) {
+            widgets.add(
+              _buildPdfTableSection(
+                title: 'Disbursement Activity',
+                headers: const [
+                  'Beneficiary',
+                  'Deceased Member',
+                  'Amount Released',
+                  'Released By',
+                  'Date Released',
+                  'Status',
+                ],
+                rows: disbursementActivities
+                    .map(
+                      (row) => [
+                        '${row['beneficiary_name'] ?? 'Unknown beneficiary'}',
+                        '${row['deceased_member'] ?? 'Unknown member'}',
+                        _formatReportCurrency(row['amount']),
+                        '${row['released_by'] ?? 'Not recorded'}',
+                        formatPhilippineDateTime(row['released_at']),
+                        '${row['status'] ?? '—'}',
+                      ],
+                    )
+                    .toList(),
+                emptyMessage: disbursementActivityError == null
+                    ? 'No disbursement activity has been recorded.'
+                    : 'Disbursement activity could not be loaded.',
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 20));
+          }
+
+          if (includeAll || option == _ReportExportOption.moneyCollected) {
             widgets.add(
               _buildPdfBarSection(
                 title: 'Money Collected Per Collector (Monthly)',
@@ -778,8 +977,7 @@ class _ReportsPageState extends State<ReportsPage> {
             widgets.add(pw.SizedBox(height: 20));
           }
 
-          if (option == _ReportExportOption.newMembers ||
-              option == _ReportExportOption.all) {
+          if (includeAll || option == _ReportExportOption.newMembers) {
             widgets.add(
               _buildPdfBarSection(
                 title: 'New Members Per Month',
@@ -797,6 +995,21 @@ class _ReportsPageState extends State<ReportsPage> {
                 asCurrency: false,
               ),
             );
+            widgets.add(pw.SizedBox(height: 12));
+            widgets.add(
+              _buildPdfTableSection(
+                title: 'New Members Per Month Details',
+                headers: const ['Month', 'Approved Members'],
+                rows: newMembersRows
+                    .map(
+                      (row) => [
+                        _formatMonthYear((row['month'] ?? '').toString()),
+                        '${row['count'] ?? 0}',
+                      ],
+                    )
+                    .toList(),
+              ),
+            );
           }
 
           return widgets;
@@ -805,6 +1018,72 @@ class _ReportsPageState extends State<ReportsPage> {
     );
 
     await Printing.layoutPdf(onLayout: (_) async => document.save());
+  }
+
+  pw.Widget _buildPdfTableSection({
+    required String title,
+    required List<String> headers,
+    required List<List<String>> rows,
+    String? subtitle,
+    String emptyMessage = 'No data available.',
+  }) {
+    pw.Widget cell(String value, {bool isHeader = false}) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.all(6),
+        child: pw.Text(
+          value,
+          style: pw.TextStyle(
+            fontSize: 8,
+            fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+          ),
+        ),
+      );
+    }
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          title,
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColor.fromInt(kPrimary.toARGB32()),
+          ),
+        ),
+        if (subtitle != null) ...[
+          pw.SizedBox(height: 4),
+          pw.Text(subtitle, style: const pw.TextStyle(fontSize: 9)),
+        ],
+        pw.SizedBox(height: 10),
+        if (rows.isEmpty)
+          pw.Text(emptyMessage)
+        else
+          pw.Table(
+            border: pw.TableBorder.all(
+              color: PdfColor.fromInt(kBorderColor.toARGB32()),
+            ),
+            children: [
+              pw.TableRow(
+                decoration: pw.BoxDecoration(
+                  color: PdfColor.fromInt(0xFFEFF6FF),
+                ),
+                children: headers
+                    .map((header) => cell(header, isHeader: true))
+                    .toList(),
+              ),
+              ...rows.map(
+                (row) => pw.TableRow(
+                  children: List.generate(
+                    headers.length,
+                    (index) => cell(index < row.length ? row[index] : ''),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
   }
 
   pw.Widget _buildPdfBarSection({
@@ -910,7 +1189,7 @@ class _ReportsPageState extends State<ReportsPage> {
       child: FilledButton.icon(
         onPressed: loading ? null : _showExportOptions,
         icon: const Icon(Icons.print_rounded),
-        label: const Text('Print / PDF'),
+        label: const Text('Generate Report'),
         style: FilledButton.styleFrom(
           backgroundColor: kPrimary,
           foregroundColor: Colors.white,
@@ -1399,7 +1678,9 @@ class _SearchableMemberPickerState extends State<_SearchableMemberPicker> {
                             trailing: isSelected
                                 ? Icon(
                                     Icons.check_circle_rounded,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   )
                                 : null,
                             onTap: () => Navigator.of(context).pop([member.id]),
@@ -2108,11 +2389,7 @@ class _DisbursementActivityTable extends StatelessWidget {
         spacing: 16,
         runSpacing: 12,
         children: [
-          Icon(
-            Icons.cloud_off_rounded,
-            color: colors.error,
-            size: 26,
-          ),
+          Icon(Icons.cloud_off_rounded, color: colors.error, size: 26),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
             child: Column(
@@ -2159,7 +2436,10 @@ class _DisbursementActivityTable extends StatelessWidget {
       return _buildErrorState(context);
     }
     if (activities.isEmpty) {
-      return _message('No disbursement activity has been recorded yet.', colors);
+      return _message(
+        'No disbursement activity has been recorded yet.',
+        colors,
+      );
     }
 
     return LayoutBuilder(
@@ -2182,69 +2462,66 @@ class _DisbursementActivityTable extends StatelessWidget {
             ),
           ),
           child: RecordDataTable(
-              headingRowHeight: 64,
-              dataRowMinHeight: 72,
-              dataRowMaxHeight: 120,
-              headingRowColor: colors.primaryContainer,
-              headingTextStyle: TextStyle(
-                color: colors.primary,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Montserrat',
-              ),
-              dataTextStyle: TextStyle(
-                color: colors.onSurface,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'OpenSans',
-              ),
-              columnSpacing: 24,
-              horizontalMargin: 18,
-              dividerThickness: 1,
-              border: TableBorder(
-                horizontalInside: BorderSide(color: colors.outlineVariant),
-              ),
-              columns: const [
-                DataColumn(label: Text('Beneficiary Name')),
-                DataColumn(label: Text('Deceased Member')),
-                DataColumn(label: Text('Amount Released')),
-                DataColumn(label: Text('Released By')),
-                DataColumn(label: Text('Date and Time Released')),
-                DataColumn(label: Text('Status')),
-              ],
-              rows: activities.indexed.map((entry) {
-                final (index, activity) = entry;
-                return DataRow(
-                  color: WidgetStatePropertyAll(
-                    index.isEven ? colors.surface : colors.surfaceContainerLow,
+            headingRowHeight: 64,
+            dataRowMinHeight: 72,
+            dataRowMaxHeight: 120,
+            headingRowColor: colors.primaryContainer,
+            headingTextStyle: TextStyle(
+              color: colors.primary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Montserrat',
+            ),
+            dataTextStyle: TextStyle(
+              color: colors.onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+            ),
+            columnSpacing: 24,
+            horizontalMargin: 18,
+            dividerThickness: 1,
+            border: TableBorder(
+              horizontalInside: BorderSide(color: colors.outlineVariant),
+            ),
+            columns: const [
+              DataColumn(label: Text('Beneficiary Name')),
+              DataColumn(label: Text('Deceased Member')),
+              DataColumn(label: Text('Amount Released')),
+              DataColumn(label: Text('Released By')),
+              DataColumn(label: Text('Date and Time Released')),
+              DataColumn(label: Text('Status')),
+            ],
+            rows: activities.indexed.map((entry) {
+              final (index, activity) = entry;
+              return DataRow(
+                color: WidgetStatePropertyAll(
+                  index.isEven ? colors.surface : colors.surfaceContainerLow,
+                ),
+                cells: [
+                  DataCell(_tableValue(activity['beneficiary_name'], colors)),
+                  DataCell(_tableValue(activity['deceased_member'], colors)),
+                  DataCell(
+                    _tableValue(_formatCurrency(activity['amount']), colors),
                   ),
-                  cells: [
-                    DataCell(_tableValue(activity['beneficiary_name'], colors)),
-                    DataCell(_tableValue(activity['deceased_member'], colors)),
-                    DataCell(
-                      _tableValue(_formatCurrency(activity['amount']), colors),
+                  DataCell(_tableValue(activity['released_by'], colors)),
+                  DataCell(
+                    _tableValue(
+                      _formatReleaseDate(activity['released_at']),
+                      colors,
                     ),
-                    DataCell(_tableValue(activity['released_by'], colors)),
-                    DataCell(
-                      _tableValue(
-                        _formatReleaseDate(activity['released_at']),
-                        colors,
-                      ),
-                    ),
-                    DataCell(_statusBadge(activity['status'], colors)),
-                  ],
-                );
-              }).toList(),
+                  ),
+                  DataCell(_statusBadge(activity['status'], colors)),
+                ],
+              );
+            }).toList(),
           ),
         );
       },
     );
   }
 
-  Widget _buildActivityCard(
-    Map<String, dynamic> activity,
-    ColorScheme colors,
-  ) {
+  Widget _buildActivityCard(Map<String, dynamic> activity, ColorScheme colors) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),

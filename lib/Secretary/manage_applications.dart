@@ -26,7 +26,9 @@ const kDanger = Color(0xFFEF4444);
 const double kEdge = 16;
 
 class SecretaryApplicationsPage extends StatefulWidget {
-  const SecretaryApplicationsPage({super.key});
+  const SecretaryApplicationsPage({super.key, this.dayungUnitId});
+
+  final int? dayungUnitId;
 
   @override
   State<SecretaryApplicationsPage> createState() =>
@@ -89,7 +91,9 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     super.initState();
     // Delay to let Provider be available
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _currentUnitId = context.read<DayungUnitProvider>().currentUnitId;
+      _currentUnitId =
+          widget.dayungUnitId ??
+          context.read<DayungUnitProvider>().currentUnitId;
       _fetchApplications(forUnitId: _currentUnitId);
       if (_currentUnitId != null) _subscribeRealtime(unitId: _currentUnitId!);
     });
@@ -98,7 +102,9 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final newId = context.watch<DayungUnitProvider>().currentUnitId;
+    final newId =
+        widget.dayungUnitId ??
+        context.watch<DayungUnitProvider>().currentUnitId;
     if (newId != _currentUnitId) {
       _currentUnitId = newId;
       if (mounted) setState(() => _apps = []); // clear stale
@@ -1050,6 +1056,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
         'approve_application',
         params: {
           'p_application_id': applicationId,
+          'p_approved_at': DateTime.now().toUtc().toIso8601String(),
           'p_approved_by': approverId,
         },
       );
@@ -1167,6 +1174,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           'p_rejection_reason': reason,
         },
       );
+
       if (!mounted) return;
       _fetchApplications(forUnitId: _currentUnitId);
     } on PostgrestException catch (e) {

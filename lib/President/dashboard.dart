@@ -4,6 +4,8 @@ import 'package:capstone_app/shared/pres_sec_dashboard_overview.dart';
 import 'package:capstone_app/shared/collector_progress_page.dart';
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/manage_rules.dart';
+import 'package:capstone_app/Secretary/manage_applications.dart'
+    as applications;
 import 'package:capstone_app/President/president_payment_page.dart';
 import 'package:capstone_app/President/president_activity_page.dart';
 import 'package:capstone_app/President/post_announcement.dart';
@@ -914,6 +916,26 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
           context,
           MaterialPageRoute(builder: (_) => const PostAnnouncementPage()),
         ),
+      ),
+      _PresidentDashboardAction(
+        icon: Icons.assignment_rounded,
+        title: 'Manage Applications',
+        color: Theme.of(context).colorScheme.secondary,
+        onTap: () async {
+          final ids = await _managedDayungIds();
+          if (ids.isEmpty || !mounted) return;
+          final selectedUnitId = _effectiveUnitId(context);
+          final unitId = selectedUnitId != null && ids.contains(selectedUnitId)
+              ? selectedUnitId
+              : ids.first;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  applications.SecretaryApplicationsPage(dayungUnitId: unitId),
+            ),
+          );
+        },
       ),
       _PresidentDashboardAction(
         icon: Icons.payments_rounded,

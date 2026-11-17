@@ -412,7 +412,7 @@ class _TreasurerFundConfirmationPageState
               onPressed: () => Navigator.of(dialogContext).pop(true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
               ),
               child: const Text('Confirm'),
             ),
@@ -721,7 +721,9 @@ class _TreasurerFundConfirmationPageState
                                     color: colors.errorContainer,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: colors.error.withValues(alpha: 0.4),
+                                      color: colors.error.withValues(
+                                        alpha: 0.4,
+                                      ),
                                     ),
                                   ),
                                   child: Text(
@@ -795,7 +797,8 @@ class _TreasurerFundConfirmationPageState
                                                 Text(
                                                   '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'} • tap to view members',
                                                   style: TextStyle(
-                                                    color: colors.onSurfaceVariant,
+                                                    color:
+                                                        colors.onSurfaceVariant,
                                                     fontSize: 12,
                                                   ),
                                                 ),

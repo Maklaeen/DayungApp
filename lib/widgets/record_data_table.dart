@@ -20,6 +20,7 @@ class RecordDataTable extends StatelessWidget {
     this.showCheckboxColumn = true,
     this.fillAvailableWidth = false,
     this.modernStyle = true,
+    this.useMobileCards = true,
   });
 
   final List<DataColumn> columns;
@@ -39,6 +40,7 @@ class RecordDataTable extends StatelessWidget {
   final bool showCheckboxColumn;
   final bool fillAvailableWidth;
   final bool modernStyle;
+  final bool useMobileCards;
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +134,7 @@ class RecordDataTable extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 840) {
+        if (constraints.maxWidth < 840 && useMobileCards) {
           return _buildMobileCards(
             context,
             styledRows,
