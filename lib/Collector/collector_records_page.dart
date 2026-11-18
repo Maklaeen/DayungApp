@@ -267,18 +267,20 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
 
   double get _totalAdvance => _records.fold(0.0, (s, m) => s + m.advanceAmount);
 
+  double get _totalPaid => _records.fold(0.0, (s, m) => s + m.amountPaid);
+
   double get _totalNeeded => _records.fold(0.0, (s, m) => s + m.amountNeeded);
 
   double get _overallWithoutAdvance => _totalCash + _totalCashless;
   double get _overallWithAdvance => _overallWithoutAdvance + _totalAdvance;
 
-  static const double _wMember = 150;
-  static const double _wNotice = 90;
-  static const double _wAmount = 120;
-  static const double _wMethod = 120;
-  static const double _wAdvance = 120;
-  static const double _wTotal = 120;
-  static const double _wOverall = 140;
+  static const double _wMember = 160;
+  static const double _wNotice = 82;
+  static const double _wAmount = 105;
+  static const double _wMethod = 105;
+  static const double _wAdvance = 95;
+  static const double _wTotal = 105;
+  static const double _wOverall = 125;
 
   @override
   Widget build(BuildContext context) {
@@ -294,8 +296,6 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _sectionTitle('COLLECTORS RECORDS'),
-                    const SizedBox(height: 10),
                     if (_loading)
                       const SizedBox(
                         height: 360,
@@ -329,9 +329,46 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
                           if (constraints.maxWidth < 840) {
                             return _buildMobileRecords();
                           }
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: _buildTable(),
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildDesktopSummary(),
+                              const SizedBox(height: 14),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 2,
+                                  right: 2,
+                                  bottom: 10,
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Text(
+                                        'Member records',
+                                        style: TextStyle(
+                                          fontFamily: 'Montserrat',
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 20,
+                                          color: Color(0xFF111827),
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_records.length} ${_records.length == 1 ? 'member' : 'members'}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF4B5563),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: _buildTable(),
+                              ),
+                            ],
                           );
                         },
                       ),
@@ -343,6 +380,80 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDesktopSummary() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 10.0;
+        final columns = constraints.maxWidth >= 1180 ? 5 : 3;
+        final itemWidth =
+            (constraints.maxWidth - 28 - spacing * (columns - 1)) / columns;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Collection summary',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  _mobileTotalCard(
+                    width: itemWidth,
+                    label: 'Cash received',
+                    value: _totalCash,
+                    color: const Color(0xFF059669),
+                  ),
+                  _mobileTotalCard(
+                    width: itemWidth,
+                    label: 'GCash received',
+                    value: _totalCashless,
+                    color: const Color(0xFF2563EB),
+                  ),
+                  _mobileTotalCard(
+                    width: itemWidth,
+                    label: 'Advance received',
+                    value: _totalAdvance,
+                    color: const Color(0xFFB45309),
+                  ),
+                  _mobileTotalCard(
+                    width: itemWidth,
+                    label: 'Total without advance',
+                    value: _overallWithoutAdvance,
+                    secondaryValue: _totalNeeded,
+                    color: const Color(0xFF0D47A1),
+                  ),
+                  _mobileTotalCard(
+                    width: itemWidth,
+                    label: 'Total with advance',
+                    value: _overallWithAdvance,
+                    secondaryValue: _totalNeeded,
+                    color: const Color(0xFF0D47A1),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -799,15 +910,15 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
       width: tableWidth,
       decoration: const BoxDecoration(
         border: Border(
-          left: BorderSide(color: Color(0xFF111827)),
-          top: BorderSide(color: Color(0xFF111827)),
-          right: BorderSide(color: Color(0xFF111827)),
-          bottom: BorderSide(color: Color(0xFF111827)),
+          left: BorderSide(color: Color(0xFFCBD5E1)),
+          top: BorderSide(color: Color(0xFFCBD5E1)),
+          right: BorderSide(color: Color(0xFFCBD5E1)),
+          bottom: BorderSide(color: Color(0xFFCBD5E1)),
         ),
       ),
       child: Table(
         border: TableBorder.all(
-          color: const Color(0xFF111827),
+          color: const Color(0xFFCBD5E1),
           style: BorderStyle.solid,
         ),
         columnWidths: {
@@ -825,28 +936,28 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
         },
         children: [
           TableRow(
-            decoration: const BoxDecoration(color: Color(0xFFEAF7EA)),
+            decoration: const BoxDecoration(color: Color(0xFFEFF6FF)),
             children: [
-              _headerCell('Member of Collector 1'),
+              _headerCell('Member'),
               _headerCell(_notices[0].name),
               _headerCell(_notices[1].name),
-              _headerCell('Amount paid / Amount needed'),
-              _headerCell('Payment Method'),
-              _headerCell('Advance Payment'),
-              _headerCell('Total Cash received'),
-              _headerCell('Total Advance payment'),
-              _headerCell('Total Cashless received'),
-              _headerCell('Overall total without advance received'),
-              _headerCell('Overall total with advance received'),
+              _headerCell('Paid /\nNeeded'),
+              _headerCell('Method'),
+              _headerCell('Advance paid'),
+              _headerCell('Cash'),
+              _headerCell('Advance total'),
+              _headerCell('GCash'),
+              _headerCell('Total no\nadvance'),
+              _headerCell('Total with\nadvance'),
             ],
           ),
           ..._records.asMap().entries.map((entry) {
             final index = entry.key;
             final m = entry.value;
-            final isFirst = index == 0;
-
             return TableRow(
-              decoration: const BoxDecoration(color: Colors.white),
+              decoration: BoxDecoration(
+                color: index.isEven ? Colors.white : const Color(0xFFF8FAFC),
+              ),
               children: [
                 _bodyCell(m.memberName),
                 _checkCell(
@@ -866,37 +977,40 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
                       ? m.advanceAmount.toStringAsFixed(0)
                       : '0',
                 ),
-                if (isFirst)
-                  _totalCell(_totalCash.toStringAsFixed(0))
-                else
-                  const SizedBox.shrink(),
-                if (isFirst)
-                  _totalCell(_totalAdvance.toStringAsFixed(0))
-                else
-                  const SizedBox.shrink(),
-                if (isFirst)
-                  _totalCell(_totalCashless.toStringAsFixed(0))
-                else
-                  const SizedBox.shrink(),
-                if (isFirst)
-                  _totalCell(
-                    '${_overallWithoutAdvance.toStringAsFixed(0)}/\n${_totalNeeded.toStringAsFixed(0)}',
-                  )
-                else
-                  const SizedBox.shrink(),
-                if (isFirst)
-                  _totalCell(
-                    '${_overallWithAdvance.toStringAsFixed(0)}/\n${_totalNeeded.toStringAsFixed(0)}',
-                  )
-                else
-                  const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
+                const SizedBox.shrink(),
               ],
             );
           }),
           TableRow(
-            decoration: const BoxDecoration(color: Color(0xFFD9F0D4)),
+            decoration: const BoxDecoration(color: Color(0xFFEFF6FF)),
             children: [
-              _greenButtonCell('UPLOAD\nRECORD'),
+              _bodyCell('TOTAL'),
+              const SizedBox.shrink(),
+              const SizedBox.shrink(),
+              _totalCell(
+                '${_totalPaid.toStringAsFixed(0)}/${_totalNeeded.toStringAsFixed(0)}',
+              ),
+              const SizedBox.shrink(),
+              _totalCell(_totalAdvance.toStringAsFixed(0)),
+              _totalCell(_totalCash.toStringAsFixed(0)),
+              _totalCell(_totalAdvance.toStringAsFixed(0)),
+              _totalCell(_totalCashless.toStringAsFixed(0)),
+              _totalCell(
+                '${_overallWithoutAdvance.toStringAsFixed(0)}/\n${_totalNeeded.toStringAsFixed(0)}',
+              ),
+              _totalCell(
+                '${_overallWithAdvance.toStringAsFixed(0)}/\n${_totalNeeded.toStringAsFixed(0)}',
+              ),
+            ],
+          ),
+          TableRow(
+            decoration: const BoxDecoration(color: Color(0xFFF0FDF4)),
+            children: [
+              _greenButtonCell('Upload record'),
               const SizedBox(),
               const SizedBox(),
               const SizedBox(),
@@ -916,8 +1030,8 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
 
   Widget _headerCell(String text) {
     return Container(
-      height: 120,
-      padding: const EdgeInsets.all(8),
+      height: 84,
+      padding: const EdgeInsets.all(6),
       alignment: Alignment.center,
       child: Text(
         text,
@@ -935,7 +1049,7 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
 
   Widget _bodyCell(String text) {
     return Container(
-      height: 58,
+      height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       alignment: Alignment.centerLeft,
       child: Text(
@@ -973,7 +1087,7 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
         checked: checked,
       ),
       child: Container(
-        height: 58,
+        height: 54,
         alignment: Alignment.center,
         color: checked ? const Color(0xFFD9F0D4) : Colors.white,
         child: checked
@@ -987,7 +1101,7 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
     final method =
         _paymentMethodOverrides[member.memberId] ?? member.paymentMethod;
     return Container(
-      height: 58,
+      height: 54,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: DropdownButtonHideUnderline(
@@ -1006,7 +1120,9 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
             ),
             DropdownMenuItem(
               value: 'N/Y',
-              child: Center(child: Text('N/Y')),
+              child: Center(
+                child: Text('Not paid', style: TextStyle(fontSize: 11)),
+              ),
             ),
           ],
           onChanged: (value) {
@@ -1020,7 +1136,7 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
 
   Widget _totalCell(String text) {
     return Container(
-      height: 58,
+      height: 54,
       padding: const EdgeInsets.all(6),
       alignment: Alignment.center,
       child: Text(
@@ -1046,7 +1162,7 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
         );
       },
       child: Container(
-        height: 80,
+        height: 62,
         alignment: Alignment.center,
         color: const Color(0xFF9FD69D),
         child: Text(
@@ -1055,23 +1171,11 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
           style: const TextStyle(
             fontFamily: 'Montserrat',
             fontWeight: FontWeight.w800,
-            fontSize: 18,
+            fontSize: 14,
             color: Color(0xFF111827),
             height: 1.1,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontFamily: 'Montserrat',
-        fontWeight: FontWeight.w800,
-        fontSize: 22,
-        color: Color(0xFF111827),
       ),
     );
   }

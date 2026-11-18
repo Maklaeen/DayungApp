@@ -1,4 +1,5 @@
 import 'package:capstone_app/utils/dayung_service_tags.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -60,6 +61,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   String? _exactAmountForCollection;
   String? _exactPenaltyPayment;
   bool _hasService = false;
+  bool _saving = false;
   final Map<String, bool> _selectedServiceTags = {};
 
   bool _loading = true;
@@ -173,8 +175,8 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   }
 
   Future<void> _save() async {
-    if (_unitId == null) return;
-    setState(() => _loading = true);
+    if (_unitId == null || _saving) return;
+    setState(() => _saving = true);
     try {
       final selectedUnit = _units.firstWhere(
         (u) => int.tryParse('${u['id']}') == _unitId,
@@ -233,7 +235,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -246,7 +248,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           children: [
             // Curved Header
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
               decoration: const BoxDecoration(
                 color: kAccent,
                 borderRadius: BorderRadius.only(
@@ -300,11 +302,13 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: kAccent),
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      itemCount: 3,
                     )
                   : _units.isEmpty
                   ? Center(
@@ -356,114 +360,183 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                     )
                   : Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: ListView(
-                        children: [
-                          const SizedBox(height: 8),
-                          // Card for unit picker and rules
-                          Card(
-                            elevation: 3,
-                            color: kCardBg,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                children: [
-                                  _unitPicker(),
-                                  const SizedBox(height: 20),
-                                  _dropdownField(
-                                    'Meeting Frequency',
-                                    _meetingFrequencies,
-                                    _selectedMeetingFrequency,
-                                    (v) => setState(
-                                      () => _selectedMeetingFrequency = v,
-                                    ),
-                                  ),
-                                  _exactAmountCollectionTextField(),
-                                  _exactAmountTextField(),
-                                  const SizedBox(height: 8),
-                                  _exactPenaltyPaymentTextField(),
-                                  _dropdownField(
-                                    'Payment Method',
-                                    _paymentMethodsDropdown,
-                                    _selectedPaymentMethodDropdown,
-                                    (v) => setState(
-                                      () => _selectedPaymentMethodDropdown = v,
-                                    ),
-                                  ),
-                                  _hasServiceSwitch(),
-                                  if (_hasService) ...[
-                                    const SizedBox(height: 8),
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        'Service Tags',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                          color: kPrimary,
-                                          fontFamily: 'Montserrat',
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1200),
+                          child: ListView(
+                            children: [
+                              const SizedBox(height: 8),
+                              Card(
+                                elevation: 2,
+                                color: kCardBg,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(18),
+                                  child: Column(
+                                    children: [
+                                      _unitPicker(),
+                                      const SizedBox(height: 16),
+                                      LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          final wide =
+                                              constraints.maxWidth >= 760;
+                                          final fieldWidth = wide
+                                              ? (constraints.maxWidth - 16) / 2
+                                              : constraints.maxWidth;
+                                          return Wrap(
+                                            spacing: 16,
+                                            children: [
+                                              SizedBox(
+                                                width: fieldWidth,
+                                                child: _dropdownField(
+                                                  'Meeting Frequency',
+                                                  _meetingFrequencies,
+                                                  _selectedMeetingFrequency,
+                                                  (value) => setState(
+                                                    () =>
+                                                        _selectedMeetingFrequency =
+                                                            value,
+                                                  ),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: fieldWidth,
+                                                child: _dropdownField(
+                                                  'Payment Method',
+                                                  _paymentMethodsDropdown,
+                                                  _selectedPaymentMethodDropdown,
+                                                  (value) => setState(
+                                                    () =>
+                                                        _selectedPaymentMethodDropdown =
+                                                            value,
+                                                  ),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: fieldWidth,
+                                                child:
+                                                    _exactAmountCollectionTextField(),
+                                              ),
+                                              SizedBox(
+                                                width: fieldWidth,
+                                                child: _exactAmountTextField(),
+                                              ),
+                                              SizedBox(
+                                                width: fieldWidth,
+                                                child:
+                                                    _exactPenaltyPaymentTextField(),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                      _hasServiceSwitch(),
+                                      if (_hasService) ...[
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            const Expanded(
+                                              child: Text(
+                                                'Service tags',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: kPrimary,
+                                                  fontFamily: 'Montserrat',
+                                                ),
+                                              ),
+                                            ),
+                                            Text(
+                                              '${_selectedServiceTags.values.where((selected) => selected).length} selected',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: kSubText,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 4,
+                                          children: dayungServiceTagLabels.map((
+                                            label,
+                                          ) {
+                                            return FilterChip(
+                                              label: Text(label),
+                                              labelStyle: const TextStyle(
+                                                fontSize: 12,
+                                              ),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              selected:
+                                                  _selectedServiceTags[label] ??
+                                                  false,
+                                              onSelected: (value) {
+                                                setState(() {
+                                                  _selectedServiceTags[label] =
+                                                      value;
+                                                });
+                                              },
+                                              side: const BorderSide(
+                                                color: kBorderColor,
+                                              ),
+                                              selectedColor: kPrimary
+                                                  .withValues(alpha: 0.16),
+                                              checkmarkColor: kPrimary,
+                                            );
+                                          }).toList(),
+                                        ),
+                                        const SizedBox(height: 16),
+                                      ],
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: _saving ? null : _save,
+                                          icon: _saving
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white,
+                                                      ),
+                                                )
+                                              : const Icon(Icons.save_rounded),
+                                          label: Text(
+                                            _saving
+                                                ? 'Saving...'
+                                                : 'Save Rules',
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: kAccent,
+                                            foregroundColor: Colors.white,
+                                            disabledBackgroundColor: kAccent
+                                                .withValues(alpha: 0.7),
+                                            disabledForegroundColor:
+                                                Colors.white,
+                                            elevation: 0,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 24,
+                                              vertical: 14,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: dayungServiceTagLabels.map((
-                                        label,
-                                      ) {
-                                        return FilterChip(
-                                          label: Text(label),
-                                          selected:
-                                              _selectedServiceTags[label] ??
-                                              false,
-                                          onSelected: (value) {
-                                            setState(() {
-                                              _selectedServiceTags[label] =
-                                                  value;
-                                            });
-                                          },
-                                          side: const BorderSide(
-                                            color: kBorderColor,
-                                          ),
-                                          selectedColor: kPrimary.withValues(
-                                            alpha: 0.16,
-                                          ),
-                                          checkmarkColor: kPrimary,
-                                        );
-                                      }).toList(),
-                                    ),
-                                    const SizedBox(height: 16),
-                                  ],
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton.icon(
-                                      onPressed: _save,
-                                      icon: const Icon(Icons.save),
-                                      label: const Text('Save Rules'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: kAccent,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 24,
-                                          vertical: 16,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
             ),
@@ -474,8 +547,85 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   }
 
   Widget _unitPicker() {
+    final unitLabel = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: kPrimary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.location_on_rounded,
+            color: kPrimary,
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 8),
+        const Text(
+          'Dayung Unit',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            color: kText,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+      ],
+    );
+    final unitDropdown = DropdownButtonFormField<int>(
+      initialValue: _unitId,
+      isExpanded: true,
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: kCardBg,
+        isDense: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: kBorderColor, width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: kBorderColor, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: kPrimary, width: 2),
+        ),
+      ),
+      items: _units
+          .map(
+            (u) => DropdownMenuItem<int>(
+              value: int.tryParse('${u['id']}'),
+              child: Text(
+                (u['name'] ?? 'Unit').toString(),
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'OpenSans',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          )
+          .toList(),
+      onChanged: (v) async {
+        setState(() => _unitId = v);
+        if (v != null) {
+          setState(() => _loading = true);
+          try {
+            await _loadRules(v);
+          } catch (e) {
+            _showError('Failed to load rules: $e');
+          } finally {
+            if (mounted) setState(() => _loading = false);
+          }
+        }
+      },
+    );
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: kCardBg,
         borderRadius: BorderRadius.circular(20),
@@ -491,82 +641,22 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.location_on_rounded,
-              color: kPrimary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Dayung Unit:',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: kText,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonFormField<int>(
-              initialValue: _unitId,
-              isExpanded: true,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: kCardBg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: kBorderColor, width: 1),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: kBorderColor, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: kPrimary, width: 2),
-                ),
-              ),
-              items: _units
-                  .map(
-                    (u) => DropdownMenuItem<int>(
-                      value: int.tryParse('${u['id']}'),
-                      child: Text(
-                        (u['name'] ?? 'Unit').toString(),
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'OpenSans',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) async {
-                setState(() => _unitId = v);
-                if (v != null) {
-                  setState(() => _loading = true);
-                  try {
-                    await _loadRules(v);
-                  } catch (e) {
-                    _showError('Failed to load rules: $e');
-                  } finally {
-                    if (mounted) setState(() => _loading = false);
-                  }
-                }
-              },
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 640) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [unitLabel, const SizedBox(height: 10), unitDropdown],
+            );
+          }
+          return Row(
+            children: [
+              unitLabel,
+              const SizedBox(width: 12),
+              Expanded(child: unitDropdown),
+            ],
+          );
+        },
       ),
     );
   }

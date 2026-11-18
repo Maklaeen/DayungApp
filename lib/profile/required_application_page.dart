@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/input_safety.dart';
 
 // Color palette
@@ -150,6 +151,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
   final List<TextEditingController> _descControllers = [];
   RequiredApplicationContent _content = RequiredApplicationContent.empty();
   bool _loading = false;
+  bool _fetching = false;
   bool _editing = false;
   bool _agreedToTerms = false;
   bool _hasApplicationRecord = false;
@@ -232,7 +234,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
   }
 
   Future<void> _fetchApplication() async {
-    setState(() => _loading = true);
+    setState(() => _fetching = true);
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) return;
@@ -276,7 +278,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to load: $e')));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _fetching = false);
     }
   }
 
@@ -457,74 +459,70 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
     final agreed = _agreedToTerms;
 
     return Center(
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(top: 8, bottom: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8F5E9),
-          border: Border.all(color: const Color(0xFF2E7D32), width: 1.2),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 6,
-              offset: Offset(0, 3),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100),
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F5E9),
+            border: Border.all(
+              color: agreed ? const Color(0xFF2E7D32) : const Color(0xFF81C784),
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.verified_user_outlined,
-                  color: agreed
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFF4CAF50),
-                  size: 22,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final agreeButton = FilledButton.icon(
+                onPressed: _toggleAgreement,
+                icon: Icon(
+                  agreed ? Icons.check_rounded : Icons.verified_user_outlined,
+                  size: 18,
                 ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    'Click if you agree to the terms and rules so you can pay the membership fee.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: const Color(0xFF1B5E20),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      height: 1.4,
-                    ),
+                label: Text(agreed ? 'Agreed' : 'I Agree'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            InkWell(
-              borderRadius: BorderRadius.circular(999),
-              onTap: _toggleAgreement,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
+              );
+              final message = Text(
+                'Agree to these rules to continue to membership payment.',
+                style: const TextStyle(
+                  color: Color(0xFF1B5E20),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  height: 1.35,
                 ),
-                decoration: BoxDecoration(
-                  color: agreed
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFF4CAF50),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  agreed ? 'Agreed ✓' : 'I Agree',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+              );
+
+              if (constraints.maxWidth < 560) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [message, const SizedBox(height: 10), agreeButton],
+                );
+              }
+
+              return Row(
+                children: [
+                  Icon(
+                    agreed
+                        ? Icons.verified_user_rounded
+                        : Icons.shield_outlined,
+                    color: const Color(0xFF2E7D32),
+                    size: 22,
                   ),
-                ),
-              ),
-            ),
-          ],
+                  const SizedBox(width: 10),
+                  Expanded(child: message),
+                  const SizedBox(width: 12),
+                  agreeButton,
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -601,6 +599,68 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
     );
   }
 
+  Widget _buildSectionCard(RequiredApplicationSection section, int index) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5EAF0)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: kAccent.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '${index + 1}',
+              style: const TextStyle(
+                color: kAccent,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  section.title.isEmpty
+                      ? 'Section ${index + 1}'
+                      : section.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: kAccent,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  section.description,
+                  style: const TextStyle(
+                    color: kSubText,
+                    fontSize: 14,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -609,18 +669,18 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               decoration: const BoxDecoration(
                 color: kAccent,
                 borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: kAccent,
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
@@ -630,13 +690,13 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                     icon: const Icon(
                       Icons.arrow_back_ios_new,
                       color: Colors.white,
-                      size: 24,
+                      size: 20,
                     ),
                     onPressed: () => Navigator.pop(context),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
                       'Required Application',
@@ -652,182 +712,181 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    Card(
-                      elevation: 4,
-                      color: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Padding(
-                        padding: const EdgeInsets.all(22),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _editing || _content.isEmpty
-                                  ? 'Add your required application details and rules'
-                                  : 'Your application',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 28,
-                                color: kAccent,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            if (_editing || _content.isEmpty)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  TextField(
-                                    controller: _mainTitleController,
-                                    inputFormatters:
-                                        AppInputSecurity.singleLineFormatters(
-                                          maxLength: 120,
-                                        ),
-                                    decoration: InputDecoration(
-                                      labelText: 'Dayung Name',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      filled: true,
-                                      fillColor: kBg,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'Boxes',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: kText,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  for (
-                                    var i = 0;
-                                    i < _titleControllers.length;
-                                    i++
-                                  )
-                                    _buildSectionEditor(i),
-                                  const SizedBox(height: 8),
-                                  TextButton.icon(
-                                    onPressed: _addSection,
-                                    icon: const Icon(Icons.add),
-                                    label: const Text('Add another box'),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
+              child: _fetching && !_editing && _content.isEmpty
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.detail,
+                      padding: EdgeInsets.fromLTRB(16, 20, 16, 24),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      child: Column(
+                        children: [
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1100),
+                              child: Card(
+                                elevation: 4,
+                                color: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      _loading
-                                          ? const CircularProgressIndicator()
-                                          : ElevatedButton.icon(
-                                              icon: const Icon(Icons.save),
-                                              label: Text(
-                                                _content.isEmpty
-                                                    ? 'Save'
-                                                    : 'Update',
+                                      Text(
+                                        _editing || _content.isEmpty
+                                            ? 'Application rules'
+                                            : 'Your application',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 24,
+                                          color: kAccent,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 18),
+                                      if (_editing || _content.isEmpty)
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            TextField(
+                                              controller: _mainTitleController,
+                                              inputFormatters:
+                                                  AppInputSecurity.singleLineFormatters(
+                                                    maxLength: 120,
+                                                  ),
+                                              decoration: InputDecoration(
+                                                labelText: 'Dayung Name',
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                filled: true,
+                                                fillColor: kBg,
                                               ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            const Text(
+                                              'Application sections',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                color: kText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            for (
+                                              var i = 0;
+                                              i < _titleControllers.length;
+                                              i++
+                                            )
+                                              _buildSectionEditor(i),
+                                            const SizedBox(height: 8),
+                                            TextButton.icon(
+                                              onPressed: _addSection,
+                                              icon: const Icon(Icons.add),
+                                              label: const Text(
+                                                'Add a section',
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Row(
+                                              children: [
+                                                _loading
+                                                    ? const CircularProgressIndicator()
+                                                    : ElevatedButton.icon(
+                                                        icon: const Icon(
+                                                          Icons.save,
+                                                        ),
+                                                        label: Text(
+                                                          _content.isEmpty
+                                                              ? 'Save'
+                                                              : 'Update',
+                                                        ),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              kSuccess,
+                                                          foregroundColor:
+                                                              Colors.white,
+                                                          shape: RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  10,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        onPressed:
+                                                            _addOrUpdateApplication,
+                                                      ),
+                                                if (_editing &&
+                                                    !_content.isEmpty)
+                                                  TextButton(
+                                                    onPressed: _cancelEdit,
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                              ],
+                                            ),
+                                          ],
+                                        )
+                                      else
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _content.mainTitle,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 24,
+                                                color: kText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            for (
+                                              var index = 0;
+                                              index < _content.sections.length;
+                                              index++
+                                            )
+                                              _buildSectionCard(
+                                                _content.sections[index],
+                                                index,
+                                              ),
+                                            ElevatedButton.icon(
+                                              icon: const Icon(Icons.edit),
+                                              label: const Text('Edit'),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: kSuccess,
+                                                backgroundColor: kAccent,
                                                 foregroundColor: Colors.white,
                                                 shape: RoundedRectangleBorder(
                                                   borderRadius:
                                                       BorderRadius.circular(10),
                                                 ),
                                               ),
-                                              onPressed:
-                                                  _addOrUpdateApplication,
+                                              onPressed: _startEdit,
                                             ),
-                                      if (_editing && !_content.isEmpty)
-                                        TextButton(
-                                          onPressed: _cancelEdit,
-                                          child: const Text('Cancel'),
+                                          ],
                                         ),
                                     ],
                                   ),
-                                ],
-                              )
-                            else
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _content.mainTitle,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 24,
-                                      color: kText,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  for (final section in _content.sections)
-                                    Container(
-                                      width: double.infinity,
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      padding: const EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: kBg,
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            section.title,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              color: kAccent,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            section.description,
-                                            style: const TextStyle(
-                                              color: kSubText,
-                                              fontSize: 15,
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  const SizedBox(height: 12),
-                                  if (RequiredApplicationsPage.shouldShowAgreementNotice(
-                                    hasApplicationRecord: _hasApplicationRecord,
-                                  ))
-                                    _buildAgreementNotice(),
-                                  const SizedBox(height: 4),
-                                  ElevatedButton.icon(
-                                    icon: const Icon(Icons.edit),
-                                    label: const Text('Edit'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: kAccent,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                    onPressed: _startEdit,
-                                  ),
-                                ],
+                                ),
                               ),
-                          ],
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
             ),
+            if (!_editing &&
+                !_content.isEmpty &&
+                RequiredApplicationsPage.shouldShowAgreementNotice(
+                  hasApplicationRecord: _hasApplicationRecord,
+                ))
+              _buildAgreementNotice(),
           ],
         ),
       ),

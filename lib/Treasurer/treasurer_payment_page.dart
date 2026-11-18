@@ -292,303 +292,371 @@ class _TreasurerPaymentPageState extends State<TreasurerPaymentPage> {
                       ),
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Refresh payments',
+                    onPressed: _loading ? null : _loadPayments,
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
                 ],
               ),
             ),
             Expanded(
-              child: _loading
-                  ? const DayungPageSkeleton(
-                      layout: DayungSkeletonLayout.list,
-                      padding: EdgeInsets.all(20),
-                    )
-                  : _error != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w700,
-                          ),
+              child: RefreshIndicator(
+                onRefresh: _loadPayments,
+                child: _loading
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
                         ),
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _loadPayments,
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: _kCard,
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: _kBorder),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Payment Record',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                    color: _kText,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Autocomplete<Map<String, dynamic>>(
-                                  optionsBuilder: (TextEditingValue value) {
-                                    final query = value.text
-                                        .trim()
-                                        .toLowerCase();
-                                    final options = _userOptions;
-                                    if (query.isEmpty) return options;
-                                    return options.where((member) {
-                                      final name = (member['full_name'] ?? '')
-                                          .toString();
-                                      return name.toLowerCase().contains(query);
-                                    });
-                                  },
-                                  displayStringForOption: (option) =>
-                                      (option['full_name'] ?? '').toString(),
-                                  onSelected: (option) {
-                                    final userId = (option['user_id'] ?? '')
-                                        .toString();
-                                    setState(() {
-                                      _selectedUserId = userId;
-                                      _nameController.text =
-                                          (option['full_name'] ?? '')
-                                              .toString();
-                                    });
-                                  },
-                                  fieldViewBuilder:
-                                      (
-                                        context,
-                                        fieldTextEditingController,
-                                        focusNode,
-                                        onFieldSubmitted,
-                                      ) {
-                                        fieldTextEditingController.text =
-                                            _nameController.text;
-                                        return TextFormField(
-                                          controller:
-                                              fieldTextEditingController,
-                                          focusNode: focusNode,
-                                          onFieldSubmitted: (_) =>
-                                              onFieldSubmitted(),
-                                          decoration: const InputDecoration(
-                                            labelText: 'NAME',
-                                            hintText: 'Select member name',
-                                            border: OutlineInputBorder(),
-                                            prefixIcon: Icon(
-                                              Icons.person_outline_rounded,
-                                            ),
-                                          ),
-                                          onChanged: (value) {
-                                            _nameController.text = value;
-                                            _selectedUserId = null;
-                                          },
-                                        );
-                                      },
-                                ),
-                                const SizedBox(height: 14),
-                                TextFormField(
-                                  controller: _amountController,
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Advance Amount',
-                                    hintText: '0.00',
-                                    border: OutlineInputBorder(),
-                                    prefixIcon: Icon(
-                                      Icons.attach_money_rounded,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _paymentType,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Type',
-                                    border: OutlineInputBorder(),
-                                    prefixIcon: Icon(Icons.payment_rounded),
-                                  ),
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: 'gcash',
-                                      child: Text('GCash'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'cash',
-                                      child: Text('Cash'),
-                                    ),
-                                  ],
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _paymentType = value);
-                                    }
-                                  },
-                                ),
-                                const SizedBox(height: 18),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _saving ? null : _handlePay,
-                                    icon: _saving
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.check_circle_rounded,
-                                          ),
-                                    label: Text(_saving ? 'Paying...' : 'Pay'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _kPrimary,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Container(
-                            padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
-                            decoration: BoxDecoration(
-                              color: _kCard,
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(color: _kBorder),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.fromLTRB(18, 18, 18, 8),
-                                  child: Text(
-                                    'Payment List',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                      color: _kText,
-                                    ),
-                                  ),
-                                ),
-                                _paymentRows.isEmpty
-                                    ? Padding(
-                                        padding: const EdgeInsets.all(18),
-                                        child: Text(
-                                          'No payment records found.',
-                                          style: TextStyle(
-                                            color: Colors.grey[700],
-                                          ),
-                                        ),
-                                      )
-                                    : RecordDataTable(
-                                        columnSpacing: 20,
-                                        horizontalMargin: 18,
-                                        headingRowHeight: 64,
-                                        dataRowMinHeight: 68,
-                                        dataRowMaxHeight: 112,
-                                        headingRowColor: const Color(
-                                          0xFFEAF2FC,
-                                        ),
-                                        headingTextStyle: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          color: _kPrimary,
-                                          fontSize: 16,
-                                          fontFamily: 'Montserrat',
-                                        ),
-                                        dataTextStyle: const TextStyle(
-                                          color: Color(0xFF1F2937),
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          fontFamily: 'OpenSans',
-                                        ),
-                                        dividerThickness: 1,
-                                        border: const TableBorder(
-                                          horizontalInside: BorderSide(
-                                            color: Color(0xFFD7E0EA),
-                                          ),
-                                        ),
-                                        columns: const [
-                                          DataColumn(label: Text('Name')),
-                                          DataColumn(
-                                            label: Text('Advance Amount'),
-                                          ),
-                                          DataColumn(label: Text('Type')),
-                                          DataColumn(label: Text('Added By')),
-                                          DataColumn(label: Text('Date')),
-                                        ],
-                                        rows: _paymentRows.indexed.map((entry) {
-                                          final (index, row) = entry;
-                                          final name = _fullNameForRow(row);
-                                          final type = (row['type'] ?? 'cash')
-                                              .toString()
-                                              .toLowerCase();
-                                          return DataRow(
-                                            color: WidgetStatePropertyAll(
-                                              index.isEven
-                                                  ? Colors.white
-                                                  : const Color(0xFFF5F8FC),
-                                            ),
-                                            cells: [
-                                              DataCell(Text(name)),
-                                              DataCell(
-                                                Text(
-                                                  _amountLabel(row['amount']),
-                                                ),
-                                              ),
-                                              DataCell(
-                                                Text(
-                                                  type == 'gcash'
-                                                      ? 'GCash'
-                                                      : 'Cash',
-                                                ),
-                                              ),
-                                              DataCell(
-                                                Text(_addedByNameForRow(row)),
-                                              ),
-                                              DataCell(
-                                                Text(
-                                                  _dateLabel(row['created_at']),
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        }).toList(),
-                                      ),
-                              ],
+                        children: const [
+                          SizedBox(
+                            height: 360,
+                            child: DayungPageSkeleton(
+                              layout: DayungSkeletonLayout.list,
+                              padding: EdgeInsets.all(20),
                             ),
                           ),
                         ],
+                      )
+                    : _error != null
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        padding: const EdgeInsets.all(20),
+                        children: [_buildLoadError()],
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final wide = constraints.maxWidth >= 1200;
+                          return ListView(
+                            physics: const AlwaysScrollableScrollPhysics(
+                              parent: BouncingScrollPhysics(),
+                            ),
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                            children: wide
+                                ? [
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        SizedBox(
+                                          width: 360,
+                                          child: _buildPaymentForm(),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(child: _buildPaymentList()),
+                                      ],
+                                    ),
+                                  ]
+                                : [
+                                    _buildPaymentForm(),
+                                    const SizedBox(height: 16),
+                                    _buildPaymentList(),
+                                  ],
+                          );
+                        },
                       ),
-                    ),
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentForm() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Payment Record',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: _kText,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Autocomplete<Map<String, dynamic>>(
+            optionsBuilder: (TextEditingValue value) {
+              final query = value.text.trim().toLowerCase();
+              if (query.isEmpty) return _userOptions;
+              return _userOptions.where((member) {
+                final name = (member['full_name'] ?? '').toString();
+                return name.toLowerCase().contains(query);
+              });
+            },
+            displayStringForOption: (option) =>
+                (option['full_name'] ?? '').toString(),
+            onSelected: (option) {
+              final userId = (option['user_id'] ?? '').toString();
+              setState(() {
+                _selectedUserId = userId;
+                _nameController.text = (option['full_name'] ?? '').toString();
+              });
+            },
+            fieldViewBuilder:
+                (
+                  context,
+                  fieldTextEditingController,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
+                  fieldTextEditingController.text = _nameController.text;
+                  return TextFormField(
+                    controller: fieldTextEditingController,
+                    focusNode: focusNode,
+                    onFieldSubmitted: (_) => onFieldSubmitted(),
+                    decoration: InputDecoration(
+                      labelText: 'Member name',
+                      hintText: 'Choose a member',
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      prefixIcon: const Icon(Icons.person_outline_rounded),
+                    ),
+                    onChanged: (value) {
+                      _nameController.text = value;
+                      _selectedUserId = null;
+                    },
+                  );
+                },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _amountController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Advance amount',
+              hintText: '0.00',
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              prefixIcon: const Icon(Icons.payments_outlined),
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _paymentType,
+            decoration: InputDecoration(
+              labelText: 'Payment type',
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              prefixIcon: const Icon(Icons.payment_rounded),
+            ),
+            items: const [
+              DropdownMenuItem(value: 'gcash', child: Text('GCash')),
+              DropdownMenuItem(value: 'cash', child: Text('Cash')),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => _paymentType = value);
+            },
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _saving ? null : _handlePay,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check_circle_rounded),
+              label: Text(_saving ? 'Saving...' : 'Record payment'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kPrimary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentList() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Payment List',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: _kText,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF2FC),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${_paymentRows.length} ${_paymentRows.length == 1 ? 'record' : 'records'}',
+                    style: const TextStyle(
+                      color: _kPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_paymentRows.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 20),
+              child: Row(
+                children: [
+                  Icon(Icons.receipt_long_outlined, color: _kPrimary),
+                  SizedBox(width: 10),
+                  Text('No payment records yet.'),
+                ],
+              ),
+            )
+          else
+            RecordDataTable(
+              columnSpacing: 18,
+              horizontalMargin: 16,
+              headingRowHeight: 48,
+              dataRowMinHeight: 56,
+              dataRowMaxHeight: 72,
+              headingRowColor: const Color(0xFFEAF2FC),
+              headingTextStyle: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: _kPrimary,
+                fontSize: 14,
+                fontFamily: 'Montserrat',
+              ),
+              dataTextStyle: const TextStyle(
+                color: Color(0xFF1F2937),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'OpenSans',
+              ),
+              dividerThickness: 1,
+              border: const TableBorder(
+                horizontalInside: BorderSide(color: Color(0xFFD7E0EA)),
+              ),
+              columns: const [
+                DataColumn(label: Text('Name')),
+                DataColumn(label: Text('Amount')),
+                DataColumn(label: Text('Type')),
+                DataColumn(label: Text('Added by')),
+                DataColumn(label: Text('Date')),
+              ],
+              rows: _paymentRows.indexed.map((entry) {
+                final (index, row) = entry;
+                final type = (row['type'] ?? 'cash').toString().toLowerCase();
+                return DataRow(
+                  color: WidgetStatePropertyAll(
+                    index.isEven ? Colors.white : const Color(0xFFF5F8FC),
+                  ),
+                  cells: [
+                    DataCell(Text(_fullNameForRow(row))),
+                    DataCell(Text(_amountLabel(row['amount']))),
+                    DataCell(Text(type == 'gcash' ? 'GCash' : 'Cash')),
+                    DataCell(Text(_addedByNameForRow(row))),
+                    DataCell(Text(_dateLabel(row['created_at']))),
+                  ],
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadError() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Color(0xFFB45309)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Could not load payment records',
+                  style: TextStyle(fontWeight: FontWeight.w800, color: _kText),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('Pull down to retry or tap below.'),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('Error details'),
+            children: [SelectableText(_error ?? '')],
+          ),
+          OutlinedButton.icon(
+            onPressed: _loadPayments,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }

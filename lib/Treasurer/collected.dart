@@ -36,7 +36,6 @@ class _CollectedFromCollectorsPageState
   int _totalPayments = 0;
   int _activeCollectors = 0;
   int _collectorCount = 0;
-  String? _selectedDeceasedName;
 
   bool get _hasActiveFilters {
     return _selectedDeceasedId != null || _selectedDateRange != null;
@@ -87,7 +86,6 @@ class _CollectedFromCollectorsPageState
     setState(() {
       _selectedDeceasedId = null;
       _selectedDateRange = null;
-      _selectedDeceasedName = null;
     });
   }
 
@@ -487,24 +485,18 @@ class _CollectedFromCollectorsPageState
     try {
       final res = await sb
           .from('death_notices')
-          .select('id, name, date_of_death')
+          .select('id, name, date_of_death, user_id, beneficiary_id')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .order('date_of_death', ascending: false)
           .timeout(_queryTimeout);
       if (!mounted) return;
       setState(() {
         _deceasedList = List<Map<String, dynamic>>.from(res);
-        _selectedDeceasedName = _deceasedList
-            .where((row) => row['id'] == _selectedDeceasedId)
-            .map((row) => (row['name'] ?? 'Unknown').toString())
-            .cast<String?>()
-            .firstOrNull;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _deceasedList = [];
-        _selectedDeceasedName = null;
       });
     }
   }
@@ -519,15 +511,11 @@ class _CollectedFromCollectorsPageState
           .from('payments')
           .select(
             'id, collected_by, amount, user_id, userdeceased, deceased_name, '
-            'paid_at, death_notice_id, iscollectedbytreasurer, '
-            'iscollectedbytreasurer_date',
+            'paid_at, iscollectedbytreasurer, iscollectedbytreasurer_date',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'paid');
 
-      if (_selectedDeceasedId != null) {
-        query = query.eq('death_notice_id', _selectedDeceasedId as Object);
-      }
       if (_selectedDateRange != null) {
         final endExclusive = DateTime(
           _selectedDateRange!.end.year,
@@ -549,6 +537,34 @@ class _CollectedFromCollectorsPageState
           .timeout(_queryTimeout);
 
       final payments = List<Map<String, dynamic>>.from(paymentResponse);
+      if (_selectedDeceasedId != null) {
+        final selectedNotice = _deceasedList
+            .where((row) => _asInt(row['id']) == _selectedDeceasedId)
+            .firstOrNull;
+        if (selectedNotice == null) {
+          payments.clear();
+        } else {
+          final deceasedIds = {
+            (selectedNotice['user_id'] ?? '').toString().trim(),
+            (selectedNotice['beneficiary_id'] ?? '').toString().trim(),
+          }..remove('');
+          final deceasedName = (selectedNotice['name'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          payments.removeWhere((payment) {
+            final paymentDeceasedId = (payment['userdeceased'] ?? '')
+                .toString()
+                .trim();
+            final paymentDeceasedName = (payment['deceased_name'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            return !deceasedIds.contains(paymentDeceasedId) &&
+                (deceasedName.isEmpty || paymentDeceasedName != deceasedName);
+          });
+        }
+      }
       final collectorRows = List<Map<String, dynamic>>.from(
         await collectorRowsFuture,
       );
@@ -630,16 +646,28 @@ class _CollectedFromCollectorsPageState
           collector['recent_payment'] = paidAt;
         }
 
-        final noticeId = (p['death_notice_id'] ?? '').toString().trim();
         final deceasedUserId = (p['userdeceased'] ?? '').toString().trim();
+        final paymentDeceasedName = (p['deceased_name'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        final notice = _deceasedList.where((row) {
+          final memberId = (row['user_id'] ?? '').toString().trim();
+          final beneficiaryId = (row['beneficiary_id'] ?? '').toString().trim();
+          final name = (row['name'] ?? '').toString().trim().toLowerCase();
+          return (deceasedUserId.isNotEmpty &&
+                  (memberId == deceasedUserId ||
+                      beneficiaryId == deceasedUserId)) ||
+              (paymentDeceasedName.isNotEmpty && name == paymentDeceasedName);
+        }).firstOrNull;
+        final noticeId = (notice?['id'] ?? '').toString().trim();
         final memberKey = noticeId.isNotEmpty
             ? 'notice:$noticeId'
             : deceasedUserId.isNotEmpty
             ? 'member:$deceasedUserId'
+            : paymentDeceasedName.isNotEmpty
+            ? 'name:$paymentDeceasedName'
             : '__unknown__';
-        final notice = _deceasedList
-            .where((row) => '${row['id']}' == noticeId)
-            .firstOrNull;
         final deceasedName =
             (notice?['name'] ??
                     p['deceased_name'] ??
@@ -773,11 +801,6 @@ class _CollectedFromCollectorsPageState
                   _asInt(row['payment_count']) > 0,
             )
             .length;
-        _selectedDeceasedName = _deceasedList
-            .where((row) => row['id'] == _selectedDeceasedId)
-            .map((row) => (row['name'] ?? 'Unknown').toString())
-            .cast<String?>()
-            .firstOrNull;
         _loading = false;
       });
     } catch (e) {
@@ -827,7 +850,7 @@ class _CollectedFromCollectorsPageState
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                       children: [
-                        _buildOverviewCard(wide),
+                        _buildOverviewCard(),
                         const SizedBox(height: 18),
                         _buildFilterCard(wide),
                         const SizedBox(height: 18),
@@ -848,9 +871,9 @@ class _CollectedFromCollectorsPageState
     return Container(
       padding: EdgeInsets.fromLTRB(
         12,
-        wide ? 36 : 28,
+        wide ? 18 : 16,
         wide ? 24 : 16,
-        wide ? 32 : 24,
+        wide ? 18 : 16,
       ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -871,7 +894,7 @@ class _CollectedFromCollectorsPageState
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 44,
@@ -894,46 +917,15 @@ class _CollectedFromCollectorsPageState
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Collection Reports',
-                  style: TextStyle(
-                    fontSize: wide ? 24 : 21,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    fontFamily: 'Montserrat',
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Text(
-                //   'Review paid remittances, assigned collectors, and the most recent collections recorded for this unit.',
-                //   style: TextStyle(
-                //     fontSize: wide ? 14 : 13,
-                //     height: 1.35,
-                //     fontWeight: FontWeight.w600,
-                //     color: Colors.white70,
-                //     fontFamily: 'OpenSans',
-                //   ),
-                // ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _headerPill(
-                      icon: Icons.groups_rounded,
-                      label: '$_activeCollectors active collectors',
-                    ),
-                    _headerPill(
-                      icon: Icons.receipt_long_rounded,
-                      label: '$_totalPayments paid records',
-                    ),
-                  ],
-                ),
-              ],
+            child: Text(
+              'Collection Reports',
+              style: TextStyle(
+                fontSize: wide ? 24 : 21,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                fontFamily: 'Montserrat',
+                letterSpacing: 0.2,
+              ),
             ),
           ),
         ],
@@ -941,63 +933,36 @@ class _CollectedFromCollectorsPageState
     );
   }
 
-  Widget _headerPill({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOverviewCard(bool wide) {
+  Widget _buildOverviewCard() {
     final cards = [
       _buildStatCard(
         icon: Icons.groups_rounded,
-        label: 'Number of Collectors',
-        value: '$_collectorCount',
+        label: 'Active / assigned',
+        value: '$_activeCollectors / $_collectorCount',
         tone: const Color(0xFFB45309),
       ),
       _buildStatCard(
         icon: Icons.account_balance_wallet_rounded,
-        label: 'Collectors Collected',
+        label: 'Collector total',
         value: _formatCurrency(_collectorCollected),
         tone: const Color(0xFF0F766E),
       ),
       _buildStatCard(
         icon: Icons.payments_rounded,
-        label: 'Total Collected',
+        label: 'Total collected',
         value: _formatCurrency(_totalCollected),
         tone: const Color(0xFF1E40AF),
       ),
       _buildStatCard(
         icon: Icons.receipt_long_rounded,
-        label: 'Paid Payments',
+        label: 'Paid records',
         value: '$_totalPayments',
         tone: const Color(0xFF0F766E),
       ),
     ];
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -1013,44 +978,6 @@ class _CollectedFromCollectorsPageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Collection Overview',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: kNeutralText,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Review collector performance, paid member contributions, and the most recent recorded collections for this unit.',
-            style: TextStyle(
-              fontSize: wide ? 14 : 13,
-              color: kSubtleText,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _buildInfoBadge(
-                icon: Icons.person_outline_rounded,
-                label: _selectedDeceasedName ?? 'All deceased notices',
-                color: const Color(0xFF1E40AF),
-              ),
-              _buildInfoBadge(
-                icon: Icons.schedule_rounded,
-                label: _formatDateRangeLabel(),
-                color: const Color(0xFF0F766E),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final isWideStats = constraints.maxWidth >= 760;
@@ -1137,7 +1064,7 @@ class _CollectedFromCollectorsPageState
 
   Widget _buildFilterCard(bool wide) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -1159,7 +1086,7 @@ class _CollectedFromCollectorsPageState
                 child: Text(
                   'Filters',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: kNeutralText,
                     fontFamily: 'Montserrat',
@@ -1173,37 +1100,23 @@ class _CollectedFromCollectorsPageState
                     _fetchCollectors();
                   },
                   icon: const Icon(Icons.clear_rounded, size: 18),
-                  label: const Text('Clear'),
+                  label: const Text('Reset'),
                 ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Filter the paid collections by deceased member and payment date window to audit what collectors have already remitted.',
-            style: TextStyle(
-              fontSize: wide ? 14 : 13,
-              color: kSubtleText,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: 10,
+            runSpacing: 10,
             children: [
               SizedBox(
                 width: wide ? 320 : double.infinity,
                 child: _buildDropdownFilter(),
               ),
               SizedBox(
-                width: wide ? 250 : double.infinity,
-                child: _buildActionFilter(
-                  icon: Icons.date_range_rounded,
-                  label: 'Payment Dates',
-                  value: _formatDateRangeLabel(),
-                  onTap: () async {
+                width: wide ? 220 : double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
                     final range = await showDateRangePicker(
                       context: context,
                       firstDate: DateTime.now().subtract(
@@ -1215,31 +1128,33 @@ class _CollectedFromCollectorsPageState
                     setState(() => _selectedDateRange = range);
                     _fetchCollectors();
                   },
+                  icon: const Icon(Icons.date_range_rounded),
+                  label: Text(_formatDateRangeLabel()),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    foregroundColor: kNeutralText,
+                    side: const BorderSide(color: kBorder),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                 ),
               ),
               SizedBox(
-                width: wide ? 250 : double.infinity,
-                child: _buildActionFilter(
-                  icon: Icons.refresh_rounded,
-                  label: 'Refresh Data',
-                  value: 'Reload latest collector payments',
-                  onTap: _reloadPageData,
+                width: wide ? 140 : double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _reloadPageData,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Refresh'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    foregroundColor: kNeutralText,
+                    side: const BorderSide(color: kBorder),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildFilterChip(
-                icon: Icons.person_outline_rounded,
-                label: _selectedDeceasedName ?? 'All deceased notices',
-              ),
-              _buildFilterChip(
-                icon: Icons.schedule_rounded,
-                label: _formatDateRangeLabel(),
               ),
             ],
           ),
@@ -1260,7 +1175,7 @@ class _CollectedFromCollectorsPageState
         child: DropdownButton<int?>(
           value: _selectedDeceasedId,
           isExpanded: true,
-          hint: const Text('All deceased notices'),
+          hint: const Text('All deceased'),
           style: const TextStyle(
             color: kNeutralText,
             fontWeight: FontWeight.w700,
@@ -1269,7 +1184,7 @@ class _CollectedFromCollectorsPageState
           items: [
             const DropdownMenuItem<int?>(
               value: null,
-              child: Text('All deceased notices'),
+              child: Text('All deceased'),
             ),
             ..._deceasedList.map(
               (row) => DropdownMenuItem<int?>(
@@ -1281,135 +1196,10 @@ class _CollectedFromCollectorsPageState
           onChanged: (value) {
             setState(() {
               _selectedDeceasedId = value;
-              _selectedDeceasedName = _deceasedList
-                  .where((row) => row['id'] == value)
-                  .map((row) => (row['name'] ?? 'Unknown').toString())
-                  .cast<String?>()
-                  .firstOrNull;
             });
             _fetchCollectors();
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildActionFilter({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Future<void> Function() onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Ink(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: kSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kBorder),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: kPrimary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: kPrimary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: kNeutralText,
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: kSubtleText,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoBadge({
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: kPrimary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: kPrimary.withValues(alpha: 0.14)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: kPrimary),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: kPrimaryDark,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1443,7 +1233,7 @@ class _CollectedFromCollectorsPageState
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Could not load collector records',
+                    'Records unavailable',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -1454,15 +1244,38 @@ class _CollectedFromCollectorsPageState
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              _error!,
-              style: const TextStyle(
+            const SizedBox(height: 6),
+            const Text(
+              'Please retry. If the problem continues, check your connection.',
+              style: TextStyle(
                 fontSize: 13,
                 color: kSubtleText,
                 fontWeight: FontWeight.w600,
                 fontFamily: 'OpenSans',
               ),
+            ),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              title: const Text(
+                'Technical details',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: kNeutralText,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+              children: [
+                SelectableText(
+                  _error!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: kSubtleText,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -1470,7 +1283,7 @@ class _CollectedFromCollectorsPageState
               child: OutlinedButton.icon(
                 onPressed: _reloadPageData,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry fetch'),
+                label: const Text('Retry'),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
@@ -1486,7 +1299,7 @@ class _CollectedFromCollectorsPageState
 
     if (_collectors.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: kSurface,
           borderRadius: BorderRadius.circular(22),
@@ -1495,37 +1308,37 @@ class _CollectedFromCollectorsPageState
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: kPrimary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Icon(
                 Icons.account_balance_wallet_outlined,
-                size: 42,
+                size: 34,
                 color: kPrimary,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(
               _selectedDeceasedId != null
-                  ? 'No paid collections for this death notice yet'
-                  : 'No collected payments found yet',
+                  ? 'No payments for this notice'
+                  : 'No collections yet',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 18,
+                fontSize: 16,
                 color: kNeutralText,
                 fontWeight: FontWeight.w800,
                 fontFamily: 'Montserrat',
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               _hasActiveFilters
-                  ? 'Try another filter combination or clear the current filters to see more collector activity.'
+                  ? 'Try different filters or reset them.'
                   : _selectedDeceasedId != null
-                  ? 'Try another deceased notice or wait until a payment is marked as paid by a collector.'
-                  : 'Assigned collectors will appear here once paid collections start coming in.',
+                  ? 'Choose another notice or date range.'
+                  : 'Paid collections will appear here.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 13,
@@ -1591,7 +1404,7 @@ class _CollectedFromCollectorsPageState
               OutlinedButton.icon(
                 onPressed: () => _showCollectorDetails(collector),
                 icon: const Icon(Icons.visibility_outlined),
-                label: const Text('View details'),
+                label: const Text('Details'),
               ),
             ),
           ],

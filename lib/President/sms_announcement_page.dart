@@ -25,6 +25,7 @@ class _SmsAnnouncementPageState extends State<SmsAnnouncementPage> {
   int? _unitId;
   bool _loadingUnits = true;
   bool _sending = false;
+  String? _unitLoadError;
 
   @override
   void initState() {
@@ -40,9 +41,15 @@ class _SmsAnnouncementPageState extends State<SmsAnnouncementPage> {
   }
 
   Future<void> _loadUnits() async {
+    if (mounted) {
+      setState(() {
+        _loadingUnits = true;
+        _unitLoadError = null;
+      });
+    }
     try {
       final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) throw Exception('Please sign in again.');
+      if (userId == null) throw StateError('Please sign in again.');
 
       final response = await _supabase
           .from('dayung_units')
@@ -52,15 +59,14 @@ class _SmsAnnouncementPageState extends State<SmsAnnouncementPage> {
       if (!mounted) return;
       setState(() {
         _units = List<Map<String, dynamic>>.from(response);
+        _unitId = null;
         if (_units.length == 1) {
           _unitId = int.tryParse('${_units.first['id']}');
         }
       });
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load your units: $error')),
-        );
+        setState(() => _unitLoadError = error.toString());
       }
     } finally {
       if (mounted) setState(() => _loadingUnits = false);
@@ -130,139 +136,355 @@ class _SmsAnnouncementPageState extends State<SmsAnnouncementPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Widget _buildAudienceField(ColorScheme colorScheme) {
+    if (_loadingUnits) {
+      return const LinearProgressIndicator(minHeight: 2);
+    }
+
+    if (_unitLoadError != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline_rounded, color: colorScheme.error),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Could not load Dayung units.',
+                style: TextStyle(color: colorScheme.onErrorContainer),
+              ),
+            ),
+            TextButton(onPressed: _loadUnits, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+
+    if (_units.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline_rounded, color: colorScheme.error),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'No Dayung unit is assigned to your account.',
+                style: TextStyle(color: colorScheme.onErrorContainer),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_units.length == 1) {
+      return InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Dayung unit',
+          border: OutlineInputBorder(),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.location_on_outlined, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _units.first['name']?.toString() ?? 'Dayung Unit',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<int>(
+      initialValue: _unitId,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Dayung unit',
+        border: OutlineInputBorder(),
+      ),
+      items: _units
+          .map(
+            (unit) => DropdownMenuItem<int>(
+              value: int.tryParse('${unit['id']}'),
+              child: Text(
+                unit['name']?.toString() ?? 'Unit',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          )
+          .toList(),
+      onChanged: _sending ? null : (value) => setState(() => _unitId = value),
+      validator: (value) => value == null ? 'Select a unit.' : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: dayungSurface(context),
-      appBar: AppBar(title: const Text('Announcement for SMS')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: dayungSectionCardDecoration(context),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 10, 20, 14),
+              decoration: BoxDecoration(
+                color: colorScheme.primary,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.18),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
                 children: [
-                  Icon(
-                    Icons.sms_outlined,
-                    size: 32,
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Send an SMS announcement',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'The message will go to approved members and unit officers who have a saved mobile number.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      height: 1.5,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (_loadingUnits)
-                    const LinearProgressIndicator()
-                  else if (_units.isEmpty)
-                    Text(
-                      'No unit is assigned to your account as President.',
-                      style: TextStyle(color: colorScheme.error),
-                    )
-                  else if (_units.length > 1)
-                    DropdownButtonFormField<int>(
-                      initialValue: _unitId,
-                      decoration: const InputDecoration(
-                        labelText: 'Dayung unit',
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.28),
                       ),
-                      items: _units
-                          .map(
-                            (unit) => DropdownMenuItem<int>(
-                              value: int.tryParse('${unit['id']}'),
-                              child: Text(unit['name']?.toString() ?? 'Unit'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _sending
-                          ? null
-                          : (value) => setState(() => _unitId = value),
-                      validator: (value) =>
-                          value == null ? 'Select a unit.' : null,
                     ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _titleController,
-                    maxLength: 120,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'Announcement title',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) => (value ?? '').trim().length < 3
-                        ? 'Enter a title with at least 3 characters.'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _bodyController,
-                    minLines: 4,
-                    maxLines: 7,
-                    maxLength: 800,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'Message',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) => (value ?? '').trim().length < 3
-                        ? 'Enter a message with at least 3 characters.'
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _sending || _loadingUnits || _units.isEmpty
-                          ? null
-                          : _sendSms,
-                      icon: _sending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send_rounded),
-                      label: Text(_sending ? 'Sending SMS...' : 'Send SMS'),
+                    child: IconButton(
+                      tooltip: 'Back',
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _sending
-                          ? null
-                          : () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const PostAnnouncementPage(),
-                              ),
-                            ),
-                      icon: const Icon(Icons.campaign_outlined),
-                      label: const Text('Post an in-app announcement instead'),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Announcement for SMS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final wide = constraints.maxWidth >= 700;
+                  return ListView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: wide ? 24 : 16,
+                      vertical: 20,
+                    ),
+                    children: [
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 900),
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: dayungSectionCardDecoration(context),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.primaryContainer,
+                                          borderRadius: BorderRadius.circular(
+                                            13,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.sms_outlined,
+                                          color: colorScheme.primary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Send an SMS',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleLarge
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'To approved members and officers with saved mobile numbers.',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildAudienceField(colorScheme),
+                                  const SizedBox(height: 14),
+                                  TextFormField(
+                                    controller: _titleController,
+                                    enabled: !_sending,
+                                    maxLength: 120,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Announcement title',
+                                      hintText: 'e.g. Monthly meeting',
+                                      prefixIcon: Icon(Icons.title_rounded),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    validator: (value) =>
+                                        (value ?? '').trim().length < 3
+                                        ? 'Enter a title with at least 3 characters.'
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: _bodyController,
+                                    enabled: !_sending,
+                                    minLines: 4,
+                                    maxLines: 7,
+                                    maxLength: 800,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Message',
+                                      hintText:
+                                          'Write a short message for recipients',
+                                      alignLabelWithHint: true,
+                                      prefixIcon: Icon(Icons.notes_rounded),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    validator: (value) =>
+                                        (value ?? '').trim().length < 3
+                                        ? 'Enter a message with at least 3 characters.'
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  LayoutBuilder(
+                                    builder: (context, actionConstraints) {
+                                      final stackButtons =
+                                          actionConstraints.maxWidth < 560;
+                                      final sendButton = FilledButton.icon(
+                                        onPressed:
+                                            _sending ||
+                                                _loadingUnits ||
+                                                _units.isEmpty ||
+                                                _unitId == null
+                                            ? null
+                                            : _sendSms,
+                                        icon: _sending
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : const Icon(Icons.send_rounded),
+                                        label: Text(
+                                          _sending
+                                              ? 'Sending SMS...'
+                                              : 'Send SMS',
+                                        ),
+                                      );
+                                      final inAppButton = OutlinedButton.icon(
+                                        onPressed: _sending
+                                            ? null
+                                            : () => Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      const PostAnnouncementPage(),
+                                                ),
+                                              ),
+                                        icon: const Icon(
+                                          Icons.campaign_outlined,
+                                        ),
+                                        label: const Text(
+                                          'Post in-app instead',
+                                        ),
+                                      );
+
+                                      if (stackButtons) {
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            sendButton,
+                                            const SizedBox(height: 8),
+                                            inAppButton,
+                                          ],
+                                        );
+                                      }
+
+                                      return Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          inAppButton,
+                                          const SizedBox(width: 12),
+                                          sendButton,
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart' as provider;
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -73,6 +74,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   bool _loading = true;
   List<Map<String, dynamic>> _apps = [];
   Set<String> _deceasedUserIds = {};
+  final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _error;
 
@@ -99,6 +101,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     });
   }
 
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _searchQuery = '');
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -115,6 +122,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     try {
       _channel?.unsubscribe();
       if (_channel != null) {
@@ -256,7 +264,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   Widget _buildOverviewCard() {
     final statusTone = _statusColor(_filter);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -272,12 +280,13 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             value: '${_apps.length}',
             tone: statusTone,
           ),
-          _overviewStat(
-            icon: Icons.visibility_rounded,
-            label: 'Showing',
-            value: '${_visibleApps.length}',
-            tone: kPrimaryDark,
-          ),
+          if (_searchQuery.trim().isNotEmpty)
+            _overviewStat(
+              icon: Icons.visibility_rounded,
+              label: 'Showing',
+              value: '${_visibleApps.length}',
+              tone: kPrimaryDark,
+            ),
           _overviewStat(
             icon: Icons.warning_amber_rounded,
             label: 'Flagged',
@@ -296,7 +305,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     required Color tone,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
@@ -310,7 +319,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: FontWeight.w900,
               color: kText,
               fontFamily: 'Montserrat',
@@ -320,7 +329,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: kSubText,
               fontFamily: 'Montserrat',
@@ -333,7 +342,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
   Widget _buildToolbarCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -343,11 +352,19 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildOverviewCard(),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           TextField(
+            controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'Search...',
+              hintText: 'Search applicants by name or email',
               prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: _clearSearch,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
               isDense: true,
@@ -371,44 +388,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             onChanged: (value) {
               setState(() => _searchQuery = value.trim().toLowerCase());
             },
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(_statusIcon(_filter), size: 15, color: kPrimary),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$_filterLabel applications',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: kPrimaryDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (_searchQuery.isNotEmpty)
-                TextButton.icon(
-                  onPressed: () => setState(() => _searchQuery = ''),
-                  icon: const Icon(Icons.filter_alt_off_rounded),
-                  label: const Text('Reset search'),
-                ),
-            ],
           ),
         ],
       ),
@@ -1959,9 +1938,9 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                 Container(
                   padding: EdgeInsets.fromLTRB(
                     horizontalPadding,
-                    20,
+                    10,
                     horizontalPadding,
-                    24,
+                    14,
                   ),
                   decoration: const BoxDecoration(
                     color: kPrimary,
@@ -1999,58 +1978,72 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                           ),
                         ),
                       ),
+                      IconButton(
+                        tooltip: 'Refresh applications',
+                        onPressed: _loading
+                            ? null
+                            : () =>
+                                  _fetchApplications(forUnitId: _currentUnitId),
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 // Navigation Tabs
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.filter_list_rounded,
-                        color: kSubText,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 620),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF3F8),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: kBorderColor),
+                        ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            _NavTab(
-                              label: 'Pending',
-                              icon: Icons.schedule_rounded,
-                              selected: _filter == 'pending',
-                              onTap: () {
-                                setState(() => _filter = 'pending');
-                                _fetchApplications(forUnitId: _currentUnitId);
-                              },
+                            Expanded(
+                              child: _NavTab(
+                                label: 'Pending',
+                                icon: Icons.schedule_rounded,
+                                selected: _filter == 'pending',
+                                onTap: () {
+                                  setState(() => _filter = 'pending');
+                                  _fetchApplications(forUnitId: _currentUnitId);
+                                },
+                              ),
                             ),
-                            _NavTab(
-                              label: 'Approved',
-                              icon: Icons.check_circle_rounded,
-                              selected: _filter == 'approved',
-                              onTap: () {
-                                setState(() => _filter = 'approved');
-                                _fetchApplications(forUnitId: _currentUnitId);
-                              },
+                            Expanded(
+                              child: _NavTab(
+                                label: 'Approved',
+                                icon: Icons.check_circle_rounded,
+                                selected: _filter == 'approved',
+                                onTap: () {
+                                  setState(() => _filter = 'approved');
+                                  _fetchApplications(forUnitId: _currentUnitId);
+                                },
+                              ),
                             ),
-                            _NavTab(
-                              label: 'Rejected',
-                              icon: Icons.cancel_rounded,
-                              selected: _filter == 'rejected',
-                              onTap: () {
-                                setState(() => _filter = 'rejected');
-                                _fetchApplications(forUnitId: _currentUnitId);
-                              },
+                            Expanded(
+                              child: _NavTab(
+                                label: 'Rejected',
+                                icon: Icons.cancel_rounded,
+                                selected: _filter == 'rejected',
+                                onTap: () {
+                                  setState(() => _filter = 'rejected');
+                                  _fetchApplications(forUnitId: _currentUnitId);
+                                },
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 // Content
@@ -2060,18 +2053,10 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                         _fetchApplications(forUnitId: _currentUnitId),
                     color: kPrimary,
                     child: _loading
-                        ? ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                            children: [
-                              _buildToolbarCard(),
-                              _buildEmptyState(
-                                icon: Icons.hourglass_top_rounded,
-                                title: 'Loading applications...',
-                                message:
-                                    'Pulling the latest application records for your unit.',
-                              ),
-                            ],
+                        ? const DayungPageSkeleton(
+                            layout: DayungSkeletonLayout.list,
+                            padding: EdgeInsets.fromLTRB(20, 8, 20, 24),
+                            itemCount: 4,
                           )
                         : _error != null
                         ? ListView(
@@ -2119,8 +2104,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                 message:
                                     'Try a different search keyword or reset the current search.',
                                 action: OutlinedButton.icon(
-                                  onPressed: () =>
-                                      setState(() => _searchQuery = ''),
+                                  onPressed: _clearSearch,
                                   icon: const Icon(
                                     Icons.filter_alt_off_rounded,
                                   ),
@@ -2144,8 +2128,28 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                     minWidth: constraints.maxWidth > 1100
                                         ? constraints.maxWidth
                                         : 1100,
-                                    dataRowMinHeight: 72,
-                                    dataRowMaxHeight: 240,
+                                    headingRowHeight: 44,
+                                    dataRowMinHeight: 56,
+                                    dataRowMaxHeight: _filter == 'rejected'
+                                        ? 160
+                                        : _flaggedVisibleCount > 0
+                                        ? 128
+                                        : 104,
+                                    columnSpacing: 14,
+                                    horizontalMargin: 12,
+                                    showCheckboxColumn: false,
+                                    headingTextStyle: const TextStyle(
+                                      color: kPrimary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                    dataTextStyle: const TextStyle(
+                                      color: kText,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'OpenSans',
+                                    ),
                                     columns: [
                                       DataColumn(label: Text('Applicant')),
                                       DataColumn(label: Text('Email')),
@@ -2208,7 +2212,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           Row(
             children: [
               CircleAvatar(
-                radius: 18,
+                radius: 16,
                 backgroundColor: statusTone.withValues(alpha: 0.1),
                 child: Text(
                   userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
@@ -2364,7 +2368,18 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               fontWeight: FontWeight.w700,
             ),
           ),
-          loading: () => const Text('Checking…'),
+          loading: () => const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 6),
+              Text('Checking'),
+            ],
+          ),
           error: (error, _) => Text('Error: $error'),
         );
       },
@@ -2387,7 +2402,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CircleAvatar(
-              radius: 18,
+              radius: 16,
               backgroundColor: statusTone.withValues(alpha: 0.1),
               child: Text(
                 userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
@@ -2425,7 +2440,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     cells.addAll([
       DataCell(
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: statusTone.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(999),
@@ -2433,7 +2448,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           child: Text(
             _filterLabel,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
               color: statusTone,
             ),
@@ -2454,7 +2469,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                 dayungUnitId: dayungUnitId,
                 applicationId: applicationId,
               ),
-              icon: const Icon(Icons.visibility_rounded, size: 18),
+              icon: const Icon(Icons.visibility_rounded, size: 16),
               label: Text(
                 status == 'pending'
                     ? 'Review application'
@@ -2465,12 +2480,15 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               style: FilledButton.styleFrom(
                 backgroundColor: kPrimary,
                 foregroundColor: Colors.white,
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
+                textStyle: const TextStyle(fontSize: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
@@ -2615,39 +2633,42 @@ class _NavTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 12, color: selected ? kPrimary : kSubText),
-              const SizedBox(width: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? kPrimary : kSubText,
-                  fontFamily: 'Montserrat',
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: Material(
+        color: selected ? Colors.white : Colors.transparent,
+        elevation: selected ? 1 : 0,
+        shadowColor: kPrimary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(11),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(11),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: selected ? kPrimary : kSubText),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? kPrimary : kSubText,
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          if (selected) ...[
-            const SizedBox(height: 3),
-            Container(
-              height: 2,
-              width: label.length * 6.0,
-              decoration: BoxDecoration(
-                color: kPrimary,
-                borderRadius: BorderRadius.circular(1),
-              ),
+              ],
             ),
-          ],
-        ],
+          ),
+        ),
       ),
     );
   }

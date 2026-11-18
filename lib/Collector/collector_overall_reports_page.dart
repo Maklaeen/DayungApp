@@ -84,6 +84,9 @@ class _CollectorOverallReportsPageState
   String _collectionSearchQuery = '';
   String _memberSearchQuery = '';
   String _advanceSearchQuery = '';
+  final _collectionSearchController = TextEditingController();
+  final _memberSearchController = TextEditingController();
+  final _advanceSearchController = TextEditingController();
   final Set<String> _selectedMethods = {};
   final Set<String> _selectedStatuses = {};
   bool _loading = true;
@@ -93,6 +96,14 @@ class _CollectorOverallReportsPageState
   void initState() {
     super.initState();
     _loadRecords();
+  }
+
+  @override
+  void dispose() {
+    _collectionSearchController.dispose();
+    _memberSearchController.dispose();
+    _advanceSearchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRecords() async {
@@ -509,27 +520,17 @@ class _CollectorOverallReportsPageState
                       ),
                     )
                   : ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                       children: [
-                        _sectionTitle('Unpaid Contributions'),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Members who haven't paid for previous deceased members.",
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                            fontFamily: 'OpenSans',
-                            fontSize: 13,
-                          ),
+                        _sectionHeader(
+                          'Unpaid contributions',
+                          count: _unpaidContributions.length,
+                          summary:
+                              '${_formatAmount(_unpaidContributions.fold<double>(0, (total, record) => total + record.amountDue))} due',
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         _paginatedRecordsTable(
-                          columns: const [
-                            'Member',
-                            'Deceased Member',
-                            'Amount Due',
-                          ],
+                          columns: const ['Member', 'Deceased', 'Due'],
                           rows: _unpaidContributions
                               .map(
                                 (record) => [
@@ -544,85 +545,30 @@ class _CollectorOverallReportsPageState
                           onPageChanged: (page) =>
                               setState(() => _unpaidContributionsPage = page),
                         ),
-                        const SizedBox(height: 26),
-                        _sectionTitle('Collector Collection Records'),
-                        const SizedBox(height: 12),
-                        _deceasedSelector(),
-                        const SizedBox(height: 10),
-                        TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Search collection records',
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            filled: true,
-                            fillColor: Theme.of(
-                              context,
-                            ).inputDecorationTheme.fillColor,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.outlineVariant,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.outlineVariant,
-                              ),
-                            ),
-                          ),
-                          onChanged: (value) => setState(() {
-                            _collectionSearchQuery = value;
-                            _collectionRecordsPage = 0;
-                          }),
+                        const SizedBox(height: 22),
+                        _sectionHeader(
+                          'Collection records',
+                          count: _filteredCollectionRecords.length,
                         ),
                         const SizedBox(height: 10),
+                        _collectionFilters(),
+                        const SizedBox(height: 10),
                         _collectionRecordsTable(),
-                        const SizedBox(height: 26),
-                        _sectionTitle('Individual Member Collection Records'),
-                        const SizedBox(height: 12),
-                        TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Search member collection records',
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            filled: true,
-                            fillColor: Theme.of(
-                              context,
-                            ).inputDecorationTheme.fillColor,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.outlineVariant,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.outlineVariant,
-                              ),
-                            ),
-                          ),
+                        const SizedBox(height: 22),
+                        _sectionHeader(
+                          'Member collections',
+                          count: _filteredMemberRecords.length,
+                        ),
+                        const SizedBox(height: 10),
+                        _searchField(
+                          controller: _memberSearchController,
+                          hintText: 'Search member records',
                           onChanged: (value) => setState(() {
                             _memberSearchQuery = value;
                             _memberRecordsPage = 0;
                           }),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
                           runSpacing: 4,
@@ -692,38 +638,15 @@ class _CollectorOverallReportsPageState
                           onPageChanged: (page) =>
                               setState(() => _memberRecordsPage = page),
                         ),
-                        const SizedBox(height: 26),
-                        _sectionTitle('Advance Payment'),
+                        const SizedBox(height: 22),
+                        _sectionHeader(
+                          'Advance payments',
+                          count: _filteredAdvanceRecords.length,
+                        ),
                         const SizedBox(height: 10),
-                        TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Search advance payments',
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            filled: true,
-                            fillColor: Theme.of(
-                              context,
-                            ).inputDecorationTheme.fillColor,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.outlineVariant,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.outlineVariant,
-                              ),
-                            ),
-                          ),
+                        _searchField(
+                          controller: _advanceSearchController,
+                          hintText: 'Search advance payments',
                           onChanged: (value) => setState(() {
                             _advanceSearchQuery = value;
                             _advanceRecordsPage = 0;
@@ -759,6 +682,152 @@ class _CollectorOverallReportsPageState
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title, {required int count, String? summary}) {
+    final colors = Theme.of(context).colorScheme;
+    final countBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.primaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$count ${count == 1 ? 'record' : 'records'}',
+        style: TextStyle(
+          color: colors.onPrimaryContainer,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final titleWidget = Text(
+          title,
+          style: TextStyle(
+            color: colors.onSurface,
+            fontFamily: 'Montserrat',
+            fontWeight: FontWeight.w800,
+            fontSize: 19,
+          ),
+        );
+        final summaryWidget = summary == null
+            ? null
+            : Text(
+                summary,
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              );
+
+        if (constraints.maxWidth < 500 && summaryWidget != null) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleWidget,
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(child: summaryWidget),
+                  countBadge,
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: titleWidget),
+            if (summaryWidget != null) ...[
+              summaryWidget,
+              const SizedBox(width: 8),
+            ],
+            countBadge,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _searchField({
+    required TextEditingController controller,
+    required String hintText,
+    required ValueChanged<String> onChanged,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hintText,
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Clear search',
+                onPressed: controller.clear,
+                icon: const Icon(Icons.close_rounded),
+              ),
+        filled: true,
+        fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colors.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colors.outlineVariant),
+        ),
+      ),
+    );
+  }
+
+  Widget _collectionFilters() {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final selector = _deceasedSelector();
+          final search = _searchField(
+            controller: _collectionSearchController,
+            hintText: 'Search collection records',
+            onChanged: (value) => setState(() {
+              _collectionSearchQuery = value;
+              _collectionRecordsPage = 0;
+            }),
+          );
+
+          if (constraints.maxWidth >= 700) {
+            return Row(
+              children: [
+                Expanded(flex: 4, child: selector),
+                const SizedBox(width: 12),
+                Expanded(flex: 5, child: search),
+              ],
+            );
+          }
+
+          return Column(
+            children: [selector, const SizedBox(height: 10), search],
+          );
+        },
       ),
     );
   }
@@ -989,19 +1058,6 @@ class _CollectorOverallReportsPageState
       color: colors.surface,
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: colors.outlineVariant),
-    );
-  }
-
-  Widget _sectionTitle(String title) {
-    final colors = Theme.of(context).colorScheme;
-    return Text(
-      title,
-      style: TextStyle(
-        color: colors.onSurface,
-        fontFamily: 'Montserrat',
-        fontWeight: FontWeight.w800,
-        fontSize: 20,
-      ),
     );
   }
 

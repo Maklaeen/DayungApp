@@ -689,6 +689,196 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     return signedUrl;
   }
 
+  Widget _buildPaymentInstructions({
+    required String qrName,
+    required String qrNumber,
+    required String? qrImageUrl,
+  }) {
+    final qrWidget = Container(
+      width: 232,
+      height: 232,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F8FC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: qrImageUrl != null && qrImageUrl.isNotEmpty
+          ? FutureBuilder<String?>(
+              future: getSignedQrImageUrl(qrImageUrl),
+              builder: (context, imageSnapshot) {
+                if (imageSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: kAccent),
+                  );
+                }
+
+                final signedQrUrl = imageSnapshot.data;
+                if (signedQrUrl == null || signedQrUrl.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'QR unavailable',
+                      style: TextStyle(color: kSubText),
+                    ),
+                  );
+                }
+
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(signedQrUrl, fit: BoxFit.contain),
+                );
+              },
+            )
+          : const Center(
+              child: Text(
+                'QR unavailable',
+                style: TextStyle(color: kSubText),
+              ),
+            ),
+    );
+
+    final paymentDetails = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: kAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.qr_code_2_rounded,
+                color: kAccent,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Pay using GCash',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 19,
+                  color: kText,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Scan the QR code or send to this account.',
+          style: TextStyle(fontSize: 14, color: kSubText),
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'ACCOUNT NAME',
+          style: TextStyle(
+            fontSize: 11,
+            letterSpacing: 0.6,
+            fontWeight: FontWeight.w700,
+            color: Colors.blueGrey.shade600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          qrName,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: kText,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'GCASH NUMBER',
+          style: TextStyle(
+            fontSize: 11,
+            letterSpacing: 0.6,
+            fontWeight: FontWeight.w700,
+            color: Colors.blueGrey.shade600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: SelectableText(
+                qrNumber,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: kText,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Copy GCash number',
+              onPressed: qrNumber == 'N/A' || qrNumber.isEmpty
+                  ? null
+                  : () async {
+                      await Clipboard.setData(ClipboardData(text: qrNumber));
+                      if (!mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('GCash number copied')),
+                      );
+                    },
+              icon: const Icon(Icons.copy_rounded, size: 19),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1000),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade200),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 600) {
+                return Row(
+                  children: [
+                    Expanded(child: paymentDetails),
+                    const SizedBox(width: 24),
+                    qrWidget,
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  paymentDetails,
+                  const SizedBox(height: 16),
+                  Center(child: qrWidget),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -765,18 +955,18 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
                           child: TextField(
-                            style: const TextStyle(fontSize: 16, color: kText),
+                            style: const TextStyle(fontSize: 14, color: kText),
                             decoration: InputDecoration(
-                              hintText: 'Search payments',
+                              hintText: 'Search member or payment',
                               hintStyle: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 14,
                                 color: kSubText,
                               ),
                               prefixIcon: const Icon(
                                 Icons.search_rounded,
-                                size: 25,
+                                size: 22,
                               ),
                               suffixIcon: _searchQuery.isEmpty
                                   ? null
@@ -786,8 +976,12 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                       onPressed: () =>
                                           setState(() => _searchQuery = ''),
                                     ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(14),
                               ),
                               filled: true,
                               fillColor: Colors.white,
@@ -830,128 +1024,10 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                               final qrImageUrl = qrData?['qr_image_url']
                                   ?.toString();
 
-                              return Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 8,
-                                      offset: Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            color: kAccent.withValues(
-                                              alpha: 0.10,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.qr_code_2_rounded,
-                                            color: kAccent,
-                                            size: 26,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Expanded(
-                                          child: Text(
-                                            'Pay using GCash',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 20,
-                                              color: kText,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 14),
-                                    const Text(
-                                      'Scan the QR code or use the account number below.',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        height: 1.4,
-                                        color: kSubText,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Account name: $qrName',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: kText,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'GCash number: $qrNumber',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: kText,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    if (qrImageUrl != null &&
-                                        qrImageUrl.isNotEmpty)
-                                      FutureBuilder<String?>(
-                                        future: getSignedQrImageUrl(qrImageUrl),
-                                        builder: (context, imageSnapshot) {
-                                          if (imageSnapshot.connectionState ==
-                                              ConnectionState.waiting) {
-                                            return const Center(
-                                              child: CircularProgressIndicator(
-                                                color: kAccent,
-                                              ),
-                                            );
-                                          }
-                                          final signedQrUrl =
-                                              imageSnapshot.data;
-                                          if (signedQrUrl == null ||
-                                              signedQrUrl.isEmpty) {
-                                            return const Text(
-                                              'No QR image available.',
-                                              style: TextStyle(color: kSubText),
-                                            );
-                                          }
-
-                                          return ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                            child: Image.network(
-                                              signedQrUrl,
-                                              fit: BoxFit.contain,
-                                              height: 220,
-                                              width: double.infinity,
-                                            ),
-                                          );
-                                        },
-                                      )
-                                    else
-                                      const Text(
-                                        'No QR image available for this unit.',
-                                        style: TextStyle(color: kSubText),
-                                      ),
-                                  ],
-                                ),
+                              return _buildPaymentInstructions(
+                                qrName: qrName,
+                                qrNumber: qrNumber,
+                                qrImageUrl: qrImageUrl,
                               );
                             },
                           ),
@@ -1027,7 +1103,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                           ),
                                           SizedBox(height: 3),
                                           Text(
-                                            'Pay ahead and upload one receipt.',
+                                            'Pay ahead in one upload.',
                                             style: TextStyle(
                                               fontSize: 13,
                                               color: kSubText,
@@ -1330,9 +1406,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
 
                                           return Card(
                                             margin: const EdgeInsets.symmetric(
-                                              vertical: 10,
+                                              vertical: 6,
                                             ),
-                                            elevation: 3,
+                                            elevation: 1,
                                             color: Colors.white,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
@@ -1341,8 +1417,8 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                             child: Padding(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                    vertical: 16,
-                                                    horizontal: 18,
+                                                    vertical: 14,
+                                                    horizontal: 16,
                                                   ),
                                               child: Column(
                                                 crossAxisAlignment:
@@ -1359,26 +1435,47 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   Text(
-                                                    'Amount: ₱ $amount',
+                                                    '₱ $amount',
                                                     style: const TextStyle(
-                                                      fontSize: 15,
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.w700,
                                                       color: kAccent,
                                                     ),
                                                   ),
                                                   const SizedBox(height: 8),
                                                   Row(
                                                     children: [
-                                                      // Status
-                                                      Text(
-                                                        paidStatus
-                                                            ? "Paid"
-                                                            : "Pending",
-                                                        style: TextStyle(
-                                                          color: paidStatus
-                                                              ? Colors.green
-                                                              : kWarn,
-                                                          fontWeight:
-                                                              FontWeight.bold,
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 10,
+                                                              vertical: 6,
+                                                            ),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: (paidStatus
+                                                                  ? Colors.green
+                                                                  : kWarn)
+                                                              .withValues(
+                                                                alpha: 0.1,
+                                                              ),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(999),
+                                                        ),
+                                                        child: Text(
+                                                          paidStatus
+                                                              ? 'Paid'
+                                                              : 'Pending',
+                                                          style: TextStyle(
+                                                            color: paidStatus
+                                                                ? Colors.green
+                                                                : kWarn,
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
                                                         ),
                                                       ),
                                                       const Spacer(),
@@ -1403,10 +1500,15 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                                   kAccent,
                                                               foregroundColor:
                                                                   Colors.white,
+                                                              minimumSize:
+                                                                  const Size(
+                                                                    0,
+                                                                    42,
+                                                                  ),
                                                               shape: RoundedRectangleBorder(
                                                                 borderRadius:
                                                                     BorderRadius.circular(
-                                                                      8,
+                                                                      12,
                                                                     ),
                                                               ),
                                                             ),

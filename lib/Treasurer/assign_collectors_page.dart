@@ -1,4 +1,5 @@
 import 'package:capstone_app/shared/collectors_manage_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,8 +20,11 @@ class AssignCollectorsPage extends StatefulWidget {
 
 class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
   final _sb = Supabase.instance.client;
+  final TextEditingController _searchController = TextEditingController();
   String _search = '';
   String _assignmentFilter = 'all';
+  bool _loading = true;
+  String? _loadError;
   List<Map<String, dynamic>> _collectors = [];
   List<Map<String, dynamic>> _members = [];
 
@@ -30,7 +34,19 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    if (!_loading && mounted) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
     try {
       final collectorRows = List<Map<String, dynamic>>.from(
         await _sb
@@ -131,10 +147,16 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
         setState(() {
           _collectors = _collectors;
           _members = _members;
+          _loading = false;
+          _loadError = null;
         });
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadError = e.toString();
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load assignments: $e')),
         );
@@ -295,35 +317,35 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
               child: RefreshIndicator(
                 onRefresh: _load,
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    _buildSummaryRow(
-                      assignedCount,
-                      unassignedCount,
-                      collectorCount,
-                    ),
-                    const SizedBox(height: 14),
-                    _buildFilterChips(),
-                    const SizedBox(height: 12),
-                    _buildSearchCard(),
-                    const SizedBox(height: 12),
-                    if (_filteredMembers.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: _kCard,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: _kBorder),
-                        ),
-                        child: const Text(
-                          'No members found for the selected filter.',
-                          style: TextStyle(color: _kTextSub),
-                        ),
-                      )
-                    else
-                      _memberTable(_filteredMembers),
-                  ],
+                  children: _loading
+                      ? [
+                          const SizedBox(
+                            height: 520,
+                            child: DayungPageSkeleton(
+                              layout: DayungSkeletonLayout.list,
+                              padding: EdgeInsets.zero,
+                              itemCount: 3,
+                            ),
+                          ),
+                        ]
+                      : _loadError != null
+                      ? [_buildLoadError()]
+                      : [
+                          _buildSummaryRow(
+                            assignedCount,
+                            unassignedCount,
+                            collectorCount,
+                          ),
+                          const SizedBox(height: 12),
+                          _buildFilterControls(),
+                          const SizedBox(height: 12),
+                          if (_filteredMembers.isEmpty)
+                            _buildEmptyState()
+                          else
+                            _memberTable(_filteredMembers),
+                        ],
                 ),
               ),
             ),
@@ -365,12 +387,12 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
           ),
         ],
       ),
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 width: 44,
@@ -393,20 +415,15 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Assign Collectors',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Assign Collectors',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -417,36 +434,41 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
   }
 
   Widget _buildSummaryRow(int assigned, int unassigned, int collectors) {
-    final cardWidth = (MediaQuery.of(context).size.width - 58) / 2;
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        SizedBox(
-          width: cardWidth,
-          child: _buildSummaryCard(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? 3
+            : constraints.maxWidth >= 560
+            ? 2
+            : 1;
+        const spacing = 10.0;
+        final cardWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        final cards = [
+          _buildSummaryCard(
             title: 'Assigned',
             value: '$assigned',
             color: const Color(0xFF10B981),
           ),
-        ),
-        SizedBox(
-          width: cardWidth,
-          child: _buildSummaryCard(
+          _buildSummaryCard(
             title: 'Unassigned',
             value: '$unassigned',
             color: const Color(0xFFF59E0B),
           ),
-        ),
-        SizedBox(
-          width: cardWidth,
-          child: _buildSummaryCard(
+          _buildSummaryCard(
             title: 'Collectors',
             value: '$collectors',
             color: const Color(0xFF3B82F6),
           ),
-        ),
-      ],
+        ];
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final card in cards) SizedBox(width: cardWidth, child: card),
+          ],
+        );
+      },
     );
   }
 
@@ -456,7 +478,7 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: _kCard,
         borderRadius: BorderRadius.circular(18),
@@ -473,11 +495,11 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w800,
               color: Color(0xFF111827),
             ),
@@ -487,53 +509,71 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
     );
   }
 
-  Widget _buildSearchCard() {
+  Widget _buildFilterControls() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: 'Search members...',
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            color: Color(0xFF64748B),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: const Color(0xFFF6F7FB),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-        ),
-        onChanged: (value) => setState(() => _search = value.trim()),
-      ),
-    );
-  }
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final chips = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _filterChip('All', 'all'),
+              _filterChip('Assigned', 'assigned'),
+              _filterChip('Unassigned', 'unassigned'),
+            ],
+          );
+          final searchField = TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search members',
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                color: Color(0xFF64748B),
+              ),
+              suffixIcon: _search.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _search = '');
+                      },
+                      icon: const Icon(Icons.clear_rounded),
+                    ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: const Color(0xFFF6F7FB),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+            ),
+            onChanged: (value) => setState(() => _search = value.trim()),
+          );
 
-  Widget _buildFilterChips() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 8,
-        children: [
-          _filterChip('All', 'all'),
-          _filterChip('Assigned', 'assigned'),
-          _filterChip('Unassigned', 'unassigned'),
-        ],
+          if (constraints.maxWidth < 760) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [chips, const SizedBox(height: 8), searchField],
+            );
+          }
+          return Row(
+            children: [
+              SizedBox(width: 350, child: chips),
+              const SizedBox(width: 12),
+              Expanded(child: searchField),
+            ],
+          );
+        },
       ),
     );
   }
@@ -557,6 +597,82 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
     );
   }
 
+  Widget _buildLoadError() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Color(0xFFB45309)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Could not load assignments',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('Error details'),
+            children: [SelectableText(_loadError ?? '')],
+          ),
+          OutlinedButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final searching = _search.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            searching ? Icons.search_off_rounded : Icons.people_outline_rounded,
+            size: 36,
+            color: _kTextSub,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            searching ? 'No matching members' : 'No members for this filter',
+            style: const TextStyle(
+              color: _kTextSub,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (searching)
+            TextButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _search = '');
+              },
+              icon: const Icon(Icons.clear_rounded),
+              label: const Text('Clear search'),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _memberTable(List<Map<String, dynamic>> members) {
     String assignedCollectorName(Map<String, dynamic> member) {
       final collectorId = (member['assigned_collector'] ?? '').toString();
@@ -574,6 +690,11 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
 
     return RecordDataTable(
       minWidth: 560,
+      columnSpacing: 24,
+      horizontalMargin: 16,
+      headingRowHeight: 48,
+      dataRowMinHeight: 58,
+      dataRowMaxHeight: 72,
       columns: const [
         DataColumn(label: Text('Member')),
         DataColumn(label: Text('Assigned collector')),
@@ -614,15 +735,42 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
               ),
               onTap: () => _showCollectorSelection(member),
             ),
-            DataCell(Text(assignedCollectorName(member))),
+            DataCell(
+              (member['assigned_collector'] ?? '').toString().isEmpty
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'Unassigned',
+                        style: TextStyle(
+                          color: Color(0xFFB45309),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  : Text(assignedCollectorName(member)),
+            ),
             DataCell(
               ElevatedButton(
                 onPressed: () => _showCollectorSelection(member),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0D47A1),
                   foregroundColor: Colors.white,
+                  minimumSize: const Size(92, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: const Text('Assign'),
+                child: Text(
+                  (member['assigned_collector'] ?? '').toString().isEmpty
+                      ? 'Assign'
+                      : 'Change',
+                ),
               ),
             ),
           ],

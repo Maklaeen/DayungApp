@@ -227,6 +227,14 @@ class _PaymentReleaseHistoryPageState extends State<PaymentReleaseHistoryPage> {
                       ),
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Refresh history',
+                    onPressed: _loading ? null : _loadHistory,
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -234,92 +242,18 @@ class _PaymentReleaseHistoryPageState extends State<PaymentReleaseHistoryPage> {
               child: RefreshIndicator(
                 onRefresh: _loadHistory,
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0D9488),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Total Released',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _loading ? '—' : _formatCurrency(_totalReleased),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 30,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${_releases.length} userdeceased${_releases.length == 1 ? '' : 's'}',
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: _searchController,
-                      onChanged: (value) =>
-                          setState(() => _searchQuery = value),
-                      decoration: InputDecoration(
-                        hintText: 'Search name, date, or time',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        suffixIcon: _searchQuery.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Clear search',
-                                icon: const Icon(Icons.clear_rounded),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _searchQuery = '');
-                                },
-                              ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<bool>(
-                      initialValue: _newestFirst,
-                      decoration: InputDecoration(
-                        labelText: 'Sort releases',
-                        prefixIcon: const Icon(Icons.sort_rounded),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: true,
-                          child: Text('New to old'),
-                        ),
-                        DropdownMenuItem(
-                          value: false,
-                          child: Text('Old to new'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) setState(() => _newestFirst = value);
-                      },
-                    ),
-                    const SizedBox(height: 20),
+                    _buildSummaryCard(),
+                    const SizedBox(height: 12),
+                    _buildFilterControls(),
+                    const SizedBox(height: 12),
                     if (_loading)
                       const SizedBox(
-                        height: 320,
+                        height: 280,
                         child: DayungPageSkeleton(
                           layout: DayungSkeletonLayout.list,
                           padding: EdgeInsets.all(8),
@@ -327,65 +261,285 @@ class _PaymentReleaseHistoryPageState extends State<PaymentReleaseHistoryPage> {
                         ),
                       )
                     else if (_error != null)
-                      Text(_error!, style: const TextStyle(color: Colors.red))
+                      _buildErrorState()
                     else if (_visibleReleases.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                          child: Text('No matching releases found.'),
-                        ),
-                      )
+                      _buildEmptyState()
                     else
-                      RecordDataTable(
-                        minWidth: 620,
-                        columns: const [
-                          DataColumn(label: Text('Deceased')),
-                          DataColumn(label: Text('Release date')),
-                          DataColumn(label: Text('Amount')),
-                        ],
-                        rows: _visibleReleases.map((release) {
-                          return DataRow(
-                            cells: [
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.check_circle_rounded,
-                                      color: Color(0xFF0D9488),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Flexible(
-                                      child: Text(
-                                        '${release['deceased_name']}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              DataCell(Text(_formatDate(release['date']))),
-                              DataCell(
-                                Text(
-                                  _formatCurrency(release['amount'] as double),
-                                  style: const TextStyle(
-                                    color: Color(0xFF0D9488),
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
-                      ),
+                      _buildReleaseTable(),
                   ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D9488),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final amount = _loading ? '—' : _formatCurrency(_totalReleased);
+          final releaseCount =
+              '${_releases.length} ${_releases.length == 1 ? 'release' : 'releases'}';
+          final amountContent = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Total released',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                amount,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          );
+          final countBadge = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.receipt_long_rounded,
+                  color: Colors.white,
+                  size: 17,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  releaseCount,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (constraints.maxWidth < 480) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [amountContent, const SizedBox(height: 10), countBadge],
+            );
+          }
+          return Row(children: [amountContent, const Spacer(), countBadge]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilterControls() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final searchField = TextField(
+          controller: _searchController,
+          onChanged: (value) => setState(() => _searchQuery = value),
+          decoration: InputDecoration(
+            hintText: 'Search name or date',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: _searchQuery.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Clear search',
+                    icon: const Icon(Icons.clear_rounded),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  ),
+            isDense: true,
+            filled: true,
+            fillColor: Theme.of(context).colorScheme.surface,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        );
+        final sortField = DropdownButtonFormField<bool>(
+          initialValue: _newestFirst,
+          decoration: InputDecoration(
+            labelText: 'Sort by',
+            prefixIcon: const Icon(Icons.sort_rounded),
+            isDense: true,
+            filled: true,
+            fillColor: Theme.of(context).colorScheme.surface,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          items: const [
+            DropdownMenuItem(value: true, child: Text('Newest first')),
+            DropdownMenuItem(value: false, child: Text('Oldest first')),
+          ],
+          onChanged: (value) {
+            if (value != null) setState(() => _newestFirst = value);
+          },
+        );
+
+        if (constraints.maxWidth < 640) {
+          return Column(
+            children: [searchField, const SizedBox(height: 8), sortField],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(flex: 7, child: searchField),
+            const SizedBox(width: 10),
+            Expanded(flex: 3, child: sortField),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildReleaseTable() {
+    return RecordDataTable(
+      minWidth: 620,
+      headingRowHeight: 48,
+      dataRowMinHeight: 64,
+      dataRowMaxHeight: 80,
+      columnSpacing: 24,
+      horizontalMargin: 16,
+      columns: const [
+        DataColumn(label: Text('Deceased')),
+        DataColumn(label: Text('Release date')),
+        DataColumn(label: Text('Amount')),
+      ],
+      rows: _visibleReleases.map((release) {
+        return DataRow(
+          cells: [
+            DataCell(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF0D9488),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      '${release['deceased_name']}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            DataCell(Text(_formatDate(release['date']))),
+            DataCell(
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D9488).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _formatCurrency(release['amount'] as double),
+                  style: const TextStyle(
+                    color: Color(0xFF0D9488),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _error!,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onErrorContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _loading ? null : _loadHistory,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final searching = _searchQuery.trim().isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            searching ? Icons.search_off_rounded : Icons.receipt_long_outlined,
+            size: 36,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            searching ? 'No matching releases' : 'No releases yet',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          if (searching) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Try another name or date.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _searchQuery = '');
+              },
+              icon: const Icon(Icons.clear_rounded),
+              label: const Text('Clear search'),
+            ),
+          ],
+        ],
       ),
     );
   }

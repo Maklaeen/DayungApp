@@ -29,6 +29,8 @@ class SecretaryBeneficiariesTab extends StatefulWidget {
 class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
   Map<String, dynamic> _users = {};
   Map<String, List<dynamic>> _beneficiariesByUser = {};
+  int _memberCount = 0;
+  final _searchController = TextEditingController();
   final Set<String> _updatingEligibilityIds = {};
   final Set<String> _sendingEligibilityNotifIds = {};
   final Map<String, String> _eligibilityReasons = {};
@@ -39,6 +41,17 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
   void initState() {
     super.initState();
     _fetchBeneficiaries();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _searchQuery = '');
   }
 
   Future<void> _fetchBeneficiaries() async {
@@ -127,6 +140,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
       if (!mounted) return;
       setState(() {
         _users = usersMap;
+        _memberCount = approvedApplicationUserIds.length;
         _beneficiariesByUser = beneficiariesByUser;
         _loading = false;
       });
@@ -264,7 +278,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     required Color tone,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
@@ -278,7 +292,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: FontWeight.w900,
               color: kText,
               fontFamily: 'Montserrat',
@@ -288,7 +302,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: kSubText,
               fontFamily: 'Montserrat',
@@ -323,16 +337,24 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               _overviewStat(
                 icon: Icons.people_alt_rounded,
                 label: 'Members',
-                value: '${_users.length}',
+                value: '$_memberCount',
                 tone: kAccent,
               ),
             ],
           ),
           const SizedBox(height: 12),
           TextField(
+            controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'Search...',
+              hintText: 'Search members or beneficiaries',
               prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchQuery.trim().isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: _clearSearch,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
               filled: true,
               fillColor: kBg,
               isDense: true,
@@ -355,14 +377,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
             ),
             onChanged: (value) => setState(() => _searchQuery = value),
           ),
-          if (_searchQuery.trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            TextButton.icon(
-              onPressed: () => setState(() => _searchQuery = ''),
-              icon: const Icon(Icons.filter_alt_off_rounded),
-              label: const Text('Reset search'),
-            ),
-          ],
         ],
       ),
     );
@@ -415,7 +429,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                   if (hasSearch) ...[
                     const SizedBox(height: 14),
                     OutlinedButton.icon(
-                      onPressed: () => setState(() => _searchQuery = ''),
+                      onPressed: _clearSearch,
                       icon: const Icon(Icons.filter_alt_off_rounded),
                       label: const Text('Reset search'),
                     ),
@@ -485,8 +499,24 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                   minWidth: constraints.maxWidth > 1050
                       ? constraints.maxWidth
                       : 1050,
-                  dataRowMinHeight: 72,
-                  dataRowMaxHeight: 260,
+                  headingRowHeight: 48,
+                  dataRowMinHeight: 68,
+                  dataRowMaxHeight: 180,
+                  columnSpacing: 16,
+                  horizontalMargin: 12,
+                  showCheckboxColumn: false,
+                  headingTextStyle: const TextStyle(
+                    color: kAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Montserrat',
+                  ),
+                  dataTextStyle: const TextStyle(
+                    color: kText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'OpenSans',
+                  ),
                   columns: const [
                     DataColumn(label: Text('Beneficiary')),
                     DataColumn(label: Text('Relationship')),
@@ -556,7 +586,12 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                       ),
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded, color: Colors.grey[500]),
+                  IconButton(
+                    tooltip: 'View beneficiary details',
+                    onPressed: () => _showBeneficiaryDetails(b),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    color: Colors.grey[600],
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -730,7 +765,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     final hasValidId = (b['valid_id']?.toString() ?? '').isNotEmpty;
 
     return DataRow(
-      onSelectChanged: (_) => _showBeneficiaryDetails(b),
       cells: [
         DataCell(
           Row(
@@ -757,6 +791,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               ),
             ],
           ),
+          onTap: () => _showBeneficiaryDetails(b),
         ),
         DataCell(Text((b['relationship'] ?? 'Not provided').toString())),
         DataCell(Text((b['dob'] ?? 'Not provided').toString())),
@@ -782,7 +817,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
         ),
         DataCell(
           SizedBox(
-            width: 300,
+            width: 280,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -834,7 +869,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                       Expanded(
                         child: TextField(
                           minLines: 1,
-                          maxLines: 3,
+                          maxLines: 2,
                           maxLength: 1000,
                           textCapitalization: TextCapitalization.sentences,
                           decoration: InputDecoration(
@@ -848,6 +883,11 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                            ),
+                            counterStyle: const TextStyle(
+                              fontSize: 10,
+                              height: 1,
+                              color: kSubText,
                             ),
                           ),
                           onChanged: (value) => setState(
@@ -1116,7 +1156,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
               decoration: const BoxDecoration(
                 color: kPrimary,
                 borderRadius: BorderRadius.only(

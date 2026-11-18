@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/input_safety.dart';
 
@@ -59,6 +60,7 @@ class PostAnnouncementPage extends StatefulWidget {
 class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
   final sb = Supabase.instance.client;
   bool _loading = true;
+  bool _posting = false;
   List<Map<String, dynamic>> _units = [];
   int? _unitId;
   String? _category;
@@ -97,6 +99,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
   }
 
   Future<void> _save() async {
+    if (_posting) return;
     final title = AppInputSecurity.sanitizePlainText(
       _title.text,
       maxLength: 120,
@@ -146,7 +149,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() => _posting = true);
     try {
       final insertedAnnouncement = await sb
           .from('announcements')
@@ -225,7 +228,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _posting = false);
     }
   }
 
@@ -320,7 +323,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     required Widget child,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: kCardBg,
         borderRadius: BorderRadius.circular(18),
@@ -339,15 +342,15 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: kPrimary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: kPrimary, size: 24),
+                child: Icon(icon, color: kPrimary, size: 21),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -356,17 +359,17 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                       title,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        fontSize: 18,
+                        fontSize: 16,
                         color: kText,
                         fontFamily: 'Montserrat',
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
                       helpText,
                       style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.35,
+                        fontSize: 12,
+                        height: 1.25,
                         color: kSubText,
                         fontFamily: 'OpenSans',
                       ),
@@ -376,7 +379,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           child,
         ],
       ),
@@ -390,10 +393,10 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
       hintText: hintText,
       hintStyle: const TextStyle(
         color: kSubText,
-        fontSize: 16,
+        fontSize: 14,
         fontFamily: 'OpenSans',
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: kBorderColor),
@@ -503,11 +506,10 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
               ),
               Expanded(
                 child: _loading
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: kPrimary,
-                          strokeWidth: 3,
-                        ),
+                    ? const DayungPageSkeleton(
+                        layout: DayungSkeletonLayout.list,
+                        padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        itemCount: 3,
                       )
                     : _units.isEmpty
                     ? Center(
@@ -550,240 +552,308 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                     : Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 18,
+                          vertical: 12,
                         ),
-                        child: SingleChildScrollView(
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _sectionCard(
-                                  icon: Icons.title_rounded,
-                                  title: 'Title',
-                                  helpText:
-                                      'Give your announcement a clear title.',
-                                  child: TextFormField(
-                                    controller: _title,
-                                    inputFormatters:
-                                        AppInputSecurity.singleLineFormatters(
-                                          maxLength: 120,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1120),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final wide = constraints.maxWidth >= 900;
+                                final cardWidth = wide
+                                    ? (constraints.maxWidth - 16) / 2
+                                    : constraints.maxWidth;
+                                return SingleChildScrollView(
+                                  child: Form(
+                                    key: _formKey,
+                                    child: Wrap(
+                                      spacing: 16,
+                                      runSpacing: 16,
+                                      children: [
+                                        SizedBox(
+                                          width: cardWidth,
+                                          child: _sectionCard(
+                                            icon: Icons.title_rounded,
+                                            title: 'Title',
+                                            helpText:
+                                                'Keep it clear and specific.',
+                                            child: TextFormField(
+                                              controller: _title,
+                                              inputFormatters:
+                                                  AppInputSecurity.singleLineFormatters(
+                                                    maxLength: 120,
+                                                  ),
+                                              textCapitalization:
+                                                  TextCapitalization.sentences,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                color: kText,
+                                                fontFamily: 'OpenSans',
+                                              ),
+                                              decoration: _fieldDecoration(
+                                                hintText:
+                                                    'Example: Monthly meeting',
+                                              ),
+                                              validator: (value) {
+                                                final text =
+                                                    value?.trim() ?? '';
+                                                if (text.isEmpty) {
+                                                  return 'Please enter a title.';
+                                                }
+                                                if (text.length < 4) {
+                                                  return 'Title must be at least 4 characters.';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                          ),
                                         ),
-                                    textCapitalization:
-                                        TextCapitalization.sentences,
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      color: kText,
-                                      fontFamily: 'OpenSans',
-                                    ),
-                                    decoration: _fieldDecoration(
-                                      hintText: 'Example: Monthly meeting',
-                                    ),
-                                    validator: (value) {
-                                      final text = value?.trim() ?? '';
-                                      if (text.isEmpty) {
-                                        return 'Please enter a title.';
-                                      }
-                                      if (text.length < 4) {
-                                        return 'Title must be at least 4 characters.';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _sectionCard(
-                                  icon: Icons.category_rounded,
-                                  title: 'Category',
-                                  helpText:
-                                      'Choose the type that best describes this post.',
-                                  child: DropdownButtonFormField<String>(
-                                    initialValue: _category,
-                                    isExpanded: true,
-                                    decoration: _fieldDecoration(
-                                      hintText: 'Choose a category',
-                                    ),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: kText,
-                                      fontFamily: 'OpenSans',
-                                    ),
-                                    items: _announcementCategories
-                                        .map(
-                                          (category) =>
-                                              DropdownMenuItem<String>(
-                                                value: category,
-                                                child: Text(
-                                                  category,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                                        SizedBox(
+                                          width: cardWidth,
+                                          child: _sectionCard(
+                                            icon: Icons.category_rounded,
+                                            title: 'Category',
+                                            helpText: 'Choose a category.',
+                                            child: DropdownButtonFormField<String>(
+                                              initialValue: _category,
+                                              isExpanded: true,
+                                              decoration: _fieldDecoration(
+                                                hintText: 'Choose a category',
+                                              ),
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                color: kText,
+                                                fontFamily: 'OpenSans',
+                                              ),
+                                              items: _announcementCategories
+                                                  .map(
+                                                    (category) =>
+                                                        DropdownMenuItem<
+                                                          String
+                                                        >(
+                                                          value: category,
+                                                          child: Text(
+                                                            category,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                          ),
+                                                        ),
+                                                  )
+                                                  .toList(),
+                                              onChanged: (value) => setState(
+                                                () => _category = value,
+                                              ),
+                                              validator: (value) =>
+                                                  value == null
+                                                  ? 'Please choose a category.'
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: cardWidth,
+                                          child: _sectionCard(
+                                            icon: Icons.groups_rounded,
+                                            title: 'Audience',
+                                            helpText:
+                                                'Notifies approved members in this unit.',
+                                            child: DropdownButtonFormField<int>(
+                                              initialValue: _unitId,
+                                              isExpanded: true,
+                                              items: _units
+                                                  .map(
+                                                    (
+                                                      unit,
+                                                    ) => DropdownMenuItem<int>(
+                                                      value: int.tryParse(
+                                                        '${unit['id']}',
+                                                      ),
+                                                      child: Text(
+                                                        (unit['name'] ??
+                                                                'Dayung Unit')
+                                                            .toString(),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                              onChanged: (value) => setState(
+                                                () => _unitId = value,
+                                              ),
+                                              decoration: _fieldDecoration(
+                                                hintText:
+                                                    'Choose a Dayung Unit',
+                                              ),
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                color: kText,
+                                                fontFamily: 'OpenSans',
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: cardWidth,
+                                          child: _sectionCard(
+                                            icon: Icons.calendar_today_rounded,
+                                            title: 'Date',
+                                            helpText: 'Set automatically.',
+                                            child: Container(
+                                              width: double.infinity,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 14,
+                                                    vertical: 13,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF3F6FA),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: kBorderColor,
                                                 ),
                                               ),
-                                        )
-                                        .toList(),
-                                    onChanged: (value) =>
-                                        setState(() => _category = value),
-                                    validator: (value) => value == null
-                                        ? 'Please choose a category.'
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _sectionCard(
-                                  icon: Icons.groups_rounded,
-                                  title: 'Audience',
-                                  helpText:
-                                      'All approved members in the selected Dayung Unit will be notified.',
-                                  child: DropdownButtonFormField<int>(
-                                    initialValue: _unitId,
-                                    isExpanded: true,
-                                    items: _units
-                                        .map(
-                                          (unit) => DropdownMenuItem<int>(
-                                            value: int.tryParse(
-                                              '${unit['id']}',
-                                            ),
-                                            child: Text(
-                                              (unit['name'] ?? 'Dayung Unit')
-                                                  .toString(),
-                                              overflow: TextOverflow.ellipsis,
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons
+                                                        .event_available_rounded,
+                                                    color: kPrimary,
+                                                    size: 20,
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Text(
+                                                    MaterialLocalizations.of(
+                                                      context,
+                                                    ).formatMediumDate(
+                                                      DateTime.now(),
+                                                    ),
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: kText,
+                                                      fontFamily: 'OpenSans',
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
-                                        )
-                                        .toList(),
-                                    onChanged: (value) =>
-                                        setState(() => _unitId = value),
-                                    decoration: _fieldDecoration(
-                                      hintText: 'Choose a Dayung Unit',
-                                    ),
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: kText,
-                                      fontFamily: 'OpenSans',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _sectionCard(
-                                  icon: Icons.calendar_today_rounded,
-                                  title: 'Date',
-                                  helpText:
-                                      'The post date is set automatically.',
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 17,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF3F6FA),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: kBorderColor),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.event_available_rounded,
-                                          color: kPrimary,
-                                          size: 22,
                                         ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          MaterialLocalizations.of(
-                                            context,
-                                          ).formatMediumDate(DateTime.now()),
-                                          style: const TextStyle(
-                                            fontSize: 17,
-                                            fontWeight: FontWeight.w600,
-                                            color: kText,
-                                            fontFamily: 'OpenSans',
+                                        SizedBox(
+                                          width: constraints.maxWidth,
+                                          child: _sectionCard(
+                                            icon: Icons.description_rounded,
+                                            title: 'Message',
+                                            helpText:
+                                                'Share the details members need.',
+                                            child: TextFormField(
+                                              controller: _body,
+                                              inputFormatters:
+                                                  AppInputSecurity.multiLineFormatters(
+                                                    maxLength: 1000,
+                                                  ),
+                                              minLines: 4,
+                                              maxLines: 8,
+                                              textCapitalization:
+                                                  TextCapitalization.sentences,
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                height: 1.4,
+                                                color: kText,
+                                                fontFamily: 'OpenSans',
+                                              ),
+                                              decoration: _fieldDecoration(
+                                                hintText:
+                                                    'Write your announcement here...',
+                                              ),
+                                              validator: (value) {
+                                                final text =
+                                                    value?.trim() ?? '';
+                                                if (text.isEmpty) {
+                                                  return 'Please enter the announcement details.';
+                                                }
+                                                if (text.length < 8) {
+                                                  return 'Message must be at least 8 characters.';
+                                                }
+                                                return null;
+                                              },
+                                            ),
                                           ),
                                         ),
-                                        // const Spacer(),
-                                        // const Text(
-                                        //   'Automatic',
-                                        //   style: TextStyle(
-                                        //     fontSize: 13,
-                                        //     fontWeight: FontWeight.w600,
-                                        //     color: kSubText,
-                                        //     fontFamily: 'OpenSans',
-                                        //   ),
-                                        // ),
+                                        SizedBox(
+                                          width: constraints.maxWidth,
+                                          child: Align(
+                                            alignment: wide
+                                                ? Alignment.centerRight
+                                                : Alignment.center,
+                                            child: SizedBox(
+                                              width: wide
+                                                  ? 280
+                                                  : double.infinity,
+                                              child: ElevatedButton.icon(
+                                                onPressed: _posting
+                                                    ? null
+                                                    : _save,
+                                                icon: _posting
+                                                    ? const SizedBox(
+                                                        width: 18,
+                                                        height: 18,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                              color:
+                                                                  Colors.white,
+                                                            ),
+                                                      )
+                                                    : const Icon(
+                                                        Icons.send_rounded,
+                                                      ),
+                                                label: Text(
+                                                  _posting
+                                                      ? 'Posting...'
+                                                      : 'Post Announcement',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 16,
+                                                    fontFamily: 'Montserrat',
+                                                  ),
+                                                ),
+                                                style: ElevatedButton.styleFrom(
+                                                  minimumSize:
+                                                      const Size.fromHeight(52),
+                                                  backgroundColor: kPrimary,
+                                                  foregroundColor: Colors.white,
+                                                  disabledBackgroundColor:
+                                                      kPrimary.withValues(
+                                                        alpha: 0.7,
+                                                      ),
+                                                  disabledForegroundColor:
+                                                      Colors.white,
+                                                  elevation: 0,
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 14,
+                                                      ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          14,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 16),
-                                _sectionCard(
-                                  icon: Icons.description_rounded,
-                                  title: 'Message',
-                                  helpText:
-                                      'Include the details members need to know.',
-                                  child: TextFormField(
-                                    controller: _body,
-                                    inputFormatters:
-                                        AppInputSecurity.multiLineFormatters(
-                                          maxLength: 1000,
-                                        ),
-                                    minLines: 5,
-                                    maxLines: null,
-                                    textCapitalization:
-                                        TextCapitalization.sentences,
-                                    style: const TextStyle(
-                                      fontSize: 17,
-                                      height: 1.45,
-                                      color: kText,
-                                      fontFamily: 'OpenSans',
-                                    ),
-                                    decoration: _fieldDecoration(
-                                      hintText:
-                                          'Write your announcement here...',
-                                    ),
-                                    validator: (value) {
-                                      final text = value?.trim() ?? '';
-                                      if (text.isEmpty) {
-                                        return 'Please enter the announcement details.';
-                                      }
-                                      if (text.length < 8) {
-                                        return 'Message must be at least 8 characters.';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _save,
-                                    icon: const Icon(
-                                      Icons.send_rounded,
-                                      size: 22,
-                                    ),
-                                    label: const Text(
-                                      'Post Announcement',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 18,
-                                        fontFamily: 'Montserrat',
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      minimumSize: const Size.fromHeight(58),
-                                      backgroundColor: kPrimary,
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                              ],
+                                );
+                              },
                             ),
                           ),
                         ),

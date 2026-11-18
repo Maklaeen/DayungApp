@@ -54,6 +54,13 @@ class _CollectCashPageState extends State<CollectCashPage> {
   Map<String, dynamic>? _selectedDeceased;
   String _memberSearch = '';
   String _deceasedSearch = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   double _asDouble(dynamic value, {double fallback = 0.0}) {
     if (value is num) return value.toDouble();
@@ -1025,6 +1032,8 @@ class _CollectCashPageState extends State<CollectCashPage> {
           setState(() {
             _selectedDeceased = null;
             _memberSearch = '';
+            _deceasedSearch = '';
+            _searchController.clear();
           });
           return false;
         }
@@ -1122,9 +1131,8 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
     return [
       _overviewCard(
-        title: 'Collection Overview',
-        subtitle:
-            'Choose an approved claim, then record which members have already paid in cash.',
+        title: 'Collection overview',
+        subtitle: 'Approved claims ready for cash collection.',
         cards: [
           _statCard(
             icon: Icons.payments_rounded,
@@ -1159,10 +1167,10 @@ class _CollectCashPageState extends State<CollectCashPage> {
       ),
       const SizedBox(height: 18),
       _searchCard(
-        hint: 'Search claim title or passed away',
+        hint: 'Search approved claims',
         onChanged: (value) => setState(() => _deceasedSearch = value.trim()),
       ),
-      const SizedBox(height: 18),
+      const SizedBox(height: 12),
       if (approvedClaims.isEmpty)
         _emptyState(
           title: 'No approved claims found',
@@ -1172,10 +1180,29 @@ class _CollectCashPageState extends State<CollectCashPage> {
       else
         RecordDataTable(
           minWidth: 720,
+          columnSpacing: 18,
+          horizontalMargin: 14,
+          headingRowHeight: 50,
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 72,
+          showCheckboxColumn: false,
+          headingTextStyle: const TextStyle(
+            color: kAccentDark,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Montserrat',
+          ),
+          dataTextStyle: const TextStyle(
+            color: kText,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            fontFamily: 'OpenSans',
+          ),
           columns: const [
             DataColumn(label: Text('Claim')),
             DataColumn(label: Text('Amount')),
             DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Action')),
           ],
           rows: approvedClaims.map((claim) {
             final beneficiaryId = (claim['beneficiary_id'] ?? '').toString();
@@ -1194,19 +1221,49 @@ class _CollectCashPageState extends State<CollectCashPage> {
                             : _memberName(userId)))
                     .toString();
             final claimed = _isClaimedMoney(claim['claimedmoney']);
+            void selectClaim() {
+              setState(() {
+                _selectedDeceased = _selectionForClaim(claim);
+                _memberSearch = '';
+                _searchController.clear();
+              });
+            }
+
             return DataRow(
-              onSelectChanged: (_) {
-                setState(() {
-                  _selectedDeceased = _selectionForClaim(claim);
-                  _memberSearch = '';
-                });
-              },
+              onSelectChanged: (_) => selectClaim(),
               cells: [
-                DataCell(Text(displayName)),
                 DataCell(
-                  Text('PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}'),
+                  Text(
+                    displayName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: selectClaim,
                 ),
-                DataCell(Text(claimed ? 'Claimed money' : 'Unclaimed')),
+                DataCell(
+                  Text(
+                    'PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: kAccent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  onTap: selectClaim,
+                ),
+                DataCell(
+                  _statusChip(
+                    claimed ? 'Claimed' : 'Unclaimed',
+                    claimed ? kSuccess : kWarn,
+                  ),
+                  onTap: selectClaim,
+                ),
+                DataCell(
+                  TextButton.icon(
+                    onPressed: selectClaim,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    label: const Text('Select'),
+                  ),
+                ),
               ],
             );
           }).toList(),
@@ -1325,21 +1382,10 @@ class _CollectCashPageState extends State<CollectCashPage> {
   List<Widget> _buildMemberStep() {
     final selected = _selectedDeceased!;
     return [
-      const SizedBox(height: 14),
-      const Text(
-        'Cash Receipt',
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w900,
-          color: Colors.white,
-          fontFamily: 'Montserrat',
-        ),
-      ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 4),
       _overviewCard(
         title: (selected['display_name'] ?? 'Deceased').toString(),
-        subtitle:
-            'Review all assigned members for this notice and mark their cash contributions once collected.',
+        subtitle: 'Record cash payments from assigned members.',
         cards: [
           _statCard(
             icon: Icons.check_circle_rounded,
@@ -1372,7 +1418,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
         hint: 'Search member by name',
         onChanged: (value) => setState(() => _memberSearch = value.trim()),
       ),
-      const SizedBox(height: 18),
+      const SizedBox(height: 12),
       if (_filteredMembers.isEmpty)
         _emptyState(
           title: 'No members matched this filter',
@@ -1382,6 +1428,24 @@ class _CollectCashPageState extends State<CollectCashPage> {
       else
         RecordDataTable(
           minWidth: 850,
+          columnSpacing: 18,
+          horizontalMargin: 14,
+          headingRowHeight: 50,
+          dataRowMinHeight: 56,
+          dataRowMaxHeight: 76,
+          showCheckboxColumn: false,
+          headingTextStyle: const TextStyle(
+            color: kAccentDark,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Montserrat',
+          ),
+          dataTextStyle: const TextStyle(
+            color: kText,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            fontFamily: 'OpenSans',
+          ),
           columns: const [
             DataColumn(label: Text('Member')),
             DataColumn(label: Text('Amount')),
@@ -1401,13 +1465,32 @@ class _CollectCashPageState extends State<CollectCashPage> {
             final paidAt = (payment?['paid_at'] ?? '').toString();
             return DataRow(
               cells: [
-                DataCell(Text((member['full_name'] ?? 'Member').toString())),
-                DataCell(Text('PHP ${amount.toStringAsFixed(2)}')),
-                DataCell(Text(isPaid ? 'Paid' : 'Pending')),
+                DataCell(
+                  Text(
+                    (member['full_name'] ?? 'Member').toString(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    'PHP ${amount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: kAccent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  _statusChip(
+                    isPaid ? 'Paid' : 'Pending',
+                    isPaid ? kSuccess : kWarn,
+                  ),
+                ),
                 DataCell(Text(paidAt.isEmpty ? '—' : paidAt.split('T').first)),
                 DataCell(
                   isCurrentUser
-                      ? const Text('Cannot collect for yourself')
+                      ? const Text('—')
                       : ElevatedButton.icon(
                           onPressed: isPaid
                               ? null
@@ -1418,6 +1501,20 @@ class _CollectCashPageState extends State<CollectCashPage> {
                                 : Icons.payments_rounded,
                           ),
                           label: Text(isPaid ? 'Paid' : 'Collect cash'),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(0, 40),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                 ),
               ],
@@ -1467,6 +1564,8 @@ class _CollectCashPageState extends State<CollectCashPage> {
                 setState(() {
                   _selectedDeceased = null;
                   _memberSearch = '';
+                  _deceasedSearch = '';
+                  _searchController.clear();
                 });
                 return;
               }
@@ -1487,20 +1586,20 @@ class _CollectCashPageState extends State<CollectCashPage> {
                     fontFamily: 'Montserrat',
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   _selectedDeceased == null
-                      ? 'Select a death notice first, then record paid cash contributions member by member.'
-                      : 'You are now reviewing the members assigned to the selected notice.',
+                      ? 'Choose a claim to record cash payments.'
+                      : 'Cash collection for assigned members.',
                   style: TextStyle(
-                    fontSize: wide ? 14 : 13,
-                    height: 1.35,
+                    fontSize: wide ? 13 : 12,
+                    height: 1.25,
                     fontWeight: FontWeight.w600,
                     color: Colors.white70,
                     fontFamily: 'OpenSans',
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -1550,6 +1649,24 @@ class _CollectCashPageState extends State<CollectCashPage> {
     );
   }
 
+  Widget _statusChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   Widget _overviewCard({
     required String title,
     required String subtitle,
@@ -1575,24 +1692,24 @@ class _CollectCashPageState extends State<CollectCashPage> {
           Text(
             title,
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
               color: kText,
               fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             subtitle,
             style: const TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               color: kSubText,
               fontWeight: FontWeight.w600,
               fontFamily: 'OpenSans',
-              height: 1.4,
+              height: 1.25,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= 760;
@@ -1628,7 +1745,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     required Color tone,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(18),
@@ -1637,15 +1754,15 @@ class _CollectCashPageState extends State<CollectCashPage> {
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               color: tone.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: tone),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1663,7 +1780,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.w900,
                     color: kText,
                     fontFamily: 'Montserrat',
@@ -1682,7 +1799,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     required ValueChanged<String> onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -1696,9 +1813,20 @@ class _CollectCashPageState extends State<CollectCashPage> {
         ],
       ),
       child: TextField(
+        controller: _searchController,
         decoration: InputDecoration(
           hintText: hint,
           prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: _searchController.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: () {
+                    _searchController.clear();
+                    onChanged('');
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                ),
           filled: true,
           fillColor: kSurface,
           contentPadding: const EdgeInsets.symmetric(
@@ -2154,7 +2282,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
   Widget _emptyState({required String title, required String subtitle}) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: kSurface,
         borderRadius: BorderRadius.circular(22),
@@ -2163,30 +2291,30 @@ class _CollectCashPageState extends State<CollectCashPage> {
       child: Column(
         children: [
           Container(
-            width: 64,
-            height: 64,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               color: kAccent.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Icon(
               Icons.receipt_long_rounded,
-              size: 32,
+              size: 26,
               color: kAccent,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Text(
             title,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
               color: kText,
               fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             subtitle,
             textAlign: TextAlign.center,

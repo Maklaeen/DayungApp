@@ -72,6 +72,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
   List<PaymentMember> _paidMembers = [];
   List<PaymentMember> _unpaidMembers = [];
   final Set<String> _updatingPaymentIds = {};
+  final TextEditingController _searchController = TextEditingController();
   String _search = '';
   String? _selectedDeceasedId;
 
@@ -89,6 +90,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -412,14 +414,17 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             RecordDataTable(
-              minWidth: 1320,
+              minWidth: 1120,
               showCheckboxColumn: false,
-              columnSpacing: 28,
+              columnSpacing: 20,
+              horizontalMargin: 16,
+              headingRowHeight: 48,
+              dataRowMinHeight: 56,
+              dataRowMaxHeight: 72,
               columns: const [
                 DataColumn(label: Text('Member')),
-                DataColumn(label: Text('Deceased Name')),
-                DataColumn(label: Text('Payment Initiated Date')),
-                DataColumn(label: Text('Date Collected')),
+                DataColumn(label: Text('Payment date')),
+                DataColumn(label: Text('Paid at')),
                 DataColumn(label: Text('Amount')),
                 DataColumn(label: Text('Status')),
                 DataColumn(label: Text('Collected By')),
@@ -427,16 +432,12 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
               ],
               rows: filtered.map((member) {
                 final isPaid = member.status.toLowerCase() == 'paid';
+                final statusColor = isPaid
+                    ? const Color(0xFF047857)
+                    : const Color(0xFFB45309);
                 return DataRow(
                   cells: [
                     DataCell(Text(member.fullName)),
-                    DataCell(
-                      Text(
-                        member.deceasedName?.isNotEmpty == true
-                            ? member.deceasedName!
-                            : '—',
-                      ),
-                    ),
                     DataCell(
                       Text(
                         member.date == null
@@ -451,13 +452,32 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                             : _formatPhilippinesDate(member.dateCollected!),
                       ),
                     ),
-                    DataCell(Text('₱${member.amount.toStringAsFixed(0)}')),
-                    DataCell(Text(member.status.toUpperCase())),
+                    DataCell(Text('₱${member.amount.toStringAsFixed(2)}')),
+                    DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          member.status.toUpperCase(),
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
                     DataCell(Text(member.collectedBy)),
                     DataCell(
                       isPaid
                           ? const Text('—')
-                          : OutlinedButton.icon(
+                          : FilledButton.icon(
                               onPressed: _updatingPaymentIds.contains(member.id)
                                   ? null
                                   : () => _confirmMarkPaid(member),
@@ -466,8 +486,15 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                               ),
                               label: Text(
                                 _updatingPaymentIds.contains(member.id)
-                                    ? 'Updating...'
-                                    : 'Mark as Paid',
+                                    ? 'Updating'
+                                    : 'Mark paid',
+                              ),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                minimumSize: const Size(0, 40),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                             ),
                     ),
@@ -487,23 +514,14 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
         ? const Color(0xFF047857)
         : const Color(0xFFB45309);
     final details = <(String, String)>[
-      ('User ID', member.userId),
-      ('Collected By', member.collectedBy),
+      ('Amount', '₱${member.amount.toStringAsFixed(2)}'),
       (
-        'Deceased Name',
-        member.deceasedName?.isNotEmpty == true ? member.deceasedName! : '—',
-      ),
-      (
-        'Date',
+        'Payment date',
         member.date == null ? '—' : _formatPhilippinesDate(member.date!),
       ),
-      (
-        'Date Collected',
-        member.dateCollected == null
-            ? '—'
-            : _formatPhilippinesDate(member.dateCollected!),
-      ),
-      ('Amount', '₱${member.amount.toStringAsFixed(2)}'),
+      ('Collected by', member.collectedBy),
+      if (member.dateCollected != null)
+        ('Paid at', _formatPhilippinesDate(member.dateCollected!)),
     ];
 
     return Container(
@@ -552,7 +570,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                   member.status.toUpperCase(),
                   style: TextStyle(
                     color: statusColor,
-                    fontSize: 14,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -577,7 +595,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              child: FilledButton.icon(
                 onPressed: _updatingPaymentIds.contains(member.id)
                     ? null
                     : () => _confirmMarkPaid(member),
@@ -643,10 +661,24 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
         border: Border.all(color: _kBorder),
       ),
       child: TextField(
-        decoration: const InputDecoration(
+        controller: _searchController,
+        decoration: InputDecoration(
           hintText: 'Search members',
           border: InputBorder.none,
-          prefixIcon: Icon(Icons.search_rounded, color: Color(0xFF64748B)),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            color: Color(0xFF64748B),
+          ),
+          suffixIcon: _search.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _search = '');
+                  },
+                  icon: const Icon(Icons.clear_rounded),
+                ),
         ),
         onChanged: (value) {
           setState(() {
@@ -739,7 +771,11 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
     );
 
     if (selectedId != null && mounted) {
-      setState(() => _selectedDeceasedId = selectedId);
+      setState(() {
+        _selectedDeceasedId = selectedId;
+        _search = '';
+        _searchController.clear();
+      });
     }
   }
 
@@ -775,6 +811,89 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
     );
   }
 
+  Widget _buildSelectionPrompt() {
+    final hasOptions = _deceasedOptions.isNotEmpty;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              hasOptions
+                  ? Icons.manage_search_rounded
+                  : Icons.people_outline_rounded,
+              size: 44,
+              color: const Color(0xFF64748B),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              hasOptions
+                  ? 'Select a deceased member'
+                  : 'No deceased members available',
+              style: const TextStyle(
+                color: Color(0xFF1F2937),
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (hasOptions) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'View their paid and unpaid payments.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: _selectDeceased,
+                icon: const Icon(Icons.person_search_rounded),
+                label: const Text('Choose member'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadError() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7ED),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFFED7AA)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Could not load payment records',
+              style: TextStyle(
+                color: Color(0xFF1F2937),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('Error details'),
+              children: [SelectableText(_error ?? '')],
+            ),
+            OutlinedButton.icon(
+              onPressed: _loadMembers,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final paidCount = _memberCountForSelectedDeceased(_paidMembers);
@@ -795,7 +914,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                 ),
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+                  bottomRight: Radius.circular(28), 
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -805,7 +924,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                   ),
                 ],
               ),
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -834,49 +953,33 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            // Text(
-                            //   'Payments',
-                            //   style: TextStyle(
-                            //     color: Colors.white70,
-                            //     fontSize: 13,
-                            //     fontWeight: FontWeight.w700,
-                            //   ),
-                            // ),
-                            // SizedBox(height: 6),
-                            Text(
-                              'Paid & Unpaid Members',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
+                        child: const Text(
+                          'Paid & Unpaid Members',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                      // IconButton(
-                      //   icon: const Icon(Icons.close, color: Colors.white),
-                      //   onPressed: () => Navigator.of(context).maybePop(),
-                      // ),
                     ],
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 10),
                   _buildDeceasedSelector(),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       _buildSummaryCard(
                         title: 'Paid',
-                        value: '$paidCount',
+                        value: _selectedDeceasedId == null ? '—' : '$paidCount',
                         color: const Color(0xFF10B981),
                       ),
                       const SizedBox(width: 10),
                       _buildSummaryCard(
                         title: 'Unpaid',
-                        value: '$unpaidCount',
+                        value: _selectedDeceasedId == null
+                            ? '—'
+                            : '$unpaidCount',
                         color: const Color(0xFFF59E0B),
                       ),
                     ],
@@ -898,70 +1001,86 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
                     ),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                child: _loading
+                    ? const DayungPageSkeleton(
+                        layout: DayungSkeletonLayout.list,
+                        padding: EdgeInsets.all(16),
+                        itemCount: 3,
+                      )
+                    : _error != null
+                    ? _buildLoadError()
+                    : _selectedDeceasedId == null
+                    ? _buildSelectionPrompt()
+                    : Column(
                         children: [
-                          Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 480),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _kPageBg,
-                                  borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(color: _kBorder),
-                                ),
-                                child: TabBar(
-                                  controller: _tabController,
-                                  dividerColor: Colors.transparent,
-                                  splashFactory: NoSplash.splashFactory,
-                                  overlayColor:
-                                      const WidgetStatePropertyAll<Color>(
-                                        Colors.transparent,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Center(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 480,
+                                    ),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 6,
                                       ),
-                                  labelColor: const Color(0xFF0D47A1),
-                                  labelStyle: const TextStyle(
-                                    fontWeight: FontWeight.w700,
+                                      decoration: BoxDecoration(
+                                        color: _kPageBg,
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(color: _kBorder),
+                                      ),
+                                      child: TabBar(
+                                        controller: _tabController,
+                                        dividerColor: Colors.transparent,
+                                        splashFactory: NoSplash.splashFactory,
+                                        overlayColor:
+                                            const WidgetStatePropertyAll<Color>(
+                                              Colors.transparent,
+                                            ),
+                                        labelColor: const Color(0xFF0D47A1),
+                                        labelStyle: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        unselectedLabelColor: const Color(
+                                          0xFF64748B,
+                                        ),
+                                        indicator: BoxDecoration(
+                                          color: const Color(
+                                            0xFF0D47A1,
+                                          ).withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        tabs: const [
+                                          Tab(text: 'Paid'),
+                                          Tab(text: 'Unpaid'),
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                  unselectedLabelColor: const Color(0xFF64748B),
-                                  indicator: BoxDecoration(
-                                    color: const Color(
-                                      0xFF0D47A1,
-                                    ).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  tabs: const [
-                                    Tab(text: 'Paid'),
-                                    Tab(text: 'Unpaid'),
-                                  ],
                                 ),
-                              ),
+                                const SizedBox(height: 12),
+                                _buildSearchField(),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          _buildSearchField(),
+                          Expanded(
+                            child: TabBarView(
+                              controller: _tabController,
+                              children: [
+                                _buildMemberList(_paidMembers),
+                                _buildMemberList(_unpaidMembers),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildMemberList(_paidMembers),
-                          _buildMemberList(_unpaidMembers),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ],

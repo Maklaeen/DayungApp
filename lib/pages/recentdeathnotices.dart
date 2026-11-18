@@ -300,7 +300,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(32),
+                          padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
@@ -323,7 +323,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                           child: Column(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(20),
+                                padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     colors: [
@@ -550,32 +550,42 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                           isWide ? 28 : 16,
                           0,
                         ),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: TabBar(
-                            labelColor: kPrimary,
-                            unselectedLabelColor: kSubText,
-                            indicatorColor: kPrimary,
-                            indicatorSize: TabBarIndicatorSize.label,
-                            indicatorWeight: 3,
-                            dividerColor: Colors.transparent,
-                            labelStyle: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
+                        child: Center(
+                          child: SizedBox(
+                            width: isWide ? 520 : double.infinity,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: TabBar(
+                                isScrollable: true,
+                                tabAlignment: TabAlignment.center,
+                                labelColor: kPrimary,
+                                unselectedLabelColor: kSubText,
+                                indicatorColor: kPrimary,
+                                indicatorSize: TabBarIndicatorSize.label,
+                                indicatorWeight: 3,
+                                dividerColor: Colors.transparent,
+                                labelStyle: const TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                                unselectedLabelStyle: const TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                tabs: [
+                                  Tab(text: 'Members (${_members.length})'),
+                                  Tab(
+                                    text:
+                                        'Beneficiaries (${_beneficiaries.length})',
+                                  ),
+                                ],
+                              ),
                             ),
-                            unselectedLabelStyle: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            tabs: const [
-                              Tab(text: 'Members'),
-                              Tab(text: 'Beneficiaries'),
-                            ],
                           ),
                         ),
                       ),
@@ -588,11 +598,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                               )
                             : TabBarView(
                                 children: [
-                                  _modernList(
-                                    context,
-                                    _members,
-                                    isWide,
-                                  ),
+                                  _modernList(context, _members, isWide),
                                   _modernList(
                                     context,
                                     _beneficiaries,
@@ -663,11 +669,11 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                     width: 1,
                   ),
                 ),
-                child: Icon(Icons.inbox_rounded, color: kSubText, size: 48),
+                child: Icon(Icons.inbox_rounded, color: kSubText, size: 40),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               Text(
-                'No Death Notices Found',
+                'No death notices',
                 style: TextStyle(
                   fontSize: isWide ? 24 : 20,
                   fontWeight: FontWeight.w800,
@@ -675,12 +681,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                   fontFamily: 'Montserrat',
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
               Text(
-                'There are currently no death notices for your Dayung unit.',
+                'Nothing to show yet.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: isWide ? 16 : 14,
+                  fontSize: 13,
                   color: kSubText,
                   fontFamily: 'OpenSans',
                   height: 1.5,
@@ -704,20 +710,36 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
           );
         }
         return ListView(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
           children: [
             RecordDataTable(
               modernStyle: true,
               minWidth: constraints.maxWidth > 1000
                   ? constraints.maxWidth
                   : 1000,
-              dataRowMinHeight: 88,
-              dataRowMaxHeight: 120,
+              dataRowMinHeight: 72,
+              dataRowMaxHeight: 90,
+              headingRowHeight: 54,
+              columnSpacing: 28,
+              horizontalMargin: 20,
+              showCheckboxColumn: false,
+              headingTextStyle: const TextStyle(
+                color: kPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Montserrat',
+              ),
+              dataTextStyle: const TextStyle(
+                color: kText,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'OpenSans',
+              ),
               columns: const [
-                DataColumn(label: Text('Name')),
+                DataColumn(label: Text('Deceased')),
                 DataColumn(label: Text('Type')),
-                DataColumn(label: Text('Date of death')),
-                DataColumn(label: Text('Vigil Details')),
+                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Vigil')),
               ],
               rows: items
                   .map((notice) => _noticeDataRow(context, notice))
@@ -848,7 +870,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
         OutlinedButton.icon(
           onPressed: () => _showNoticeDetails(context, notice),
           icon: const Icon(Icons.map_outlined, size: 18),
-          label: const Text('View Vigil Details'),
+          label: const Text('Vigil details'),
           style: OutlinedButton.styleFrom(
             foregroundColor: kPrimary,
             side: const BorderSide(color: kPrimaryLight),
@@ -865,7 +887,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
     Map<String, dynamic> notice,
   ) {
     return SizedBox(
-      width: 300,
+      width: 260,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -892,7 +914,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
           OutlinedButton.icon(
             onPressed: () => _showNoticeDetails(context, notice),
             icon: const Icon(Icons.map_outlined, size: 17),
-            label: const Text('View Vigil Details'),
+            label: const Text('Vigil details'),
             style: OutlinedButton.styleFrom(
               foregroundColor: kPrimary,
               side: const BorderSide(color: kPrimaryLight),
@@ -912,10 +934,34 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
       onSelectChanged: (_) => _showNoticeDetails(context, notice),
       cells: [
         DataCell(Text(_noticeName(notice))),
-        DataCell(Text(isBeneficiary ? 'Beneficiary' : 'Member')),
+        DataCell(_noticeTypeBadge(isBeneficiary)),
         DataCell(Text(date.isEmpty ? '—' : date)),
         DataCell(_vigilDetailsTableCell(context, notice)),
       ],
+    );
+  }
+
+  Widget _noticeTypeBadge(bool isBeneficiary) {
+    final background = isBeneficiary
+        ? const Color(0xFFF3E8FF)
+        : const Color(0xFFEFF6FF);
+    final foreground = isBeneficiary
+        ? const Color(0xFF7E22CE)
+        : const Color(0xFF1D4ED8);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        isBeneficiary ? 'Beneficiary' : 'Member',
+        style: TextStyle(
+          color: foreground,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

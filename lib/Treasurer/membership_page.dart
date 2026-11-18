@@ -22,6 +22,7 @@ class MembershipPage extends StatefulWidget {
 class _MembershipPageState extends State<MembershipPage> {
   final sb = Supabase.instance.client;
   bool _loading = true;
+  String? _loadError;
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _filteredPayments = [];
   bool _updating = false;
@@ -43,7 +44,10 @@ class _MembershipPageState extends State<MembershipPage> {
   }
 
   Future<void> _fetchPayments() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final rows = await sb
           .from('payments')
@@ -62,9 +66,7 @@ class _MembershipPageState extends State<MembershipPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        setState(() => _loadError = e.toString());
       }
     } finally {
       if (mounted) {
@@ -98,12 +100,21 @@ class _MembershipPageState extends State<MembershipPage> {
       // Philippines Time (UTC+8) for display.
       final parsed = DateTime.parse(value).toUtc();
       final ph = parsed.add(const Duration(hours: 8));
-      final formatter = DateFormat('MMMM d, yyyy h:mm a');
+      final formatter = DateFormat('MMM d, yyyy • h:mm a');
       return formatter.format(ph);
     } catch (e) {
       // If parsing fails, just return the original value.
       return value;
     }
+  }
+
+  String _formatAmount(dynamic value) {
+    final amount = double.tryParse(value?.toString() ?? '') ?? 0;
+    return NumberFormat.currency(
+      locale: 'en_PH',
+      symbol: '₱',
+      decimalDigits: 2,
+    ).format(amount);
   }
 
   Future<void> _updatePaymentStatus(Map<String, dynamic> payment) async {
@@ -272,10 +283,99 @@ class _MembershipPageState extends State<MembershipPage> {
     );
   }
 
+  Widget _buildFiltersAndSearch() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _kBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final searchField = TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search members',
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                color: Color(0xFF64748B),
+              ),
+              suffixIcon: _searchController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: _searchController.clear,
+                      icon: const Icon(Icons.clear_rounded),
+                    ),
+              filled: true,
+              fillColor: const Color(0xFFF6F7FB),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+            ),
+          );
+          final filters = Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              _buildFilterChip('All', 'all'),
+              _buildFilterChip('Paid', 'paid'),
+              _buildFilterChip('Unpaid', 'unpaid'),
+            ],
+          );
+          final count = Text(
+            _loading ? 'Loading' : '${_filteredPayments.length} shown',
+            style: const TextStyle(
+              color: _kTextSub,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          );
+
+          if (constraints.maxWidth < 760) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                searchField,
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: filters),
+                    count,
+                  ],
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: searchField),
+              const SizedBox(width: 12),
+              filters,
+              const SizedBox(width: 10),
+              count,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(20);
-
     return Scaffold(
       backgroundColor: _kPageBg,
       body: SafeArea(
@@ -297,9 +397,9 @@ class _MembershipPageState extends State<MembershipPage> {
                   ),
                 ],
               ),
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Row(
                     children: [
@@ -324,12 +424,12 @@ class _MembershipPageState extends State<MembershipPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       const Expanded(
                         child: Text(
                           'Membership Payments',
                           style: TextStyle(
-                            fontSize: 24,
+                            fontSize: 22,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                           ),
@@ -345,54 +445,8 @@ class _MembershipPageState extends State<MembershipPage> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 child: Column(
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: _kCard,
-                        borderRadius: borderRadius,
-                        border: Border.all(color: _kBorder),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Search by member name',
-                            prefixIcon: const Icon(
-                              Icons.search_rounded,
-                              color: Color(0xFF64748B),
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF6F7FB),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildFiltersAndSearch(),
                     const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildFilterChip('All', 'all'),
-                        _buildFilterChip('Paid', 'paid'),
-                        _buildFilterChip('Unpaid', 'unpaid'),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
                     Expanded(
                       child: _loading
                           ? const DayungPageSkeleton(
@@ -412,77 +466,174 @@ class _MembershipPageState extends State<MembershipPage> {
   }
 
   Widget _buildPaymentList() {
-    if (_payments.isEmpty) {
-      return const Center(
-        child: Text(
-          'No membership payments found',
-          style: TextStyle(fontSize: 16, color: _kTextSub),
-        ),
-      );
-    }
-
-    if (_filteredPayments.isEmpty) {
-      return const Center(
-        child: Text(
-          'No results found',
-          style: TextStyle(fontSize: 16, color: _kTextSub),
-        ),
-      );
-    }
-
     return RefreshIndicator(
       onRefresh: _fetchPayments,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 20),
         children: [
-          RecordDataTable(
-            minWidth: 700,
-            columns: const [
-              DataColumn(label: Text('Member')),
-              DataColumn(label: Text('Amount')),
-              DataColumn(label: Text('Status')),
-              DataColumn(label: Text('Date Approved')),
-              DataColumn(label: Text('Action')),
-            ],
-            rows: _filteredPayments.map((payment) {
-              final userData = payment['users'] as Map<String, dynamic>?;
-              final fullName =
-                  userData?['full_name']?.toString() ?? 'Unknown user';
-              final amount = payment['amount']?.toString() ?? '0';
-              final status = payment['status']?.toString() ?? 'unknown';
-              final createdAt = payment['created_at']?.toString() ?? 'No date';
-              return DataRow(
-                cells: [
-                  DataCell(Text(fullName)),
-                  DataCell(Text('₱$amount')),
-                  DataCell(
-                    Text(
-                      status.toUpperCase(),
-                      style: TextStyle(color: _getStatusColor(status)),
-                    ),
-                  ),
-                  DataCell(Text(_formatDate(createdAt))),
-                  DataCell(
-                    ElevatedButton.icon(
-                      onPressed: _updating || status.toLowerCase() == 'paid'
-                          ? null
-                          : () => _confirmMarkPaid(payment),
-                      icon: Icon(
-                        status.toLowerCase() == 'paid'
-                            ? Icons.check_circle
-                            : Icons.check_circle_outline,
-                      ),
-                      label: Text(
-                        status.toLowerCase() == 'paid'
-                            ? 'Paid'
-                            : 'Mark as Paid',
+          if (_loadError != null)
+            _buildPaymentError()
+          else if (_payments.isEmpty)
+            _buildEmptyState('No membership payments yet')
+          else if (_filteredPayments.isEmpty)
+            _buildEmptyState('No matching payments', showClearAction: true)
+          else
+            RecordDataTable(
+              minWidth: 700,
+              columnSpacing: 20,
+              horizontalMargin: 16,
+              headingRowHeight: 48,
+              dataRowMinHeight: 56,
+              dataRowMaxHeight: 72,
+              showCheckboxColumn: false,
+              columns: const [
+                DataColumn(label: Text('Member')),
+                DataColumn(label: Text('Amount')),
+                DataColumn(label: Text('Status')),
+                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Action')),
+              ],
+              rows: _filteredPayments.map((payment) {
+                final userData = payment['users'] as Map<String, dynamic>?;
+                final fullName =
+                    userData?['full_name']?.toString() ?? 'Unknown user';
+                final status = payment['status']?.toString() ?? 'unknown';
+                final isPaid = [
+                  'paid',
+                  'approved',
+                ].contains(status.toLowerCase());
+                final createdAt = payment['created_at']?.toString();
+                final statusColor = _getStatusColor(status);
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      Text(
+                        fullName,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
-                  ),
-                ],
-              );
-            }).toList(),
+                    DataCell(
+                      Text(
+                        _formatAmount(payment['amount']),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          status.toUpperCase(),
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(_formatDate(createdAt))),
+                    DataCell(
+                      isPaid
+                          ? const Tooltip(
+                              message: 'Payment received',
+                              child: Icon(
+                                Icons.check_circle_rounded,
+                                color: Color(0xFF10B981),
+                              ),
+                            )
+                          : FilledButton.icon(
+                              onPressed: _updating
+                                  ? null
+                                  : () => _confirmMarkPaid(payment),
+                              icon: const Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Mark paid'),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                minimumSize: const Size(0, 40),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String message, {bool showClearAction = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.receipt_long_outlined, size: 36, color: _kTextSub),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: const TextStyle(
+              color: _kTextSub,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (showClearAction)
+            TextButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _statusFilter = 'all');
+                _filterPayments();
+              },
+              icon: const Icon(Icons.clear_rounded),
+              label: const Text('Clear filters'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentError() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Could not load membership payments',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('Error details'),
+            children: [SelectableText(_loadError ?? '')],
+          ),
+          OutlinedButton.icon(
+            onPressed: _fetchPayments,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
           ),
         ],
       ),

@@ -39,7 +39,6 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
   String? _error;
   String _searchQuery = '';
   String _sourceFilter = 'all';
-  bool _usingGcashFallback = false;
   List<Map<String, dynamic>> _receipts = [];
   pw.ThemeData? _pdfTheme;
 
@@ -85,7 +84,6 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
       if (!mounted) return;
       setState(() {
         _receipts = combined;
-        _usingGcashFallback = gcashResult.usedFallback;
         _loading = false;
       });
     } catch (error) {
@@ -162,10 +160,10 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
             .timeout(_queryTimeout),
       );
       final mapped = await _mapGcashPaymentsRows(rows);
-      return _GcashLoadResult(rows: mapped, usedFallback: false);
+      return _GcashLoadResult(rows: mapped);
     } catch (_) {
       final rows = await _loadGcashFallbackReceipts();
-      return _GcashLoadResult(rows: rows, usedFallback: true);
+      return _GcashLoadResult(rows: rows);
     }
   }
 
@@ -508,24 +506,40 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
                             padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                             children: [
                               _buildOverviewCard(),
-                              const SizedBox(height: 18),
+                              const SizedBox(height: 12),
                               _buildFilterCard(),
-                              const SizedBox(height: 18),
+                              const SizedBox(height: 12),
                               if (_visibleReceipts.isEmpty)
                                 _buildEmptyState()
                               else
                                 RecordDataTable(
                                   minWidth: 1120,
+                                  headingRowHeight: 50,
+                                  dataRowMinHeight: 58,
+                                  dataRowMaxHeight: 76,
+                                  columnSpacing: 18,
+                                  horizontalMargin: 14,
+                                  showCheckboxColumn: false,
+                                  headingTextStyle: const TextStyle(
+                                    color: kReceiptsAccentDark,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                  dataTextStyle: const TextStyle(
+                                    color: kReceiptsText,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    fontFamily: 'OpenSans',
+                                  ),
                                   columns: const [
                                     DataColumn(label: Text('Member')),
                                     DataColumn(label: Text('Method')),
                                     DataColumn(label: Text('Amount')),
-                                    DataColumn(
-                                      label: Text('Collector / status'),
-                                    ),
+                                    DataColumn(label: Text('Collector')),
                                     DataColumn(label: Text('Date')),
                                     DataColumn(label: Text('Reference')),
-                                    DataColumn(label: Text('Receipt details')),
+                                    DataColumn(label: Text('Receipt')),
                                   ],
                                   rows: _visibleReceipts
                                       .map(_buildReceiptRow)
@@ -606,66 +620,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                // Text(
-                //   'Review completed cash receipts and GCash submissions in one collector-facing history view.',
-                //   style: TextStyle(
-                //     fontSize: wide ? 14 : 13,
-                //     height: 1.35,
-                //     fontWeight: FontWeight.w600,
-                //     color: Colors.white70,
-                //     fontFamily: 'OpenSans',
-                //   ),
-                // ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _headerPill(
-                      icon: Icons.receipt_long_rounded,
-                      label: '${_receipts.length} total receipts',
-                    ),
-                    _headerPill(
-                      icon: Icons.account_tree_rounded,
-                      label: widget.dayungUnitId == null
-                          ? 'All units'
-                          : 'Dayung ${widget.dayungUnitId}',
-                    ),
-                    if (_usingGcashFallback)
-                      _headerPill(
-                        icon: Icons.sync_problem_rounded,
-                        label: 'GCash via active proof table',
-                      ),
-                  ],
-                ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _headerPill({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              fontFamily: 'Montserrat',
             ),
           ),
         ],
@@ -696,7 +651,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -712,29 +667,6 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Receipt Overview',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: kReceiptsText,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _usingGcashFallback
-                ? 'GCash receipts are currently sourced from the active proof uploads table because gcash_payments was not available.'
-                : 'Cash and GCash receipts are merged here so collectors can review both payment channels without switching screens.',
-            style: const TextStyle(
-              fontSize: 13,
-              color: kReceiptsSubText,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= 760;
@@ -770,7 +702,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     required Color tone,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(18),
@@ -779,8 +711,8 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: tone.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(14),
@@ -821,7 +753,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
 
   Widget _buildFilterCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -838,31 +770,27 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Search and Filter',
+            'Find receipts',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
               color: kReceiptsText,
               fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Search by member, collector, reference number, or amount, then narrow the receipt list by payment source.',
-            style: TextStyle(
-              fontSize: 13,
-              color: kReceiptsSubText,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search by member, collector, reference, or amount',
               prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: _searchController.clear,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
               filled: true,
               fillColor: kReceiptsSurface,
               contentPadding: const EdgeInsets.symmetric(
@@ -883,7 +811,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -956,32 +884,32 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
           ),
         ),
         DataCell(
-          Text((receipt['collector_name'] ?? 'Not assigned').toString()),
+          Text(
+            (receipt['collector_name'] ?? 'Not assigned').toString(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
         DataCell(Text(_formatDate(receipt['display_date']))),
         DataCell(Text((receipt['reference'] ?? '—').toString())),
         DataCell(
-          SizedBox(
-            width: 240,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  (receipt['supporting_text'] ?? '').toString(),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: kReceiptsSubText,
-                    fontWeight: FontWeight.w600,
-                  ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'View receipt details',
+                onPressed: () => _showReceiptDetails(receipt),
+                icon: const Icon(Icons.receipt_long_outlined),
+                visualDensity: VisualDensity.compact,
+              ),
+              if (hasProofImage)
+                IconButton(
+                  tooltip: 'Preview GCash proof',
+                  onPressed: () => _showProofPreview(receipt),
+                  icon: const Icon(Icons.image_outlined),
+                  visualDensity: VisualDensity.compact,
                 ),
-                if (hasProofImage)
-                  TextButton.icon(
-                    onPressed: () => _showProofPreview(receipt),
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Preview GCash proof'),
-                  ),
-              ],
-            ),
+            ],
           ),
         ),
       ],
@@ -1515,18 +1443,17 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
               fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             hasFilters
-                ? 'Try another search term or switch the source filter back to all.'
-                : 'Receipt history will appear here once payments are recorded or GCash proofs are submitted.',
+                ? 'Try another search or reset filters.'
+                : 'Payments will appear here once recorded.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 13,
               color: kReceiptsSubText,
               fontWeight: FontWeight.w600,
               fontFamily: 'OpenSans',
-              height: 1.4,
             ),
           ),
           if (hasFilters) ...[
@@ -1557,9 +1484,8 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
 
 class _GcashLoadResult {
   final List<Map<String, dynamic>> rows;
-  final bool usedFallback;
 
-  const _GcashLoadResult({required this.rows, required this.usedFallback});
+  const _GcashLoadResult({required this.rows});
 }
 
 class _ReceiptProofPreviewDialog extends StatelessWidget {

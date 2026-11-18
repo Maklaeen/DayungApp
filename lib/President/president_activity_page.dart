@@ -245,133 +245,231 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final narrowHeader = MediaQuery.sizeOf(context).width < 360;
+
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
-      appBar: AppBar(
-        title: const Text('Activity history'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: OutlinedButton.icon(
-              onPressed: _loading || _announcementsLoading || _rulesLoading
-                  ? null
-                  : _refreshAll,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Refresh'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(48, 48),
-                textStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
       body: DefaultTabController(
         length: 2,
         child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isCompact = constraints.maxWidth < 600;
-              final horizontalPadding = isCompact ? 16.0 : 32.0;
-
-              return RefreshIndicator(
-                onRefresh: _refreshAll,
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    horizontalPadding,
-                    20,
-                    horizontalPadding,
-                    36,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 20, 14),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
-                  children: [
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1240),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const _ActivityHero(),
-                            const SizedBox(height: 24),
-                            TabBar(
-                              onTap: (index) {
-                                setState(() => _selectedLogTab = index);
-                              },
-                              tabs: const [
-                                Tab(text: 'Announcement log'),
-                                Tab(text: 'User preferences'),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            if (_selectedLogTab == 0)
-                              _ActivityLogSection(
-                                number: '01',
-                                title: 'Announcement log',
-                                description:
-                                    'A clear record of announcements shared with members.',
-                                icon: Icons.campaign_outlined,
-                                columns: const [
-                                  'Title',
-                                  'Category',
-                                  'Description',
-                                  'Posted by',
-                                  'Date and time',
-                                ],
-                                entries: _announcements,
-                                loading: _announcementsLoading,
-                                error: _announcementsError,
-                                onRetry: _loadAnnouncements,
-                                hasPreviousPage: _announcementPage > 0,
-                                hasNextPage: _announcementsHaveMore,
-                                onPreviousPage: () => _loadAnnouncements(
-                                  page: _announcementPage - 1,
-                                ),
-                                onNextPage: () => _loadAnnouncements(
-                                  page: _announcementPage + 1,
-                                ),
-                              )
-                            else
-                              _ActivityLogSection(
-                                number: '02',
-                                title: 'User preferences',
-                                description:
-                                    'A record of changes made to unit rules and preferences.',
-                                icon: Icons.tune_rounded,
-                                columns: const [
-                                  'Rule updated by',
-                                  'Rule Created',
-                                  'Last updated at',
-                                ],
-                                entries: _rules,
-                                loading: _rulesLoading,
-                                error: _rulesError,
-                                onRetry: () => _loadRules(page: _rulesPage),
-                                hasPreviousPage: _rulesPage > 0,
-                                hasNextPage: _rulesHaveMore,
-                                onPreviousPage: () =>
-                                    _loadRules(page: _rulesPage - 1),
-                                onNextPage: () =>
-                                    _loadRules(page: _rulesPage + 1),
-                                loadingMessage: 'Loading unit rules...',
-                                errorMessage: 'Could not load unit rules',
-                              ),
-                            const SizedBox(height: 28),
-                            _RecentActivitySection(
-                              loading: _loading,
-                              error: _error,
-                              entries: _entries,
-                              onRetry: _loadActivity,
-                            ),
-                          ],
-                        ),
-                      ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.18),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
                   ],
                 ),
-              );
-            },
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.28),
+                        ),
+                      ),
+                      child: IconButton(
+                        tooltip: 'Back',
+                        padding: EdgeInsets.zero,
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Activity history',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                    ),
+                    if (narrowHeader)
+                      IconButton(
+                        tooltip: 'Refresh activity',
+                        onPressed:
+                            _loading || _announcementsLoading || _rulesLoading
+                            ? null
+                            : _refreshAll,
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(52, 52),
+                        ),
+                      )
+                    else
+                      OutlinedButton.icon(
+                        onPressed:
+                            _loading || _announcementsLoading || _rulesLoading
+                            ? null
+                            : _refreshAll,
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        label: const Text('Refresh'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                          minimumSize: const Size(52, 52),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isCompact = constraints.maxWidth < 600;
+                    final horizontalPadding = isCompact ? 16.0 : 32.0;
+
+                    return RefreshIndicator(
+                      onRefresh: _refreshAll,
+                      child: ListView(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontalPadding,
+                          20,
+                          horizontalPadding,
+                          36,
+                        ),
+                        children: [
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1240),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const _ActivityHero(),
+                                  const SizedBox(height: 24),
+                                  TabBar(
+                                    onTap: (index) {
+                                      setState(() => _selectedLogTab = index);
+                                    },
+                                    isScrollable: isCompact,
+                                    tabAlignment: isCompact
+                                        ? TabAlignment.start
+                                        : TabAlignment.fill,
+                                    indicatorWeight: 4,
+                                    labelStyle: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                    unselectedLabelStyle: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    labelPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                    ),
+                                    tabs: const [
+                                      Tab(height: 60, text: 'Announcement log'),
+                                      Tab(height: 60, text: 'User preferences'),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  if (_selectedLogTab == 0)
+                                    _ActivityLogSection(
+                                      number: '01',
+                                      title: 'Announcement log',
+                                      description:
+                                          'A clear record of announcements shared with members.',
+                                      icon: Icons.campaign_outlined,
+                                      columns: const [
+                                        'Title',
+                                        'Category',
+                                        'Description',
+                                        'Posted by',
+                                        'Date and time',
+                                      ],
+                                      entries: _announcements,
+                                      loading: _announcementsLoading,
+                                      error: _announcementsError,
+                                      onRetry: _loadAnnouncements,
+                                      hasPreviousPage: _announcementPage > 0,
+                                      hasNextPage: _announcementsHaveMore,
+                                      onPreviousPage: () => _loadAnnouncements(
+                                        page: _announcementPage - 1,
+                                      ),
+                                      onNextPage: () => _loadAnnouncements(
+                                        page: _announcementPage + 1,
+                                      ),
+                                    )
+                                  else
+                                    _ActivityLogSection(
+                                      number: '02',
+                                      title: 'User preferences',
+                                      description:
+                                          'A record of changes made to unit rules and preferences.',
+                                      icon: Icons.tune_rounded,
+                                      columns: const [
+                                        'Rule updated by',
+                                        'Rule Created',
+                                        'Last updated at',
+                                      ],
+                                      entries: _rules,
+                                      loading: _rulesLoading,
+                                      error: _rulesError,
+                                      onRetry: () =>
+                                          _loadRules(page: _rulesPage),
+                                      hasPreviousPage: _rulesPage > 0,
+                                      hasNextPage: _rulesHaveMore,
+                                      onPreviousPage: () =>
+                                          _loadRules(page: _rulesPage - 1),
+                                      onNextPage: () =>
+                                          _loadRules(page: _rulesPage + 1),
+                                      loadingMessage: 'Loading unit rules...',
+                                      errorMessage: 'Could not load unit rules',
+                                    ),
+                                  const SizedBox(height: 28),
+                                  _RecentActivitySection(
+                                    loading: _loading,
+                                    error: _error,
+                                    entries: _entries,
+                                    onRetry: _loadActivity,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -384,8 +482,7 @@ class _ActivityHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFF075985);
-
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -416,9 +513,9 @@ class _ActivityHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'President activity',
+                  'Activity overview',
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 26,
                     height: 1.2,
                     fontWeight: FontWeight.w800,
                     color: dayungTextColor(context),
@@ -426,9 +523,9 @@ class _ActivityHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Review announcement and preference records, then check your recent actions below.',
+                  'Review announcements, preference changes, and your recent actions.',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     height: 1.5,
                     color: dayungSubtextColor(context),
                   ),
@@ -479,85 +576,101 @@ class _ActivityLogSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFF075985);
+    final accent = Theme.of(context).colorScheme.primary;
+    final sectionIcon = Container(
+      width: 52,
+      height: 52,
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: accent,
+        radius: 16,
+      ),
+      child: Icon(icon, color: accent, size: 26),
+    );
+    final titleWidget = Text(
+      title,
+      style: TextStyle(
+        fontSize: 22,
+        height: 1.25,
+        fontWeight: FontWeight.w800,
+        color: dayungTextColor(context),
+      ),
+    );
+    final numberBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: dayungAccentSurface(context, accent),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        number,
+        style: TextStyle(
+          color: accent,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+        ),
+      ),
+    );
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: dayungSectionCardDecoration(context, radius: 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: dayungAccentCardDecoration(
-                  context,
-                  accent: accent,
-                  radius: 16,
-                ),
-                child: Icon(icon, color: accent, size: 26),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    height: 1.25,
-                    fontWeight: FontWeight.w800,
-                    color: dayungTextColor(context),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: dayungAccentSurface(context, accent),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  number,
-                  style: const TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 560) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [sectionIcon, const Spacer(), numberBadge]),
+                    const SizedBox(height: 12),
+                    titleWidget,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  sectionIcon,
+                  const SizedBox(width: 14),
+                  Expanded(child: titleWidget),
+                  const SizedBox(width: 8),
+                  numberBadge,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           Text(
             description,
             style: TextStyle(
-              fontSize: 15,
+              fontSize: 17,
               height: 1.5,
               color: dayungSubtextColor(context),
             ),
           ),
           const SizedBox(height: 20),
           Text(
-            'LOG COLUMNS',
+            'RECORD DETAILS',
             style: TextStyle(
               color: dayungSubtextColor(context),
-              fontSize: 12,
+              fontSize: 16,
               letterSpacing: 0.8,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 8),
           RecordDataTable(
-            minWidth: columns.length * 170,
-            columnSpacing: 10,
-            horizontalMargin: 10,
-            useMobileCards: false,
+            minWidth: columns.length * 190,
+            columnSpacing: 16,
+            horizontalMargin: 16,
+            headingRowHeight: 68,
+            dataRowMinHeight: 92,
+            dataRowMaxHeight: 192,
+            useMobileCards: true,
             showCheckboxColumn: false,
             headingRowColor: dayungSoftSurface(context),
             border: TableBorder(
@@ -567,19 +680,20 @@ class _ActivityLogSection extends StatelessWidget {
               for (final column in columns)
                 DataColumn(
                   columnWidth: switch (column) {
-                    'Title' => const FixedColumnWidth(170),
-                    'Category' => const FixedColumnWidth(150),
-                    'Description' => const FixedColumnWidth(200),
-                    'Posted by' => const FixedColumnWidth(150),
-                    'Date and time' => const FixedColumnWidth(180),
-                    _ => const FixedColumnWidth(180),
+                    'Title' => const FixedColumnWidth(190),
+                    'Category' => const FixedColumnWidth(190),
+                    'Description' => const FixedColumnWidth(260),
+                    'Posted by' => const FixedColumnWidth(190),
+                    'Date and time' => const FixedColumnWidth(220),
+                    _ => const FixedColumnWidth(220),
                   },
                   label: Text(
                     column,
                     style: TextStyle(
                       color: dayungTextColor(context),
                       fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                      fontSize: 17,
+                      height: 1.35,
                     ),
                   ),
                 ),
@@ -592,11 +706,13 @@ class _ActivityLogSection extends StatelessWidget {
                       DataCell(
                         Text(
                           _announcementCellValue(entry, column),
-                          maxLines: 2,
+                          maxLines: 4,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: dayungTextColor(context),
-                            fontSize: 13,
+                            fontSize: 17,
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -613,11 +729,25 @@ class _ActivityLogSection extends StatelessWidget {
                   onPressed: !loading && hasPreviousPage
                       ? onPreviousPage
                       : null,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(120, 52),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   child: const Text('Previous'),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton(
                   onPressed: !loading && hasNextPage ? onNextPage : null,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(120, 52),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   child: const Text('Next'),
                 ),
               ],
@@ -707,14 +837,24 @@ class _ActivityLogStateCard extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: dayungTextColor(context),
-              fontSize: 15,
+              fontSize: 17,
               height: 1.4,
               fontWeight: FontWeight.w600,
             ),
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 8),
-            TextButton(onPressed: onAction, child: Text(actionLabel!)),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(120, 52),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              child: Text(actionLabel!),
+            ),
           ],
         ],
       ),
@@ -743,7 +883,7 @@ class _RecentActivitySection extends StatelessWidget {
         Text(
           'Recent Activity',
           style: TextStyle(
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: FontWeight.w800,
             color: dayungTextColor(context),
           ),
@@ -795,14 +935,14 @@ class _ActivityEntryCard extends StatelessWidget {
         .join('  •  ');
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: dayungSectionCardDecoration(context, radius: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 48,
+            height: 48,
             decoration: dayungAccentCardDecoration(
               context,
               accent: accent,
@@ -811,7 +951,7 @@ class _ActivityEntryCard extends StatelessWidget {
             child: const Icon(
               Icons.check_circle_outline_rounded,
               color: accent,
-              size: 22,
+              size: 26,
             ),
           ),
           const SizedBox(width: 12),
@@ -823,7 +963,7 @@ class _ActivityEntryCard extends StatelessWidget {
                   action.title,
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 15,
+                    fontSize: 18,
                     color: dayungTextColor(context),
                   ),
                 ),
@@ -834,24 +974,27 @@ class _ActivityEntryCard extends StatelessWidget {
                     style: TextStyle(
                       color: dayungSubtextColor(context),
                       height: 1.4,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
                 const SizedBox(height: 9),
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     const Icon(
                       Icons.access_time_rounded,
-                      size: 15,
+                      size: 19,
                       color: accent,
                     ),
-                    const SizedBox(width: 5),
+                    const SizedBox(width: 7),
                     Text(
                       dateLabel,
                       style: TextStyle(
                         color: dayungSubtextColor(context),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -882,7 +1025,7 @@ class _ActivityStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: dayungSectionCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -897,6 +1040,8 @@ class _ActivityStatusCard extends StatelessWidget {
                   style: TextStyle(
                     color: dayungSubtextColor(context),
                     height: 1.5,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -908,6 +1053,13 @@ class _ActivityStatusCard extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: FilledButton(
                 onPressed: onAction,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(120, 52),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 child: Text(actionLabel!),
               ),
             ),

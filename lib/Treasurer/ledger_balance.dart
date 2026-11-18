@@ -959,32 +959,56 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
     required String title,
     required String value,
     required Color accent,
+    required IconData icon,
   }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
+        color: accent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: accent,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(11),
             ),
+            child: Icon(icon, size: 19, color: accent),
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Color(0xFF111827),
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: Color(0xFF111827),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1047,10 +1071,10 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Text(
                               'Ledger Balance',
                               style: TextStyle(
@@ -1059,16 +1083,15 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            // SizedBox(height: 6),
-                            // Text(
-                            //   'Confirm remitted funds before posting to the ledger.',
-                            //   style: TextStyle(
-                            //     color: Colors.white70,
-                            //     fontSize: 13,
-                            //     height: 1.5,
-                            //   ),
-                            // ),
                           ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Refresh ledger',
+                        onPressed: _loading ? null : _loadCollectorTotals,
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.white,
                         ),
                       ),
                     ],
@@ -1119,57 +1142,69 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(color: _kBorder),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  '',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF111827),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final cards = <Widget>[
+                                  _summaryCard(
+                                    title: 'Collectors',
+                                    value: '${_collectorSummaries.length}',
+                                    accent: const Color(0xFFF59E0B),
+                                    icon: Icons.groups_rounded,
                                   ),
-                                ),
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
+                                  if (_hasCollectorsCollectedPayments)
+                                    _summaryCard(
+                                      title: 'Collector remittances',
+                                      value: _formatCurrency(
+                                        _collectedCollectedTotal,
+                                      ),
+                                      accent: const Color(0xFF10B981),
+                                      icon: Icons.payments_outlined,
+                                    ),
+                                  _summaryCard(
+                                    title: 'Total collected',
+                                    value: _formatCurrency(totalCollected),
+                                    accent: const Color(0xFF10B981),
+                                    icon: Icons.receipt_long_rounded,
+                                  ),
+                                  _summaryCard(
+                                    title: 'Cash holdings',
+                                    value: _formatCurrency(
+                                      _currentCashCollected,
+                                    ),
+                                    accent: const Color(0xFF10B981),
+                                    icon: Icons.account_balance_wallet_outlined,
+                                  ),
+                                  _summaryCard(
+                                    title: 'Ledger balance',
+                                    value: _formatCurrency(
+                                      _totalDeceasedPaymentAmount,
+                                    ),
+                                    accent: const Color(0xFF3B82F6),
+                                    icon: Icons.account_balance_rounded,
+                                  ),
+                                ];
+                                const spacing = 10.0;
+                                final columns = constraints.maxWidth >= 1200
+                                    ? cards.length
+                                    : constraints.maxWidth >= 700
+                                    ? 3
+                                    : constraints.maxWidth >= 360
+                                    ? 2
+                                    : 1;
+                                final cardWidth =
+                                    (constraints.maxWidth -
+                                        spacing * (columns - 1)) /
+                                    columns;
+
+                                return Wrap(
+                                  spacing: spacing,
+                                  runSpacing: spacing,
                                   children: [
-                                    _summaryCard(
-                                      title: 'Number of Collectors',
-                                      value: '${_collectorSummaries.length}',
-                                      accent: const Color(0xFFF59E0B),
-                                    ),
-                                    if (_hasCollectorsCollectedPayments)
-                                      _summaryCard(
-                                        title: 'Collectors Collected',
-                                        value: _formatCurrency(
-                                          _collectedCollectedTotal,
-                                        ),
-                                        accent: const Color(0xFF10B981),
-                                      ),
-                                    _summaryCard(
-                                      title: 'Total Collected',
-                                      value: _formatCurrency(totalCollected),
-                                      accent: const Color(0xFF10B981),
-                                    ),
-                                    _summaryCard(
-                                      title: 'Current Cash Holdings',
-                                      value: _formatCurrency(
-                                        _currentCashCollected,
-                                      ),
-                                      accent: const Color(0xFF10B981),
-                                    ),
-                                    _summaryCard(
-                                      title: 'Ledger Balance',
-                                      value: _formatCurrency(
-                                        _totalDeceasedPaymentAmount,
-                                      ),
-                                      accent: const Color(0xFF3B82F6),
-                                    ),
+                                    for (final card in cards)
+                                      SizedBox(width: cardWidth, child: card),
                                   ],
-                                ),
-                              ],
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -1199,6 +1234,23 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                             RecordDataTable(
                               minWidth: 520,
                               showCheckboxColumn: false,
+                              headingRowHeight: 56,
+                              dataRowMinHeight: 60,
+                              dataRowMaxHeight: 76,
+                              columnSpacing: 28,
+                              horizontalMargin: 20,
+                              headingTextStyle: const TextStyle(
+                                color: Color(0xFF0D47A1),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Montserrat',
+                              ),
+                              dataTextStyle: const TextStyle(
+                                color: Color(0xFF111827),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'OpenSans',
+                              ),
                               columns: const [
                                 DataColumn(label: Text('Collector')),
                                 DataColumn(
@@ -1224,7 +1276,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                       ),
                                     ),
                                     DataCell(
-                                      IconButton(
+                                      IconButton.filledTonal(
                                         tooltip: 'View collector details',
                                         onPressed: () =>
                                             _showCollectorDetailsDialog(
@@ -1232,10 +1284,17 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                             ),
                                         icon: const Icon(
                                           Icons.visibility_outlined,
-                                          size: 20,
+                                          size: 19,
                                         ),
-                                        color: const Color(0xFF0D47A1),
-                                        visualDensity: VisualDensity.compact,
+                                        style: IconButton.styleFrom(
+                                          foregroundColor: const Color(
+                                            0xFF0D47A1,
+                                          ),
+                                          backgroundColor: const Color(
+                                            0xFFEFF6FF,
+                                          ),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
                                       ),
                                     ),
                                   ],

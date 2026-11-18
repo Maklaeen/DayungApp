@@ -226,17 +226,39 @@ class _MembersPageState extends State<MembersPage> {
                           onRefresh: _loadPayments,
                           child: ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
                             children: [
                               _buildOverviewCard(),
-                              const SizedBox(height: 18),
+                              const SizedBox(height: 12),
                               _buildSearchAndFilterCard(),
-                              const SizedBox(height: 18),
+                              const SizedBox(height: 12),
                               if (_visiblePayments.isEmpty)
                                 _buildEmptyState()
                               else
                                 RecordDataTable(
                                   minWidth: 850,
+                                  columnSpacing: 18,
+                                  horizontalMargin: 14,
+                                  headingRowHeight: 50,
+                                  dataRowMinHeight: 56,
+                                  dataRowMaxHeight: 72,
+                                  showCheckboxColumn: false,
+                                  headingTextStyle: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                  dataTextStyle: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    fontFamily: 'OpenSans',
+                                  ),
                                   columns: const [
                                     DataColumn(label: Text('Member')),
                                     DataColumn(label: Text('Amount')),
@@ -264,10 +286,20 @@ class _MembersPageState extends State<MembersPage> {
                                         DataCell(
                                           Text(
                                             _formatAmount(payment['amount']),
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
                                         DataCell(
-                                          Text(paid ? 'Paid' : 'Pending'),
+                                          _statusChip(
+                                            paid ? 'Paid' : 'Pending',
+                                            paid
+                                                ? Theme.of(
+                                                    context,
+                                                  ).colorScheme.secondary
+                                                : _pendingTone(context),
+                                          ),
                                         ),
                                         DataCell(
                                           Text(
@@ -287,7 +319,7 @@ class _MembersPageState extends State<MembersPage> {
                                     );
                                   }).toList(),
                                 ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 14),
                               _buildPaginationBar(),
                             ],
                           ),
@@ -305,9 +337,9 @@ class _MembersPageState extends State<MembersPage> {
     return Container(
       padding: EdgeInsets.fromLTRB(
         12,
-        wide ? 36 : 28,
+        wide ? 22 : 18,
         wide ? 24 : 16,
-        wide ? 32 : 24,
+        wide ? 18 : 14,
       ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -363,34 +395,19 @@ class _MembersPageState extends State<MembersPage> {
                     fontFamily: 'Montserrat',
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Review member payment activity, who collected it, and the current status of each record.',
-                  style: TextStyle(
-                    fontSize: wide ? 14 : 13,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white70,
-                    fontFamily: 'OpenSans',
+                if (widget.dayungUnitId != null) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _headerPill(
+                        icon: Icons.filter_list_rounded,
+                        label: 'Dayung ${widget.dayungUnitId}',
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _headerPill(
-                      icon: Icons.payments_rounded,
-                      label: '${_payments.length} loaded records',
-                    ),
-                    _headerPill(
-                      icon: Icons.filter_list_rounded,
-                      label: widget.dayungUnitId == null
-                          ? 'All units'
-                          : 'Dayung ${widget.dayungUnitId}',
-                    ),
-                  ],
-                ),
+                ],
               ],
             ),
           ),
@@ -431,7 +448,7 @@ class _MembersPageState extends State<MembersPage> {
     final cards = [
       _statCard(
         icon: Icons.receipt_long_rounded,
-        label: 'Page Records',
+        label: 'Records',
         value: '${_payments.length}',
         tone: colors.primary,
       ),
@@ -450,7 +467,7 @@ class _MembersPageState extends State<MembersPage> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(22),
@@ -466,24 +483,6 @@ class _MembersPageState extends State<MembersPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Member Payment Overview',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: colors.onSurface,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Track which members already paid, which payments are still pending, and who recorded each collection.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 13,
-              color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= 760;
@@ -520,7 +519,7 @@ class _MembersPageState extends State<MembersPage> {
   }) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(18),
@@ -529,15 +528,15 @@ class _MembersPageState extends State<MembersPage> {
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               color: tone.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: tone),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,7 +553,7 @@ class _MembersPageState extends State<MembersPage> {
                 Text(
                   value,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.w900,
                     color: colors.onSurface,
                   ),
@@ -570,7 +569,7 @@ class _MembersPageState extends State<MembersPage> {
   Widget _buildSearchAndFilterCard() {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(22),
@@ -587,28 +586,26 @@ class _MembersPageState extends State<MembersPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Search and Filter',
+            'Search',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
               color: colors.onSurface,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Search by member, amount, or collector name, then narrow the list by payment status.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 13,
-              color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search by member, amount, or collector',
               prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: _searchController.clear,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
               filled: true,
               fillColor: Theme.of(context).inputDecorationTheme.fillColor,
               contentPadding: const EdgeInsets.symmetric(
@@ -629,7 +626,7 @@ class _MembersPageState extends State<MembersPage> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -665,6 +662,24 @@ class _MembersPageState extends State<MembersPage> {
             color: selected ? colors.onPrimary : colors.onSurface,
             fontWeight: FontWeight.w800,
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statusChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -938,7 +953,7 @@ class _MembersPageState extends State<MembersPage> {
     final colors = Theme.of(context).colorScheme;
     final hasFilters = _searchQuery.isNotEmpty || _statusFilter != 'all';
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(22),
@@ -947,37 +962,37 @@ class _MembersPageState extends State<MembersPage> {
       child: Column(
         children: [
           Container(
-            width: 64,
-            height: 64,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               color: colors.primaryContainer,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(
               Icons.people_alt_rounded,
-              size: 32,
+              size: 26,
               color: colors.primary,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Text(
             hasFilters ? 'No matching payments found' : 'No payments found',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
               color: colors.onSurface,
               fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             hasFilters
-                ? 'Try another search term or reset the current status filter.'
-                : 'Payment records will appear here once members start paying.',
+                ? 'No match. Adjust your search or filters.'
+                : 'No payment records yet.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               color: colors.onSurfaceVariant,
               fontWeight: FontWeight.w600,
               fontFamily: 'OpenSans',
@@ -985,7 +1000,7 @@ class _MembersPageState extends State<MembersPage> {
             ),
           ),
           if (hasFilters) ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () {
                 _searchController.clear();

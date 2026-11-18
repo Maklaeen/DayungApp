@@ -72,6 +72,7 @@ class _TreasurerCollectorListPageState
   final _searchController = TextEditingController();
   List<CollectorSummary> _collectors = [];
   bool _loading = true;
+  String? _error;
   String _searchQuery = '';
 
   @override
@@ -84,6 +85,7 @@ class _TreasurerCollectorListPageState
     try {
       setState(() {
         _loading = true;
+        _error = null;
       });
 
       final collectorRows = List<Map<String, dynamic>>.from(
@@ -126,6 +128,7 @@ class _TreasurerCollectorListPageState
           .toList();
     } catch (e) {
       if (mounted) {
+        setState(() => _error = e.toString());
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load collectors: $e')),
         );
@@ -155,9 +158,9 @@ class _TreasurerCollectorListPageState
       onChanged: (value) => setState(() => _searchQuery = value),
       style: const TextStyle(fontSize: 16, color: _collectorText),
       decoration: InputDecoration(
-        hintText: '',
-        hintStyle: const TextStyle(fontSize: 16, color: _collectorSubText),
-        prefixIcon: const Icon(Icons.search_rounded, size: 25, color: kPrimary),
+        hintText: 'Search collectors',
+        hintStyle: const TextStyle(fontSize: 14, color: _collectorSubText),
+        prefixIcon: const Icon(Icons.search_rounded, color: kPrimary),
         suffixIcon: _searchQuery.isEmpty
             ? null
             : IconButton(
@@ -170,9 +173,10 @@ class _TreasurerCollectorListPageState
               ),
         filled: true,
         fillColor: Colors.white,
+        isDense: true,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+          horizontal: 14,
+          vertical: 12,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -198,7 +202,7 @@ class _TreasurerCollectorListPageState
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
               decoration: const BoxDecoration(
                 color: kPrimary,
                 borderRadius: BorderRadius.only(
@@ -234,6 +238,14 @@ class _TreasurerCollectorListPageState
                       ),
                     ),
                   ),
+                  IconButton(
+                    tooltip: 'Refresh collectors',
+                    onPressed: _loading ? null : _loadCollectors,
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -243,64 +255,125 @@ class _TreasurerCollectorListPageState
                       layout: DayungSkeletonLayout.list,
                       padding: EdgeInsets.all(20),
                     )
-                  : _collectors.isEmpty
-                  ? const Center(child: Text('No collectors found.'))
+                  : _error != null
+                  ? _buildLoadError()
                   : ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      physics: const AlwaysScrollableScrollPhysics(),
                       children: [
                         _buildSearchBar(),
-                        if (_filteredCollectors.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 28),
-                            child: Column(
-                              children: [
-                                const Icon(
-                                  Icons.search_off_rounded,
-                                  size: 48,
-                                  color: _collectorSubText,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No collector found',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: dayungTextColor(context),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  'Try another name or clear the search.',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: _collectorSubText,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        const SizedBox(height: 12),
+                        if (_collectors.isEmpty)
+                          _buildEmptyState(
+                            title: 'No collectors yet',
+                            message: 'Assigned collectors will appear here.',
                           )
+                        else if (_filteredCollectors.isEmpty)
+                          _buildEmptyState(
+                            title: 'No matches',
+                            message: 'Try another name or clear the search.',
+                            onClear: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        else
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Collectors',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: _collectorText,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${_filteredCollectors.length} shown',
+                                style: const TextStyle(
+                                  color: _collectorSubText,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (_filteredCollectors.isNotEmpty)
+                          const SizedBox(height: 8),
+                        if (_filteredCollectors.isEmpty)
+                          const SizedBox.shrink()
                         else
                           RecordDataTable(
                             minWidth: 480,
+                            headingRowHeight: 48,
+                            dataRowMinHeight: 58,
+                            dataRowMaxHeight: 72,
+                            columnSpacing: 20,
+                            horizontalMargin: 16,
+                            showCheckboxColumn: false,
                             columns: const [
                               DataColumn(label: Text('Collector')),
                               DataColumn(label: Text('Details')),
                             ],
                             rows: _filteredCollectors.map((collector) {
-                              return DataRow(
-                                onSelectChanged: (_) => Navigator.push(
+                              void openDetails() {
+                                Navigator.push<void>(
                                   context,
-                                  MaterialPageRoute(
+                                  MaterialPageRoute<void>(
                                     builder: (_) =>
                                         TreasurerCollectorDetailPage(
                                           collector: collector,
                                         ),
                                   ),
-                                ),
+                                );
+                              }
+
+                              return DataRow(
                                 cells: [
-                                  DataCell(Text(collector.name)),
-                                  const DataCell(
-                                    Icon(Icons.chevron_right_rounded),
+                                  DataCell(
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 16,
+                                          backgroundColor: kPrimary.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          child: Text(
+                                            collector.name.isEmpty
+                                                ? 'C'
+                                                : collector.name[0]
+                                                      .toUpperCase(),
+                                            style: const TextStyle(
+                                              color: kPrimary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Flexible(
+                                          child: Text(
+                                            collector.name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    onTap: openDetails,
+                                  ),
+                                  DataCell(
+                                    IconButton(
+                                      tooltip: 'View details',
+                                      onPressed: openDetails,
+                                      icon: const Icon(
+                                        Icons.chevron_right_rounded,
+                                      ),
+                                    ),
+                                    onTap: openDetails,
                                   ),
                                 ],
                               );
@@ -308,6 +381,80 @@ class _TreasurerCollectorListPageState
                           ),
                       ],
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required String title,
+    required String message,
+    VoidCallback? onClear,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            onClear == null ? Icons.groups_outlined : Icons.search_off_rounded,
+            size: 38,
+            color: _collectorSubText,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: TextStyle(
+              color: dayungTextColor(context),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: _collectorSubText),
+          ),
+          if (onClear != null)
+            TextButton.icon(
+              onPressed: onClear,
+              icon: const Icon(Icons.clear_rounded),
+              label: const Text('Clear search'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadError() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7ED),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFED7AA)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Could not load collectors',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            OutlinedButton.icon(
+              onPressed: _loadCollectors,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
             ),
           ],
         ),

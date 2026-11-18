@@ -417,9 +417,16 @@ class _ProfilePageState extends State<ProfilePage>
               bool isPw = false,
               VoidCallback? toggle,
               bool obscure = false,
+              String? helperText,
             }) {
               return InputDecoration(
                 labelText: label,
+                helperText: helperText,
+                helperStyle: const TextStyle(
+                  color: kSubText,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
                 filled: true,
                 fillColor: kSurface,
                 border: OutlineInputBorder(
@@ -442,6 +449,7 @@ class _ProfilePageState extends State<ProfilePage>
                 ),
                 suffixIcon: isPw
                     ? IconButton(
+                        tooltip: obscure ? 'Show $label' : 'Hide $label',
                         onPressed: toggle,
                         icon: Icon(
                           obscure
@@ -461,12 +469,46 @@ class _ProfilePageState extends State<ProfilePage>
               ),
               titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 4),
               contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-              title: const Text(
-                'Change Password',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontWeight: FontWeight.w800,
-                ),
+              title: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: kPrimaryLight.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.lock_reset_rounded,
+                      color: kPrimaryLight,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Change password',
+                          style: TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Update your account password',
+                          style: TextStyle(
+                            color: kSubText,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -494,81 +536,128 @@ class _ProfilePageState extends State<ProfilePage>
                                 genErr ?? '',
                                 style: const TextStyle(
                                   color: kDanger,
-                                  fontSize: 13,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    TextField(
-                      controller: _currentPwController,
-                      obscureText: _obscureCur,
-                      decoration: fieldDecoration(
-                        'Current password',
-                        error: curErr != null,
-                        isPw: true,
-                        toggle: () =>
-                            setStateDialog(() => _obscureCur = !_obscureCur),
-                        obscure: _obscureCur,
+                    AutofillGroup(
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _currentPwController,
+                            obscureText: _obscureCur,
+                            autofillHints: const [AutofillHints.password],
+                            enableSuggestions: false,
+                            autocorrect: false,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => FocusScope.of(ctx).nextFocus(),
+                            decoration: fieldDecoration(
+                              'Current password',
+                              error: curErr != null,
+                              isPw: true,
+                              toggle: () => setStateDialog(
+                                () => _obscureCur = !_obscureCur,
+                              ),
+                              obscure: _obscureCur,
+                            ),
+                          ),
+                          if (curErr != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                curErr ?? '',
+                                style: const TextStyle(
+                                  color: kWarn,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _newPwController,
+                            obscureText: _obscureNew,
+                            autofillHints: const [AutofillHints.newPassword],
+                            enableSuggestions: false,
+                            autocorrect: false,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) => FocusScope.of(ctx).nextFocus(),
+                            decoration: fieldDecoration(
+                              'New password',
+                              error: newErr != null,
+                              isPw: true,
+                              toggle: () => setStateDialog(
+                                () => _obscureNew = !_obscureNew,
+                              ),
+                              obscure: _obscureNew,
+                              helperText: 'At least 6 characters',
+                            ),
+                          ),
+                          if (newErr != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                newErr ?? '',
+                                style: const TextStyle(
+                                  color: kWarn,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _confirmPwController,
+                            obscureText: _obscureConf,
+                            autofillHints: const [AutofillHints.newPassword],
+                            enableSuggestions: false,
+                            autocorrect: false,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => FocusScope.of(ctx).unfocus(),
+                            decoration: fieldDecoration(
+                              'Confirm password',
+                              error: confErr != null,
+                              isPw: true,
+                              toggle: () => setStateDialog(
+                                () => _obscureConf = !_obscureConf,
+                              ),
+                              obscure: _obscureConf,
+                            ),
+                          ),
+                          if (confErr != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                confErr ?? '',
+                                style: const TextStyle(
+                                  color: kWarn,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    if (curErr != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          curErr ?? '',
-                          style: const TextStyle(color: kWarn, fontSize: 12),
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _newPwController,
-                      obscureText: _obscureNew,
-                      decoration: fieldDecoration(
-                        'New password',
-                        error: newErr != null,
-                        isPw: true,
-                        toggle: () =>
-                            setStateDialog(() => _obscureNew = !_obscureNew),
-                        obscure: _obscureNew,
-                      ),
-                    ),
-                    if (newErr != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          newErr ?? '',
-                          style: const TextStyle(color: kWarn, fontSize: 12),
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _confirmPwController,
-                      obscureText: _obscureConf,
-                      decoration: fieldDecoration(
-                        'Confirm password',
-                        error: confErr != null,
-                        isPw: true,
-                        toggle: () =>
-                            setStateDialog(() => _obscureConf = !_obscureConf),
-                        obscure: _obscureConf,
-                      ),
-                    ),
-                    if (confErr != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          confErr ?? '',
-                          style: const TextStyle(color: kWarn, fontSize: 12),
-                        ),
-                      ),
                   ],
                 ),
               ),
+              actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+              actionsAlignment: MainAxisAlignment.end,
               actions: [
                 TextButton(
                   onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(96, 52),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
@@ -612,10 +701,17 @@ class _ProfilePageState extends State<ProfilePage>
                             if (mounted) setStateDialog(() => saving = false);
                           }
                         },
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(108, 52),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   child: saving
                       ? const SizedBox(
-                          height: 18,
-                          width: 18,
+                          height: 20,
+                          width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: Colors.white,
