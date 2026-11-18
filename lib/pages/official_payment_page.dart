@@ -640,10 +640,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
             future: _signedImageUrl(upload['image_url']),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const SizedBox(
-                  height: 120,
-                  child: Center(child: CircularProgressIndicator()),
-                );
+                return const DayungSkeletonBlock(height: 120, borderRadius: 12);
               }
 
               final signedUrl = snapshot.data;

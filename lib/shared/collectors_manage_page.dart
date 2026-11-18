@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
@@ -17,8 +18,7 @@ class CollectorsManagePage extends StatefulWidget {
 class _CollectorsManagePageState extends State<CollectorsManagePage> {
   Color get _onSurface => Theme.of(context).colorScheme.onSurface;
 
-  Color get _onSurfaceVariant =>
-      Theme.of(context).colorScheme.onSurfaceVariant;
+  Color get _onSurfaceVariant => Theme.of(context).colorScheme.onSurfaceVariant;
 
   static const int _pageSize = 10;
 
@@ -780,8 +780,10 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
             // Assigned collectors section
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _kPrimary),
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.all(16),
+                      itemCount: 3,
                     )
                   : RefreshIndicator(
                       onRefresh: _load,
@@ -1195,7 +1197,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12,
-                    color: assignedCollectorId.isEmpty ? _onSurfaceVariant : _kPrimary,
+                    color: assignedCollectorId.isEmpty
+                        ? _onSurfaceVariant
+                        : _kPrimary,
                     fontFamily: 'OpenSans',
                     fontWeight: FontWeight.w700,
                   ),

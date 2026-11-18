@@ -32,7 +32,6 @@ class _TreasurerContributionsPageState
   double _pendingTotal = 0;
   int _paidCount = 0;
   int _pendingCount = 0;
-  List<Map<String, dynamic>> _recent = [];
   List<Map<String, dynamic>> _myContributions = [];
   List<Map<String, dynamic>> _otherContributions = [];
   double _myTotal = 0;
@@ -59,7 +58,6 @@ class _TreasurerContributionsPageState
           _pendingTotal = 0;
           _paidCount = 0;
           _pendingCount = 0;
-          _recent = [];
           _myContributions = [];
           _otherContributions = [];
           _myTotal = 0;
@@ -158,7 +156,6 @@ class _TreasurerContributionsPageState
         _pendingTotal = pendingTotal;
         _paidCount = paidCount;
         _pendingCount = pendingCount;
-        _recent = rows.take(20).toList();
         _myContributions = myRows;
         _otherContributions = otherRows;
         _myTotal = myTotal;
@@ -175,7 +172,6 @@ class _TreasurerContributionsPageState
         _pendingTotal = 0;
         _paidCount = 0;
         _pendingCount = 0;
-        _recent = [];
         _myContributions = [];
         _otherContributions = [];
         _myTotal = 0;
@@ -211,99 +207,148 @@ class _TreasurerContributionsPageState
   Widget _summaryCard({
     required String title,
     required String value,
-    required String subtitle,
+    required String recordCount,
     required Color color,
     required IconData icon,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        color: dayungSurface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: dayungBorder(context)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: kText,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: color, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  recordCount,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: kSubText,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(subtitle, style: const TextStyle(fontSize: 12, color: kSubText)),
         ],
       ),
     );
   }
 
-  Widget _sectionHeader(String title, String subtitle) {
+  Widget _summaryCards() {
+    final cards = [
+      _summaryCard(
+        title: 'My paid',
+        value: '₱${_myTotal.toStringAsFixed(2)}',
+        recordCount: '$_myCount records',
+        color: kPrimary,
+        icon: Icons.person_rounded,
+      ),
+      _summaryCard(
+        title: 'Unit paid',
+        value: '₱${_paidTotal.toStringAsFixed(2)}',
+        recordCount: '$_paidCount records',
+        color: kPaid,
+        icon: Icons.account_balance_wallet_rounded,
+      ),
+      _summaryCard(
+        title: 'Pending',
+        value: '₱${_pendingTotal.toStringAsFixed(2)}',
+        recordCount: '$_pendingCount records',
+        color: kPending,
+        icon: Icons.pending_actions_rounded,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 900) {
+          return Row(
+            children: [
+              for (var index = 0; index < cards.length; index++) ...[
+                if (index > 0) const SizedBox(width: 12),
+                Expanded(child: cards[index]),
+              ],
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            for (var index = 0; index < cards.length; index++) ...[
+              if (index > 0) const SizedBox(height: 10),
+              cards[index],
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-              color: kText,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 14,
-              color: kSubText,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          color: colors.onSurface,
+          fontFamily: 'Montserrat',
+        ),
       ),
     );
   }
 
-  Widget _emptyState(String title, String subtitle) {
+  Widget _emptyState(String title) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kCardRadius),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+      decoration: dayungSectionCardDecoration(context, radius: 16),
       child: Column(
         children: [
-          Icon(Icons.inbox_outlined, size: 40, color: Colors.grey.shade500),
-          const SizedBox(height: 12),
+          Icon(Icons.inbox_outlined, size: 32, color: colors.onSurfaceVariant),
+          const SizedBox(height: 8),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 17,
+            style: TextStyle(
+              fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: kText,
+              color: colors.onSurface,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: const TextStyle(fontSize: 14, color: kSubText),
             textAlign: TextAlign.center,
           ),
         ],
@@ -315,12 +360,31 @@ class _TreasurerContributionsPageState
     List<Map<String, dynamic>> payments, {
     required bool mine,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return RecordDataTable(
       minWidth: 760,
+      columnSpacing: 18,
+      horizontalMargin: 16,
+      headingRowHeight: 50,
+      dataRowMinHeight: 56,
+      dataRowMaxHeight: 72,
+      showCheckboxColumn: false,
+      headingTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamily: 'Montserrat',
+      ),
+      dataTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        fontFamily: 'OpenSans',
+      ),
       columns: const [
         DataColumn(label: Text('Amount')),
         DataColumn(label: Text('Member')),
-        DataColumn(label: Text('For deceased')),
+        DataColumn(label: Text('Deceased')),
         DataColumn(label: Text('Date')),
         DataColumn(label: Text('Status')),
       ],
@@ -342,9 +406,9 @@ class _TreasurerContributionsPageState
             DataCell(
               Text(
                 '₱${_amountOf(row).toStringAsFixed(2)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: kPrimary,
+                  color: colors.primary,
                 ),
               ),
             ),
@@ -379,7 +443,7 @@ class _TreasurerContributionsPageState
 
   Widget _paymentShortcutCard() {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [kPrimaryDark, kPrimary],
@@ -388,35 +452,20 @@ class _TreasurerContributionsPageState
         ),
         borderRadius: BorderRadius.circular(kCardRadius),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          const Row(
-            children: [
-              Icon(Icons.payments_rounded, color: Colors.white, size: 24),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Need to settle your own contribution?',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
+          const Icon(Icons.payments_rounded, color: Colors.white, size: 22),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Make a contribution',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Open your payment page to review pending records and choose cash or GCash.',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.white70,
             ),
           ),
-          const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.push(
@@ -427,12 +476,19 @@ class _TreasurerContributionsPageState
                 ),
               ).then((_) => _load());
             },
-            icon: const Icon(Icons.arrow_forward_rounded),
-            label: const Text('Open Payment Page'),
+            icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+            label: const Text('Pay now'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: kPrimaryDark,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],
@@ -447,15 +503,35 @@ class _TreasurerContributionsPageState
       appBar: AppBar(
         backgroundColor: dayungPageBackground(context),
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Contributions',
-          style: TextStyle(color: kText, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w800,
+          ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh contributions',
+            onPressed: _loading ? null : _load,
+            icon: const Icon(Icons.refresh_rounded),
+            style: IconButton.styleFrom(
+              fixedSize: const Size(52, 52),
+              backgroundColor: dayungSurface(context),
+              foregroundColor: Theme.of(context).colorScheme.primary,
+              side: BorderSide(color: dayungBorder(context)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: _loading
           ? const DayungPageSkeleton(
-              layout: DayungSkeletonLayout.dashboard,
-              itemCount: 4,
+              layout: DayungSkeletonLayout.list,
+              itemCount: 3,
             )
           : RefreshIndicator(
               onRefresh: _load,
@@ -465,96 +541,19 @@ class _TreasurerContributionsPageState
                 ),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
-                  const Text(
-                    'Contribution Overview',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: kPrimaryDark,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // const Text(
-                  //   'Your payments are separated from other members so you can review both clearly.',
-                  //   style: TextStyle(
-                  //     fontSize: 14,
-                  //     color: kSubText,
-                  //     fontWeight: FontWeight.w600,
-                  //   ),
-                  // ),
-                  const SizedBox(height: 16),
                   _paymentShortcutCard(),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'My Paid Total',
-                          value: '₱${_myTotal.toStringAsFixed(2)}',
-                          subtitle:
-                              '$_myCount paid contribution${_myCount == 1 ? '' : 's'}',
-                          color: kPrimary,
-                          icon: Icons.person_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'Unit Paid Total',
-                          value: '₱${_paidTotal.toStringAsFixed(2)}',
-                          subtitle: '$_paidCount paid records',
-                          color: kPaid,
-                          icon: Icons.account_balance_wallet_rounded,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'Pending Total',
-                          value: '₱${_pendingTotal.toStringAsFixed(2)}',
-                          subtitle: '$_pendingCount pending records',
-                          color: kPending,
-                          icon: Icons.pending_actions_rounded,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'Recent Records',
-                          value: '${_recent.length}',
-                          subtitle: 'Latest contribution entries',
-                          color: kPrimaryDark,
-                          icon: Icons.history_rounded,
-                        ),
-                      ),
-                    ],
-                  ),
+                  const SizedBox(height: 14),
+                  _summaryCards(),
                   const SizedBox(height: 20),
-                  _sectionHeader(
-                    'My Contributions',
-                    'Payments made under your own account.',
-                  ),
+                  _sectionHeader('My contributions'),
                   if (_myContributions.isEmpty)
-                    _emptyState(
-                      'No personal contributions yet',
-                      'Your paid and pending contributions will appear here.',
-                    )
+                    _emptyState('No personal records yet')
                   else
                     _paymentTable(_myContributions, mine: true),
                   const SizedBox(height: 20),
-                  _sectionHeader(
-                    'Other Members Contributions',
-                    'All other contribution records inside this dayung unit.',
-                  ),
+                  _sectionHeader('Other members'),
                   if (_otherContributions.isEmpty)
-                    _emptyState(
-                      'No other member contributions yet',
-                      'Other members will appear here once contribution records exist.',
-                    )
+                    _emptyState('No other member records yet')
                   else
                     _paymentTable(_otherContributions, mine: false),
                 ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 
 class CollectionProgress extends StatefulWidget {
@@ -77,9 +78,19 @@ class _CollectionProgressState extends State<CollectionProgress> {
         border: Border.all(color: dayungBorder(context)),
       ),
       child: _loading
-          ? SizedBox(
+          ? const SizedBox(
               height: 64,
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  DayungSkeletonBlock(height: 16, width: 150),
+                  SizedBox(height: 8),
+                  DayungSkeletonBlock(height: 10, borderRadius: 5),
+                  SizedBox(height: 8),
+                  DayungSkeletonBlock(height: 10, width: 80),
+                ],
+              ),
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,

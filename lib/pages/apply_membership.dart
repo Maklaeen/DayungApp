@@ -6,6 +6,7 @@ import 'package:capstone_app/pages/membership_agreement_page.dart';
 import 'package:capstone_app/profile/required_application_page.dart';
 import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -809,7 +810,9 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const DayungPageSkeleton(
+                  layout: DayungSkeletonLayout.detail,
+                )
               : Column(
                   children: [
                     _buildWizardHeader(),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 const kBg = Color(0xFFFAFAF7);
@@ -698,6 +699,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
   Widget _buildBeneficiariesList(List<dynamic> items) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
+    final colors = Theme.of(context).colorScheme;
 
     if (items.isEmpty) {
       return LayoutBuilder(
@@ -713,22 +715,14 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                 margin: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
                 padding: EdgeInsets.all(isWide ? 32 : 24),
                 decoration: BoxDecoration(
-                  color: kCardBg,
+                  color: colors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: kBorderColor.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
+                  border: Border.all(color: colors.outlineVariant),
                   boxShadow: [
                     BoxShadow(
-                      color: kPrimary.withValues(alpha: 0.08),
+                      color: colors.shadow.withValues(alpha: 0.08),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -738,13 +732,13 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: kPrimary.withValues(alpha: 0.1),
+                        color: colors.primaryContainer,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Icon(
                         Icons.family_restroom_rounded,
                         size: isWide ? 64 : 56,
-                        color: kPrimary,
+                        color: colors.onPrimaryContainer,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -753,8 +747,18 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                       style: TextStyle(
                         fontSize: isWide ? 22 : 20,
                         fontWeight: FontWeight.w800,
-                        color: kText,
+                        color: colors.onSurface,
                         fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Add a beneficiary to complete your household record.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontFamily: 'OpenSans',
+                        height: 1.4,
                       ),
                     ),
                   ],
@@ -788,23 +792,25 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
       child: RecordDataTable(
         minWidth: 850,
         cardStyle: true,
-        headingRowColor: const Color(0xFFEAF2FC),
-        headingTextStyle: const TextStyle(
-          color: kPrimary,
-          fontSize: 16,
+        showCheckboxColumn: false,
+        headingRowHeight: 52,
+        dataRowMinHeight: 64,
+        dataRowMaxHeight: 88,
+        headingRowColor: colors.primaryContainer,
+        headingTextStyle: TextStyle(
+          color: colors.primary,
+          fontSize: 15,
           fontWeight: FontWeight.w800,
           fontFamily: 'Montserrat',
         ),
-        dataTextStyle: const TextStyle(
-          color: kText,
-          fontSize: 16,
+        dataTextStyle: TextStyle(
+          color: colors.onSurface,
+          fontSize: 15,
           fontWeight: FontWeight.w600,
           fontFamily: 'OpenSans',
         ),
         columnSpacing: 28,
         horizontalMargin: 20,
-        dataRowMinHeight: 82,
-        dataRowMaxHeight: 112,
         columns: const [
           DataColumn(label: Text('Beneficiary')),
           DataColumn(label: Text('Relationship')),
@@ -822,8 +828,12 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
           final eligible = item['eligible_to_claim'] == true;
 
           return DataRow(
-            color: WidgetStatePropertyAll(
-              index.isEven ? Colors.white : const Color(0xFFF8FAFD),
+            color: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.hovered)
+                  ? colors.primary.withValues(alpha: 0.05)
+                  : index.isEven
+                  ? colors.surface
+                  : colors.surfaceContainerLow,
             ),
             onSelectChanged: (_) => _showBeneficiaryDetails(item),
             cells: [
@@ -841,16 +851,13 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text((item['full_name'] ?? '').toString()),
-                        if (hasDocuments)
-                          const Text(
-                            'Documents available',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: kPrimary,
-                            ),
+                        Text(
+                          (item['full_name'] ?? '').toString(),
+                          style: TextStyle(
+                            color: colors.onSurface,
+                            fontWeight: FontWeight.w700,
                           ),
+                        ),
                       ],
                     ),
                   ],
@@ -867,22 +874,21 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                 ),
               ),
               DataCell(
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
                     if (hasBirthCertificate)
                       _buildDocumentTag(
                         'Birth certificate',
                         Icons.description_rounded,
                       ),
-                    if (hasBirthCertificate && hasValidId)
-                      const SizedBox(width: 6),
                     if (hasValidId)
                       _buildDocumentTag('Valid ID', Icons.badge_rounded),
                     if (!hasDocuments)
-                      const Text(
+                      _buildDocumentTag(
                         'No documents',
-                        style: TextStyle(fontSize: 15),
+                        Icons.info_outline_rounded,
                       ),
                   ],
                 ),
@@ -914,6 +920,8 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
     final totalCount = beneficiaries.length;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     final content = SafeArea(
       child: Column(
@@ -973,81 +981,67 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
               width: double.infinity,
               padding: EdgeInsets.symmetric(
                 horizontal: isWide ? 20 : 16,
-                vertical: isWide ? 18 : 16,
+                vertical: 18,
               ),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: colors.surface,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: kBorderColor.withValues(alpha: 0.45)),
+                border: Border.all(color: colors.outlineVariant),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
+                    color: colors.shadow.withValues(alpha: 0.05),
                     blurRadius: 14,
                     offset: const Offset(0, 6),
                   ),
                 ],
               ),
-              child: Column(
+              child: Row(
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: kPrimary.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.groups_rounded,
-                          color: kPrimary,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              totalCount == 0
-                                  ? 'No beneficiaries have been added yet. Please add at least one beneficiary, as this is a required part of your Dayung application. Applications without beneficiaries may not be approved.'
-                                  : '$totalCount beneficiary${totalCount == 1 ? '' : ''} on record',
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                fontWeight: FontWeight.w800,
-                                color: kText,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            // const SizedBox(height: 4),
-                            // const Text(
-                            //   'Track approved and pending beneficiaries in one place.',
-                            //   style: TextStyle(
-                            //     fontSize: 13,
-                            //     color: kSubText,
-                            //     fontFamily: 'OpenSans',
-                            //     fontWeight: FontWeight.w600,
-                            //     height: 1.4,
-                            //   ),
-                            // ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      Icons.groups_rounded,
+                      color: colors.onPrimaryContainer,
+                      size: 24,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildTopCategoryChip(
-                        label: 'Total',
-                        count: totalCount,
-                        color: kPrimary,
-                        background: const Color(0xFFF5F9FF),
-                      ),
-                    ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          totalCount == 0
+                              ? 'No beneficiaries yet'
+                              : '$totalCount ${totalCount == 1 ? 'beneficiary' : 'beneficiaries'} on record',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: colors.onSurface,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          totalCount == 0
+                              ? 'Add at least one beneficiary to complete your Dayung application.'
+                              : 'Your beneficiaries and their documents are listed below.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildTopCategoryChip(
+                    label: 'Total',
+                    count: totalCount,
+                    color: colors.primary,
+                    background: colors.primaryContainer.withValues(alpha: 0.55),
                   ),
                 ],
               ),
@@ -1055,7 +1049,10 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
           ),
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator(color: kAccent))
+                ? const DayungPageSkeleton(
+                    layout: DayungSkeletonLayout.list,
+                    padding: EdgeInsets.all(16),
+                  )
                 : _buildBeneficiariesList(beneficiaries),
           ),
           Padding(
@@ -1065,21 +1062,10 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
               isWide ? 24 : 16,
               16,
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(12),
+            child: Align(
+              alignment: isWide ? Alignment.centerRight : Alignment.center,
               child: SizedBox(
-                width: double.infinity,
+                width: isWide ? 260 : double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
@@ -1092,8 +1078,8 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: colors.primary,
+                    foregroundColor: colors.onPrimary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -1110,6 +1096,9 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
 
     if (widget.embedded) return content;
 
-    return Scaffold(backgroundColor: Theme.of(context).scaffoldBackgroundColor, body: content);
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: content,
+    );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1415,9 +1416,13 @@ class _CollectedFromCollectorsPageState
 
   Widget _buildStateSection() {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
-        child: Center(child: CircularProgressIndicator(color: kPrimary)),
+      return const SizedBox(
+        height: 360,
+        child: DayungPageSkeleton(
+          layout: DayungSkeletonLayout.list,
+          padding: EdgeInsets.all(8),
+          itemCount: 3,
+        ),
       );
     }
 

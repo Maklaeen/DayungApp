@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 const kWarn = Color(0xFFF59E0B);
@@ -213,10 +214,10 @@ class _MembersPageState extends State<MembersPage> {
                     topRight: Radius.circular(24),
                   ),
                   child: _loading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                      ? const DayungPageSkeleton(
+                          layout: DayungSkeletonLayout.list,
+                          padding: EdgeInsets.all(20),
+                          itemCount: 3,
                         )
                       : _error != null
                       ? _buildErrorState()

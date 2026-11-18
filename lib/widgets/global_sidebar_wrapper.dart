@@ -32,7 +32,6 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
   String _roleName = '';
   String _selectedDayungUnit = 'Dayung Unit';
   int? _selectedDayungUnitId;
-  int _unreadNotifCount = 0;
   late String _currentPage = widget.openBeneficiariesInitially
       ? 'beneficiaries'
       : 'dashboard';
@@ -41,7 +40,6 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
   void initState() {
     super.initState();
     _loadUserInfo();
-    _fetchUnreadNotifCount();
   }
 
   @override
@@ -110,24 +108,6 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
         _selectedDayungUnit = resolvedLabel;
         _selectedDayungUnitId = selectedUnitId;
       });
-    }
-  }
-
-  Future<void> _fetchUnreadNotifCount() async {
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    if (uid == null) {
-      if (mounted) setState(() => _unreadNotifCount = 0);
-      return;
-    }
-    try {
-      final rows = await Supabase.instance.client
-          .from('notifications')
-          .select('id')
-          .eq('recipient_id', uid)
-          .isFilter('read_at', null);
-      if (mounted) setState(() => _unreadNotifCount = (rows as List).length);
-    } catch (_) {
-      if (mounted) setState(() => _unreadNotifCount = 0);
     }
   }
 
@@ -226,14 +206,12 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                     fullName: _fullName,
                     roleName: _roleName,
                     selectedDayungUnit: _selectedDayungUnit,
-                    unreadNotifCount: _unreadNotifCount,
                     currentPage: _currentPage,
                     onDashboardTap: () => _navigate('dashboard'),
                     onProfileTap: () => _navigate('profile'),
                     onBeneficiariesTap: () => _navigate('beneficiaries'),
                     onNotificationsTap: () {
                       _navigate('notifications');
-                      _fetchUnreadNotifCount();
                     },
                     onSettingsTap: () => _navigate('settings'),
                     onMembershipAgreementTap: () =>
@@ -374,11 +352,9 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                           label: 'Notifications',
                           color: const Color(0xFFF59E0B),
                           selected: _currentPage == 'notifications',
-                          badgeCount: _unreadNotifCount,
                           onTap: () {
                             Navigator.pop(context);
                             _navigate('notifications');
-                            _fetchUnreadNotifCount();
                           },
                         ),
                         const SizedBox(height: 8),
@@ -444,7 +420,6 @@ class DashboardSidebar extends StatelessWidget {
   final String fullName;
   final String roleName;
   final String selectedDayungUnit;
-  final int unreadNotifCount;
   final String currentPage;
   final VoidCallback onDashboardTap;
   final VoidCallback onProfileTap;
@@ -460,7 +435,6 @@ class DashboardSidebar extends StatelessWidget {
     required this.fullName,
     required this.roleName,
     required this.selectedDayungUnit,
-    required this.unreadNotifCount,
     required this.currentPage,
     required this.onDashboardTap,
     required this.onProfileTap,
@@ -578,7 +552,6 @@ class DashboardSidebar extends StatelessWidget {
                           label: 'Notifications',
                           color: const Color(0xFFF59E0B),
                           selected: currentPage == 'notifications',
-                          badgeCount: unreadNotifCount,
                           onTap: onNotificationsTap,
                         ),
                         const SizedBox(height: 8),
@@ -666,7 +639,6 @@ class _SidebarButton extends StatelessWidget {
   final String label;
   final Color color;
   final bool selected;
-  final int badgeCount;
   final VoidCallback onTap;
 
   const _SidebarButton({
@@ -675,7 +647,6 @@ class _SidebarButton extends StatelessWidget {
     required this.color,
     required this.selected,
     required this.onTap,
-    this.badgeCount = 0,
   });
 
   @override
@@ -686,7 +657,7 @@ class _SidebarButton extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: selected,
-        label: badgeCount > 0 ? '$label, $badgeCount unread' : label,
+        label: label,
         onTap: onTap,
         child: ExcludeSemantics(
           child: InkWell(
@@ -733,34 +704,18 @@ class _SidebarButton extends StatelessWidget {
                   Expanded(
                     child: Text(
                       label,
+                      maxLines: label == 'Notifications' ? 1 : 2,
+                      softWrap: label != 'Notifications',
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                                fontWeight: selected
-                                    ? FontWeight.w700
-                                    : FontWeight.w600,
-                                color: selected
-                                    ? color
-                                    : theme.colorScheme.onSurface,
-                              ),
+                        fontSize: 14,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                        color: selected ? color : theme.colorScheme.onSurface,
+                      ),
                     ),
                   ),
-                  if (badgeCount > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '$badgeCount',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

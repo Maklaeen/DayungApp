@@ -1,4 +1,5 @@
 import 'package:capstone_app/widgets/record_data_table.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1077,7 +1078,10 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.all(20),
+                    )
                   : _error != null
                   ? Center(
                       child: Padding(

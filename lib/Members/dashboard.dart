@@ -879,7 +879,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: const Color(0xFF1E40AF),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.3),
@@ -1997,7 +1997,9 @@ class _AmountDueWidgetState extends State<AmountDueWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) return const CircularProgressIndicator();
+    if (isLoading) {
+      return const DayungSkeletonBlock(height: 18, width: 150);
+    }
     return Text('Amount Due: ₱${amountDue ?? 0}');
   }
 }

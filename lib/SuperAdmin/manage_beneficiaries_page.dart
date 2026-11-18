@@ -1,4 +1,5 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -557,7 +558,14 @@ class _LoadingCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: kSuperAdminBorder),
       ),
-      child: const Center(child: CircularProgressIndicator()),
+      child: const SizedBox(
+        height: 340,
+        child: DayungPageSkeleton(
+          layout: DayungSkeletonLayout.list,
+          padding: EdgeInsets.all(8),
+          itemCount: 2,
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color kBg = Color(0xFFFAFAF7);
@@ -230,9 +231,13 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
           future: futureBeneficiaries,
           builder: (ctx, snap) {
             if (snap.connectionState != ConnectionState.done) {
-              return const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator()),
+              return const SizedBox(
+                height: 300,
+                child: DayungPageSkeleton(
+                  layout: DayungSkeletonLayout.list,
+                  padding: EdgeInsets.all(8),
+                  itemCount: 2,
+                ),
               );
             }
             if (snap.hasError) {
@@ -1029,44 +1034,10 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
             // Content
             Expanded(
               child: _loading
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.grey.shade300,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: const Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              color: kPrimary,
-                              strokeWidth: 3,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Loading members...',
-                              style: TextStyle(
-                                color: kSubtleText,
-                                fontSize: 14,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.all(16),
+                      itemCount: 3,
                     )
                   : (_infoMsg != null)
                   ? Center(

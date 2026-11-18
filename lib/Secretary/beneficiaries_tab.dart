@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1171,10 +1172,10 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                           onRefresh: () async => _fetchBeneficiaries(),
                           color: kAccent,
                           child: _loading
-                              ? const Center(
-                                  child: CircularProgressIndicator(
-                                    color: kAccent,
-                                  ),
+                              ? const DayungPageSkeleton(
+                                  layout: DayungSkeletonLayout.list,
+                                  padding: EdgeInsets.all(16),
+                                  itemCount: 3,
                                 )
                               : _groupedList(beneficiariesGrouped),
                         ),

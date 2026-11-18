@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -760,7 +761,10 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     final currentId = providerId ?? _prefsSelectedId; // <-- use fallback
 
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: kPrimary));
+      return const DayungPageSkeleton(
+        layout: DayungSkeletonLayout.list,
+        padding: EdgeInsets.all(20),
+      );
     }
     if (_error != null) {
       return _ErrorState(message: _error!, onRetry: _fetchJoinedDayung);

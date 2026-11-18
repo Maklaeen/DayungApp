@@ -7,6 +7,7 @@ import 'package:capstone_app/Members/gcash_payment_page.dart'
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/philippine_time.dart';
+import 'package:capstone_app/utils/announcement_text.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
@@ -1156,7 +1157,7 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   String _itemTitle(Map<String, dynamic> item) {
-    final title = '${item['title'] ?? ''}'.trim();
+    final title = cleanAnnouncementTitle(item['title']);
     if (title.isNotEmpty) return title;
     switch (_itemKind(item)) {
       case _NotificationKind.announcement:
@@ -1176,7 +1177,11 @@ class _NotificationPageState extends State<NotificationPage> {
 
   String _itemMessage(Map<String, dynamic> item) {
     final message = '${item['body'] ?? ''}'.trim();
-    if (message.isNotEmpty) return message;
+    if (message.isNotEmpty) {
+      return _itemKind(item) == _NotificationKind.announcement
+          ? cleanAnnouncementText(message)
+          : message;
+    }
     if (_isApplicationNotification(item)) {
       return 'A new application needs your attention.';
     }
@@ -1256,13 +1261,16 @@ class _NotificationPageState extends State<NotificationPage> {
             Icon(icon, color: color, size: 17),
             const SizedBox(width: 6),
           ],
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'OpenSans',
+          Flexible(
+            child: Text(
+              label,
+              softWrap: true,
+              style: TextStyle(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'OpenSans',
+              ),
             ),
           ),
         ],
@@ -1270,11 +1278,18 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  Widget _buildAnnouncementLogs({required bool isWide}) {
+  Widget _buildAnnouncementLogs({
+    required bool isWide,
+    required bool useTableLayout,
+  }) {
     final logsContent = _loading
-        ? const Padding(
-            padding: EdgeInsets.all(20),
-            child: Center(child: CircularProgressIndicator(color: kPrimary)),
+        ? const SizedBox(
+            height: 320,
+            child: DayungPageSkeleton(
+              layout: DayungSkeletonLayout.list,
+              padding: EdgeInsets.all(12),
+              itemCount: 2,
+            ),
           )
         : _announcementLogs.isEmpty
         ? Padding(
@@ -1288,7 +1303,7 @@ class _NotificationPageState extends State<NotificationPage> {
               ),
             ),
           )
-        : isWide
+        : useTableLayout
         ? RecordDataTable(
             minWidth: 1050,
             cardStyle: true,
@@ -1322,13 +1337,16 @@ class _NotificationPageState extends State<NotificationPage> {
               final category =
                   (announcement['category'] ?? 'General Announcement')
                       .toString();
+              final description = cleanAnnouncementText(announcement['body']);
               return DataRow(
                 cells: [
                   DataCell(
                     SizedBox(
                       width: 190,
                       child: Text(
-                        (announcement['title'] ?? 'Announcement').toString(),
+                        cleanAnnouncementTitle(
+                          announcement['title'] ?? 'Announcement',
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1348,7 +1366,7 @@ class _NotificationPageState extends State<NotificationPage> {
                     SizedBox(
                       width: 300,
                       child: Text(
-                        (announcement['body'] ?? '').toString(),
+                        description,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(height: 1.4),
@@ -1384,9 +1402,10 @@ class _NotificationPageState extends State<NotificationPage> {
               final category =
                   (announcement['category'] ?? 'General Announcement')
                       .toString();
-              final title = (announcement['title'] ?? 'Announcement')
-                  .toString();
-              final description = (announcement['body'] ?? '').toString();
+              final title = cleanAnnouncementTitle(
+                announcement['title'] ?? 'Announcement',
+              );
+              final description = cleanAnnouncementText(announcement['body']);
               final postedBy = (announcement['posted_by'] ?? 'Name unavailable')
                   .toString();
 
@@ -1611,434 +1630,464 @@ class _NotificationPageState extends State<NotificationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
     final unreadCount = _items.where(_isUnread).length;
     final announcementCount = _countByKind(_NotificationKind.announcement);
     final pendingPaymentCount = _countByKind(_NotificationKind.pendingPayment);
     final recentDeathCount = _countByKind(_NotificationKind.recentDeath);
 
-    return Scaffold(
-      backgroundColor: dayungPageBackground(context),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Modern Curved Header
-            Container(
-              padding: EdgeInsets.fromLTRB(
-                30,
-                isWide ? 36 : 28,
-                isWide ? 24 : 16,
-                isWide ? 32 : 24,
-              ),
-              decoration: const BoxDecoration(
-                color: kPrimary,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final isWide = width > 700;
+        final useTableLayout = width >= 1200;
+
+        return Scaffold(
+          backgroundColor: dayungPageBackground(context),
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Modern Curved Header
+                Container(
+                  padding: EdgeInsets.fromLTRB(
+                    30,
+                    isWide ? 36 : 28,
+                    isWide ? 24 : 16,
+                    isWide ? 32 : 24,
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  if (widget.showBackButton)
-                    DayungBackButton(
-                      onPressed:
-                          widget.onBack ??
-                          () => Navigator.of(context).maybePop(),
+                  decoration: const BoxDecoration(
+                    color: kPrimary,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(28),
+                      bottomRight: Radius.circular(28),
                     ),
-                  if (widget.showBackButton) const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'Notifications',
-                      style: TextStyle(
-                        fontSize: isWide ? 24 : 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFF1E40AF),
+                        blurRadius: 18,
+                        offset: Offset(0, 8),
                       ),
-                    ),
+                    ],
                   ),
-                  TextButton.icon(
-                    onPressed: _markingAllRead
-                        ? null
-                        : _markVisibleNotificationsRead,
-                    icon: _markingAllRead
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.done_all_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                    label: Text(
-                      _markingAllRead ? 'Updating...' : 'Mark all read',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'OpenSans',
-                      ),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      textStyle: TextStyle(fontSize: 14),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: RefreshIndicator(
-                color: kPrimary,
-                onRefresh: () => _fetchAll(unitId: _currentUnitId),
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: Row(
                     children: [
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          isWide ? 24 : 16,
-                          16,
-                          isWide ? 24 : 16,
-                          0,
+                      if (widget.showBackButton)
+                        DayungBackButton(
+                          onPressed:
+                              widget.onBack ??
+                              () => Navigator.of(context).maybePop(),
                         ),
-                        child: Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isWide ? 20 : 16,
-                            vertical: isWide ? 18 : 16,
-                          ),
-                          decoration: BoxDecoration(
-                            color: dayungSurface(context),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: dayungBorder(context)),
-                            boxShadow: [dayungElevatedShadow(context)],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: kPrimary.withValues(alpha: 0.10),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Icon(
-                                  Icons.notifications_active_rounded,
-                                  color: kPrimary,
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      unreadCount == 0
-                                          ? 'All caught up'
-                                          : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
-                                      style: TextStyle(
-                                        fontSize: isWide ? 18 : 16,
-                                        fontWeight: FontWeight.w800,
-                                        color: colors.onSurface,
-                                        fontFamily: 'Montserrat',
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 12),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        _buildTopCategoryChip(
-                                          label: 'Pending Payment',
-                                          count: pendingPaymentCount,
-                                          color: const Color(0xFFB45309),
-                                          background: dayungAccentSurface(
-                                            context,
-                                            const Color(0xFFB45309),
-                                          ),
-                                        ),
-                                        _buildTopCategoryChip(
-                                          label: 'Announcement',
-                                          count: announcementCount,
-                                          color: kPrimary,
-                                          background: dayungAccentSurface(
-                                            context,
-                                            kPrimary,
-                                          ),
-                                        ),
-                                        _buildTopCategoryChip(
-                                          label: 'Recent Death',
-                                          count: recentDeathCount,
-                                          color: const Color(0xFFBE123C),
-                                          background: dayungAccentSurface(
-                                            context,
-                                            const Color(0xFFBE123C),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                      if (widget.showBackButton) const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          'Notifications',
+                          style: TextStyle(
+                            fontSize: isWide ? 24 : 17,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontFamily: 'Montserrat',
+                            letterSpacing: 0.3,
                           ),
                         ),
                       ),
-                      _buildAnnouncementLogs(isWide: isWide),
-                      _loading
-                          ? const DayungPageSkeleton(
-                              layout: DayungSkeletonLayout.list,
-                              itemCount: 6,
-                              padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
-                            )
-                          : _items.isEmpty
-                          ? NotificationPage._emptyState(
-                              context: context,
-                              isWide: isWide,
-                            )
-                          : isWide
-                          ? Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                24,
-                                20,
-                                24,
-                                24,
-                              ),
-                              child: RecordDataTable(
-                                minWidth: 1050,
-                                cardStyle: true,
-                                fillAvailableWidth: true,
-                                showCheckboxColumn: false,
-                                headingRowColor: colors.primaryContainer,
-                                headingTextStyle: TextStyle(
-                                  color: colors.primary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  fontFamily: 'Montserrat',
+                      TextButton.icon(
+                        onPressed: _markingAllRead
+                            ? null
+                            : _markVisibleNotificationsRead,
+                        icon: _markingAllRead
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
                                 ),
-                                dataTextStyle: TextStyle(
-                                  color: colors.onSurface,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'OpenSans',
-                                ),
-                                columnSpacing: 22,
-                                horizontalMargin: 20,
-                                dataRowMinHeight: 88,
-                                dataRowMaxHeight: 148,
-                                columns: const [
-                                  DataColumn(label: Text('Notification')),
-                                  DataColumn(label: Text('Message')),
-                                  DataColumn(label: Text('Category')),
-                                  DataColumn(label: Text('Received')),
-                                  DataColumn(label: Text('Status')),
-                                ],
-                                rows: List.generate(_items.length, (i) {
-                                  final n = _items[i];
-                                  final isDirect = _isDirectAnnouncement(n);
-                                  final isApplication =
-                                      _isApplicationNotification(n);
-                                  final isUnread = _isUnread(n);
-                                  final category = _categoryLabel(n);
-                                  final accent = _itemAccent(n);
-
-                                  return DataRow(
-                                    color: WidgetStatePropertyAll(
-                                      isUnread
-                                          ? colors.primaryContainer
-                                          : i.isEven
-                                          ? colors.surface
-                                          : colors.surfaceContainerLow,
-                                    ),
-                                    cells: [
-                                      DataCell(
-                                        SizedBox(
-                                          width: 250,
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                width: 40,
-                                                height: 40,
-                                                decoration: BoxDecoration(
-                                                  color: _itemSurface(n),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                child: Icon(
-                                                  _itemIcon(n),
-                                                  color: accent,
-                                                  size: 22,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Text(
-                                                  _itemTitle(n),
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontSize: 17,
-                                                    fontWeight: isUnread
-                                                        ? FontWeight.w800
-                                                        : FontWeight.w700,
-                                                    color: colors.onSurface,
-                                                  ),
-                                                ),
-                                              ),
-                                              IconButton(
-                                                tooltip: 'Open notification',
-                                                constraints:
-                                                    const BoxConstraints.tightFor(
-                                                      width: 48,
-                                                      height: 48,
-                                                    ),
-                                                icon: const Icon(
-                                                  Icons.open_in_new_rounded,
-                                                  color: kPrimary,
-                                                  size: 21,
-                                                ),
-                                                onPressed: () =>
-                                                    _openNotification(
-                                                      context,
-                                                      i,
-                                                      n,
-                                                      isDirect,
-                                                      isApplication,
-                                                      isUnread,
-                                                      category,
-                                                    ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        SizedBox(
-                                          width: 300,
-                                          child: Text(
-                                            _itemMessage(n),
-                                            maxLines: 3,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              height: 1.45,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        _buildTableBadge(
-                                          label: category,
-                                          color: accent,
-                                          background: _itemSurface(n),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        SizedBox(
-                                          width: 150,
-                                          child: Text(
-                                            _formatTime(n['created_at']),
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      DataCell(
-                                        _buildTableBadge(
-                                          label: isUnread ? 'Unread' : 'Read',
-                                          color: isUnread
-                                              ? colors.error
-                                              : colors.secondary,
-                                          background: isUnread
-                                              ? colors.errorContainer
-                                              : colors.secondaryContainer,
-                                          icon: isUnread
-                                              ? Icons.mark_email_unread_rounded
-                                              : Icons.mark_email_read_rounded,
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }),
+                              )
+                            : const Icon(
+                                Icons.done_all_rounded,
+                                color: Colors.white,
+                                size: 20,
                               ),
-                            )
-                          : Padding(
-                              padding: const EdgeInsets.only(
-                                top: 20,
-                                bottom: 24,
-                              ),
-                              child: Column(
-                                children: List.generate(_items.length, (i) {
-                                  final item = _items[i];
-                                  final isUnread = _isUnread(item);
-                                  final category = _categoryLabel(item);
-                                  final accent = _itemAccent(item);
-                                  final surface = _itemSurface(item);
-                                  final isDirect = _isDirectAnnouncement(item);
-                                  final isApplication =
-                                      _isApplicationNotification(item);
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: NotificationPage._notificationCard(
-                                      context: context,
-                                      title: _itemTitle(item),
-                                      message: _itemMessage(item),
-                                      category: category,
-                                      time: _formatTime(item['created_at']),
-                                      icon: _itemIcon(item),
-                                      accentColor: accent,
-                                      surfaceColor: surface,
-                                      iconBg: accent.withValues(alpha: 0.12),
-                                      iconColor: accent,
-                                      isWide: false,
-                                      isUnread: isUnread,
-                                      onTap: () => _openNotification(
-                                        context,
-                                        i,
-                                        item,
-                                        isDirect,
-                                        isApplication,
-                                        isUnread,
-                                        category,
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              ),
-                            ),
+                        label: Text(
+                          _markingAllRead ? 'Updating...' : 'Mark all read',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'OpenSans',
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          textStyle: TextStyle(fontSize: 14),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: kPrimary,
+                    onRefresh: () => _fetchAll(unitId: _currentUnitId),
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              isWide ? 24 : 16,
+                              16,
+                              isWide ? 24 : 16,
+                              0,
+                            ),
+                            child: Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isWide ? 20 : 16,
+                                vertical: isWide ? 18 : 16,
+                              ),
+                              decoration: BoxDecoration(
+                                color: dayungSurface(context),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: dayungBorder(context),
+                                ),
+                                boxShadow: [dayungElevatedShadow(context)],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: kPrimary.withValues(alpha: 0.10),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: const Icon(
+                                      Icons.notifications_active_rounded,
+                                      color: kPrimary,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          unreadCount == 0
+                                              ? 'All caught up'
+                                              : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
+                                          style: TextStyle(
+                                            fontSize: isWide ? 18 : 16,
+                                            fontWeight: FontWeight.w800,
+                                            color: colors.onSurface,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 12),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            _buildTopCategoryChip(
+                                              label: 'Pending Payment',
+                                              count: pendingPaymentCount,
+                                              color: const Color(0xFFB45309),
+                                              background: dayungAccentSurface(
+                                                context,
+                                                const Color(0xFFB45309),
+                                              ),
+                                            ),
+                                            _buildTopCategoryChip(
+                                              label: 'Announcement',
+                                              count: announcementCount,
+                                              color: kPrimary,
+                                              background: dayungAccentSurface(
+                                                context,
+                                                kPrimary,
+                                              ),
+                                            ),
+                                            _buildTopCategoryChip(
+                                              label: 'Recent Death',
+                                              count: recentDeathCount,
+                                              color: const Color(0xFFBE123C),
+                                              background: dayungAccentSurface(
+                                                context,
+                                                const Color(0xFFBE123C),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          _buildAnnouncementLogs(
+                            isWide: isWide,
+                            useTableLayout: useTableLayout,
+                          ),
+                          _loading
+                              ? const DayungPageSkeleton(
+                                  layout: DayungSkeletonLayout.list,
+                                  itemCount: 6,
+                                  padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
+                                )
+                              : _items.isEmpty
+                              ? NotificationPage._emptyState(
+                                  context: context,
+                                  isWide: isWide,
+                                )
+                              : useTableLayout
+                              ? Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    24,
+                                    20,
+                                    24,
+                                    24,
+                                  ),
+                                  child: RecordDataTable(
+                                    minWidth: 1050,
+                                    cardStyle: true,
+                                    fillAvailableWidth: true,
+                                    showCheckboxColumn: false,
+                                    headingRowColor: colors.primaryContainer,
+                                    headingTextStyle: TextStyle(
+                                      color: colors.primary,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                    dataTextStyle: TextStyle(
+                                      color: colors.onSurface,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                    columnSpacing: 22,
+                                    horizontalMargin: 20,
+                                    dataRowMinHeight: 88,
+                                    dataRowMaxHeight: 148,
+                                    columns: const [
+                                      DataColumn(label: Text('Notification')),
+                                      DataColumn(label: Text('Message')),
+                                      DataColumn(label: Text('Category')),
+                                      DataColumn(label: Text('Received')),
+                                      DataColumn(label: Text('Status')),
+                                    ],
+                                    rows: List.generate(_items.length, (i) {
+                                      final n = _items[i];
+                                      final isDirect = _isDirectAnnouncement(n);
+                                      final isApplication =
+                                          _isApplicationNotification(n);
+                                      final isUnread = _isUnread(n);
+                                      final category = _categoryLabel(n);
+                                      final accent = _itemAccent(n);
+
+                                      return DataRow(
+                                        color: WidgetStatePropertyAll(
+                                          isUnread
+                                              ? colors.primaryContainer
+                                              : i.isEven
+                                              ? colors.surface
+                                              : colors.surfaceContainerLow,
+                                        ),
+                                        cells: [
+                                          DataCell(
+                                            SizedBox(
+                                              width: 250,
+                                              child: Row(
+                                                children: [
+                                                  Container(
+                                                    width: 40,
+                                                    height: 40,
+                                                    decoration: BoxDecoration(
+                                                      color: _itemSurface(n),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Icon(
+                                                      _itemIcon(n),
+                                                      color: accent,
+                                                      size: 22,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Text(
+                                                      _itemTitle(n),
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontSize: 17,
+                                                        fontWeight: isUnread
+                                                            ? FontWeight.w800
+                                                            : FontWeight.w700,
+                                                        color: colors.onSurface,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                    tooltip:
+                                                        'Open notification',
+                                                    constraints:
+                                                        const BoxConstraints.tightFor(
+                                                          width: 48,
+                                                          height: 48,
+                                                        ),
+                                                    icon: const Icon(
+                                                      Icons.open_in_new_rounded,
+                                                      color: kPrimary,
+                                                      size: 21,
+                                                    ),
+                                                    onPressed: () =>
+                                                        _openNotification(
+                                                          context,
+                                                          i,
+                                                          n,
+                                                          isDirect,
+                                                          isApplication,
+                                                          isUnread,
+                                                          category,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: 300,
+                                              child: Text(
+                                                _itemMessage(n),
+                                                maxLines: 3,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  height: 1.45,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            _buildTableBadge(
+                                              label: category,
+                                              color: accent,
+                                              background: _itemSurface(n),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            SizedBox(
+                                              width: 150,
+                                              child: Text(
+                                                _formatTime(n['created_at']),
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  height: 1.4,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            _buildTableBadge(
+                                              label: isUnread
+                                                  ? 'Unread'
+                                                  : 'Read',
+                                              color: isUnread
+                                                  ? colors.error
+                                                  : colors.secondary,
+                                              background: isUnread
+                                                  ? colors.errorContainer
+                                                  : colors.secondaryContainer,
+                                              icon: isUnread
+                                                  ? Icons
+                                                        .mark_email_unread_rounded
+                                                  : Icons
+                                                        .mark_email_read_rounded,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }),
+                                  ),
+                                )
+                              : Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 20,
+                                    bottom: 24,
+                                  ),
+                                  child: Column(
+                                    children: List.generate(_items.length, (i) {
+                                      final item = _items[i];
+                                      final isUnread = _isUnread(item);
+                                      final category = _categoryLabel(item);
+                                      final accent = _itemAccent(item);
+                                      final surface = _itemSurface(item);
+                                      final isDirect = _isDirectAnnouncement(
+                                        item,
+                                      );
+                                      final isApplication =
+                                          _isApplicationNotification(item);
+
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
+                                        child:
+                                            NotificationPage._notificationCard(
+                                              context: context,
+                                              title: _itemTitle(item),
+                                              message: _itemMessage(item),
+                                              category: category,
+                                              time: _formatTime(
+                                                item['created_at'],
+                                              ),
+                                              icon: _itemIcon(item),
+                                              accentColor: accent,
+                                              surfaceColor: surface,
+                                              iconBg: accent.withValues(
+                                                alpha: 0.12,
+                                              ),
+                                              iconColor: accent,
+                                              isWide: false,
+                                              isUnread: isUnread,
+                                              onTap: () => _openNotification(
+                                                context,
+                                                i,
+                                                item,
+                                                isDirect,
+                                                isApplication,
+                                                isUnread,
+                                                category,
+                                              ),
+                                            ),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

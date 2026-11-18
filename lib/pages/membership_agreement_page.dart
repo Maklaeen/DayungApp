@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/profile/required_application_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
 
@@ -365,7 +366,13 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
                     ),
                     const SizedBox(height: 20),
                     if (_loading)
-                      const Center(child: CircularProgressIndicator())
+                      const SizedBox(
+                        height: 360,
+                        child: DayungPageSkeleton(
+                          layout: DayungSkeletonLayout.detail,
+                          padding: EdgeInsets.all(16),
+                        ),
+                      )
                     else if (_content.isEmpty)
                       Container(
                         width: double.infinity,

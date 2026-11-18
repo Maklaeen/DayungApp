@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -264,7 +265,11 @@ class _SuperAdminSettingsPageState extends State<SuperAdminSettingsPage> {
         backgroundColor: superAdminBackground(context),
         body: SafeArea(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const DayungPageSkeleton(
+                  layout: DayungSkeletonLayout.list,
+                  padding: EdgeInsets.fromLTRB(20, 20, 20, 32),
+                  itemCount: 6,
+                )
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView(

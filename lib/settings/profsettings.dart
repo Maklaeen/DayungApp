@@ -186,6 +186,88 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     });
   }
 
+  Future<void> _showFeedbackDialog({
+    required String title,
+    required String message,
+    required IconData icon,
+    Color? color,
+  }) async {
+    final accentColor = color ?? _warnColor;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: _cardColor,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: _borderColor),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: accentColor, size: 32),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: _theme.textTheme.titleLarge?.copyWith(
+                    color: _textColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: _theme.textTheme.bodyMedium?.copyWith(
+                    color: _subTextColor,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accentColor,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(44),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Got it'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showMaintenanceDialog() {
+    return _showFeedbackDialog(
+      title: 'Maintenance',
+      message: 'Appearance settings are temporarily unavailable.',
+      icon: Icons.warning_amber_rounded,
+    );
+  }
+
   Future<void> _fetchCertificates() async {
     final supabase = Supabase.instance.client;
     final userId = supabase.auth.currentUser?.id;
@@ -286,10 +368,10 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _uploadingImage = false);
-      _showTopPopup(
-        'Upload error: $e',
-        color: kWarn,
-        icon: Icons.error_outline,
+      await _showFeedbackDialog(
+        title: 'Upload failed',
+        message: 'We could not upload this document. Please try again.\n$e',
+        icon: Icons.error_outline_rounded,
       );
     }
     await _fetchCertificates();
@@ -299,7 +381,15 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     if (url == null || url.isEmpty) return;
 
     final resolved = await resolveSupabaseStorageUrl(url, client: supabase);
-    if (resolved == null) return;
+    if (resolved == null) {
+      if (!mounted) return;
+      await _showFeedbackDialog(
+        title: 'Document unavailable',
+        message: 'We could not find this document. Please try again later.',
+        icon: Icons.warning_amber_rounded,
+      );
+      return;
+    }
     if (!mounted) return;
 
     String displayUrl = resolved;
@@ -310,27 +400,38 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     }
 
     if (storageLooksLikePdf(resolved)) {
-      launchUrl(Uri.parse(displayUrl), mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        Uri.parse(displayUrl),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        await _showFeedbackDialog(
+          title: 'Unable to open document',
+          message: 'No app is available to open this PDF.',
+          icon: Icons.error_outline_rounded,
+        );
+      }
       return;
     }
 
     // Download and decrypt the image before displaying
     try {
       final response = await http.get(Uri.parse(displayUrl));
+      if (!mounted) return;
       if (response.statusCode != 200) {
-        _showTopPopup(
-          'Failed to load image',
-          color: kWarn,
-          icon: Icons.error_outline,
+        await _showFeedbackDialog(
+          title: 'Unable to open document',
+          message: 'The document could not be loaded. Please try again.',
+          icon: Icons.error_outline_rounded,
         );
         return;
       }
       final encryptedBytes = response.bodyBytes;
       if (encryptedBytes.length < 16) {
-        _showTopPopup(
-          'Invalid encrypted image',
-          color: kWarn,
-          icon: Icons.error_outline,
+        await _showFeedbackDialog(
+          title: 'Document unavailable',
+          message: 'This document could not be read. Please upload it again.',
+          icon: Icons.warning_amber_rounded,
         );
         return;
       }
@@ -351,10 +452,14 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
         context: context,
         builder: (ctx) => Dialog(
           backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          clipBehavior: Clip.antiAlias,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 32,
             vertical: 64,
-          ), // More padding
+          ),
           child: AspectRatio(
             aspectRatio: 4 / 5, // Or use LayoutBuilder for more control
             child: Stack(
@@ -374,14 +479,16 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                 Positioned(
                   top: 8,
                   right: 8,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 32,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
                     ),
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    tooltip: 'Close',
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      tooltip: 'Close',
+                    ),
                   ),
                 ),
               ],
@@ -390,10 +497,11 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
         ),
       );
     } catch (e) {
-      _showTopPopup(
-        'Error displaying image: $e',
-        color: kWarn,
-        icon: Icons.error_outline,
+      if (!mounted) return;
+      await _showFeedbackDialog(
+        title: 'Unable to display document',
+        message: 'The document could not be displayed. Please try again.',
+        icon: Icons.error_outline_rounded,
       );
     }
   }
@@ -589,95 +697,78 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                     if (widget.showManageDayung) ...[
                       const SizedBox(height: 18),
                       _buildSectionCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: _successColor.withValues(
-                                      alpha: 0.10,
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Icon(
-                                    Icons.groups_rounded,
-                                    color: _successColor,
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Manage Dayung', style: titleStyle),
-                                      // const SizedBox(height: 4),
-                                      // Text(
-                                      //   'Open your Dayung page to review your current unit, switch, or apply to another one.',
-                                      //   style: bodyStyle,
-                                      // ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            // const SizedBox(height: 16),
-                            // Container(
-                            //   width: double.infinity,
-                            //   padding: const EdgeInsets.all(14),
-                            //   decoration: BoxDecoration(
-                            //     color: _softColor,
-                            //     borderRadius: BorderRadius.circular(16),
-                            //     border: Border.all(color: _borderColor),
-                            //   ),
-                            //   child: Row(
-                            //     children: [
-                            //       Icon(Icons.swap_horiz_rounded, color: _primaryColor),
-                            //       const SizedBox(width: 10),
-                            //       Expanded(
-                            //         child: Text(
-                            //           'This section includes Change Dayung, recommendations, and map access.',
-                            //           style: bodyStyle.copyWith(color: _textColor),
-                            //         ),
-                            //       ),
-                            //     ],
-                            //   ),
-                            // ),
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const DayungSettingsPage(),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.arrow_forward_rounded),
-                                label: const Text('Open Dayung Settings'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _primaryColor,
-                                  foregroundColor: Colors.white,
-                                  minimumSize: const Size.fromHeight(52),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  textStyle: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isDesktop = constraints.maxWidth >= 400;
+                            final buttonStyle = OutlinedButton.styleFrom(
+                              foregroundColor: _primaryColor,
+                              backgroundColor: _softColor,
+                              minimumSize: Size.fromHeight(isDesktop ? 50 : 52),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: isDesktop ? 10 : 16,
                               ),
-                            ),
-                          ],
+                              tapTargetSize: isDesktop
+                                  ? MaterialTapTargetSize.shrinkWrap
+                                  : MaterialTapTargetSize.padded,
+                              visualDensity: isDesktop
+                                  ? VisualDensity.compact
+                                  : VisualDensity.standard,
+                              side: BorderSide(color: _borderColor),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Montserrat',
+                              ),
+                            );
+                            final dayungSettingsButton = OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const DayungSettingsPage(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.settings_rounded),
+                              label: const Text('Dayung Settings'),
+                              style: buttonStyle,
+                            );
+                            final themeButton = OutlinedButton.icon(
+                              onPressed: _showMaintenanceDialog,
+                              icon: Icon(
+                                _isDark
+                                    ? Icons.dark_mode_rounded
+                                    : Icons.light_mode_rounded,
+                              ),
+                              label: Text(_isDark ? 'Dark' : 'Light'),
+                              style: buttonStyle,
+                            );
+
+                            if (isDesktop) {
+                              return Row(
+                                children: [
+                                  SizedBox(
+                                    width: 220,
+                                    child: dayungSettingsButton,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  SizedBox(width: 150, child: themeButton),
+                                ],
+                              );
+                            }
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                dayungSettingsButton,
+                                const SizedBox(height: 10),
+                                themeButton,
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -799,46 +890,92 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
             ],
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              if (hasFile)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onView,
-                    icon: const Icon(Icons.open_in_new_rounded),
-                    label: const Text('View'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _primaryColor,
-                      minimumSize: const Size.fromHeight(46),
-                      side: BorderSide(color: _borderColor),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isDesktop = constraints.maxWidth >= 400;
+              final viewButton = OutlinedButton.icon(
+                onPressed: onView,
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: const Text('View'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _primaryColor,
+                  minimumSize: Size.fromHeight(isDesktop ? 40 : 48),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: isDesktop ? 6 : 12,
+                  ),
+                  tapTargetSize: isDesktop
+                      ? MaterialTapTargetSize.shrinkWrap
+                      : MaterialTapTargetSize.padded,
+                  visualDensity: isDesktop
+                      ? VisualDensity.compact
+                      : VisualDensity.standard,
+                  side: BorderSide(color: _borderColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-              if (hasFile) const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onUpload,
-                  icon: const Icon(Icons.upload_file_rounded),
-                  label: Text(hasFile ? 'Update' : 'Add File'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: hasFile ? _primaryColor : _successColor,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(46),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    textStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Montserrat',
-                    ),
+              );
+              final uploadButton = ElevatedButton.icon(
+                onPressed: onUpload,
+                icon: const Icon(Icons.upload_file_rounded),
+                label: Text(hasFile ? 'Update' : 'Add File'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: hasFile ? _primaryColor : _successColor,
+                  foregroundColor: Colors.white,
+                  minimumSize: Size.fromHeight(isDesktop ? 40 : 48),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: isDesktop ? 6 : 12,
+                  ),
+                  tapTargetSize: isDesktop
+                      ? MaterialTapTargetSize.shrinkWrap
+                      : MaterialTapTargetSize.padded,
+                  visualDensity: isDesktop
+                      ? VisualDensity.compact
+                      : VisualDensity.standard,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Montserrat',
                   ),
                 ),
-              ),
-            ],
+              );
+
+              if (isDesktop && constraints.maxWidth >= 340) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (hasFile) ...[
+                      SizedBox(width: 150, child: viewButton),
+                      const SizedBox(width: 10),
+                    ],
+                    SizedBox(width: 180, child: uploadButton),
+                  ],
+                );
+              }
+
+              if (constraints.maxWidth >= 420 && hasFile) {
+                return Row(
+                  children: [
+                    Expanded(child: viewButton),
+                    const SizedBox(width: 10),
+                    Expanded(child: uploadButton),
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (hasFile) ...[viewButton, const SizedBox(height: 10)],
+                  uploadButton,
+                ],
+              );
+            },
           ),
         ],
       ),

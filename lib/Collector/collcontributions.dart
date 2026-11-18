@@ -1,19 +1,11 @@
-import 'package:capstone_app/Members/gcash_payment_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const kText = Color(0xFF111827);
-const kSubText = Color(0xFF6B7280);
-const kPrimaryLight = Color(0xFF3B82F6);
-const kCardBg = Color(0xFFFFFFFF);
-const kBorderColor = Color(0xFFE5E7EB);
-const kSuccess = Color(0xFF10B981);
-const kDanger = Color(0xFFEF4444);
 const kPaid = Color(0xFF2E7D32);
 const kPending = Color(0xFFF57C00);
-const double kEdge = 16;
 
 class CollectorContributionsPage extends StatefulWidget {
   final int dayungUnitId;
@@ -134,46 +126,51 @@ class _CollectorContributionsPageState
     }).length;
   }
 
-  Widget _paymentShortcutCard() {
+  Widget _summaryCard({
+    required String label,
+    required int count,
+    required Color color,
+    required IconData icon,
+  }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF083366), Color(0xFF0D47A1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(16),
+      decoration: dayungSectionCardDecoration(context, radius: 16),
+      child: Row(
         children: [
-          const SizedBox(height: 8),
-          const Text(
-            'Open your payment page to review your pending records and choose cash or GCash.',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(13),
             ),
+            child: Icon(icon, color: color, size: 21),
           ),
-          const SizedBox(height: 14),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      GCashPaymentPage(dayungUnitId: widget.dayungUnitId),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ).then((_) => _fetchContributions());
-            },
-            icon: const Icon(Icons.arrow_forward_rounded),
-            label: const Text('Open Payment Page'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: kPrimary,
+                const SizedBox(height: 3),
+                Text(
+                  _loading ? '—' : '$count',
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -181,8 +178,40 @@ class _CollectorContributionsPageState
     );
   }
 
+  Widget _summaryCards() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pending = _summaryCard(
+          label: 'Pending',
+          count: _countByStatus('pending'),
+          color: kPending,
+          icon: Icons.schedule_rounded,
+        );
+        final paid = _summaryCard(
+          label: 'Paid',
+          count: _countByStatus('paid'),
+          color: kPaid,
+          icon: Icons.check_circle_rounded,
+        );
+
+        if (constraints.maxWidth < 520) {
+          return Column(children: [pending, const SizedBox(height: 12), paid]);
+        }
+
+        return Row(
+          children: [
+            Expanded(child: pending),
+            const SizedBox(width: 12),
+            Expanded(child: paid),
+          ],
+        );
+      },
+    );
+  }
+
   DataRow _paymentRow(Map<String, dynamic> p) {
     final paid = (p['status']?.toString().toLowerCase() == 'paid');
+    final colors = Theme.of(context).colorScheme;
     final paidAtStr = _fmtDateTime(p['paid_at']);
     final userDeceasedId = (p['userdeceased'] ?? '').toString();
     final userDeceased = (p['deceased_name']?.toString().isNotEmpty == true)
@@ -194,61 +223,110 @@ class _CollectorContributionsPageState
 
     return DataRow(
       cells: [
-        DataCell(Text(userDeceased)),
-        DataCell(Text('₱${amount.toStringAsFixed(2)}')),
-        DataCell(Text(paid ? 'PAID' : 'PENDING')),
+        DataCell(
+          Text(userDeceased, maxLines: 2, overflow: TextOverflow.ellipsis),
+        ),
+        DataCell(
+          Text(
+            '₱${amount.toStringAsFixed(2)}',
+            style: TextStyle(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: (paid ? kPaid : kPending).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              paid ? 'Paid' : 'Pending',
+              style: TextStyle(
+                color: paid ? kPaid : kPending,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
         DataCell(Text(paidAtStr.isEmpty ? '—' : paidAtStr)),
       ],
     );
   }
 
+  Widget _paymentTable() {
+    final colors = Theme.of(context).colorScheme;
+    return RecordDataTable(
+      minWidth: 620,
+      columnSpacing: 18,
+      horizontalMargin: 16,
+      headingRowHeight: 50,
+      dataRowMinHeight: 56,
+      dataRowMaxHeight: 76,
+      showCheckboxColumn: false,
+      headingTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamily: 'Montserrat',
+      ),
+      dataTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        fontFamily: 'OpenSans',
+      ),
+      columns: const [
+        DataColumn(label: Text('Contribution')),
+        DataColumn(label: Text('Amount')),
+        DataColumn(label: Text('Status')),
+        DataColumn(label: Text('Paid at')),
+      ],
+      rows: _payments.map(_paymentRow).toList(),
+    );
+  }
+
   Widget _emptyState() {
+    final colors = Theme.of(context).colorScheme;
     return Center(
-      child: Container(
-        margin: const EdgeInsets.all(20),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: kCardBg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: kBorderColor, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 15,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.account_balance_wallet_rounded,
-              size: 48,
-              color: kSubText,
-            ),
-            SizedBox(height: 16),
-            Text(
-              'No contributions found',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: kText,
-                fontFamily: 'Montserrat',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Container(
+          margin: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
+          decoration: dayungSectionCardDecoration(context, radius: 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.receipt_long_rounded,
+                  size: 28,
+                  color: colors.onSurfaceVariant,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 8),
-            Text(
-              'No contributions have been made yet',
-              style: TextStyle(
-                fontSize: 14,
-                color: kSubText,
-                fontFamily: 'OpenSans',
+              const SizedBox(height: 12),
+              Text(
+                'No contributions yet',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: colors.onSurface,
+                  fontFamily: 'Montserrat',
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -256,6 +334,7 @@ class _CollectorContributionsPageState
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
       body: Container(
@@ -266,184 +345,59 @@ class _CollectorContributionsPageState
             colors: [dayungPageBackground(context), dayungSoftSurface(context)],
           ),
         ),
-        child: Column(
-          children: [
-            _paymentShortcutCard(),
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
-              child: Row(
+        child: RefreshIndicator(
+          color: colors.primary,
+          onRefresh: _fetchContributions,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            children: [
+              Row(
                 children: [
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: kPending.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.schedule_rounded,
-                              color: kPending,
-                              size: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Pending',
-                            style: TextStyle(
-                              color: kSubText,
-                              fontSize: 10,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            '${_countByStatus('pending')}',
-                            style: const TextStyle(
-                              color: kText,
-                              fontSize: 14,
-                              fontFamily: 'Montserrat',
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                    child: Text(
+                      'My contributions',
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: kSuccess.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.check_circle_rounded,
-                              color: kSuccess,
-                              size: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Paid',
-                            style: TextStyle(
-                              color: kSubText,
-                              fontSize: 10,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            '${_countByStatus('paid')}',
-                            style: const TextStyle(
-                              color: kText,
-                              fontSize: 14,
-                              fontFamily: 'Montserrat',
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                  IconButton(
+                    tooltip: 'Refresh contributions',
+                    onPressed: _loading ? null : _fetchContributions,
+                    icon: const Icon(Icons.refresh_rounded),
+                    style: IconButton.styleFrom(
+                      fixedSize: const Size(48, 48),
+                      backgroundColor: dayungSurface(context),
+                      foregroundColor: colors.primary,
+                      side: BorderSide(color: dayungBorder(context)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
-            Expanded(
-              child: _loading
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: kCardBg,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: kBorderColor, width: 1),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              color: kPrimary,
-                              strokeWidth: 3,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Loading contributions...',
-                              style: TextStyle(
-                                color: kSubText,
-                                fontSize: 16,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : (_payments.isEmpty
-                        ? _emptyState()
-                        : Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: RefreshIndicator(
-                              onRefresh: _fetchContributions,
-                              child: ListView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                children: [
-                                  RecordDataTable(
-                                    minWidth: 620,
-                                    columns: const [
-                                      DataColumn(label: Text('Contribution')),
-                                      DataColumn(label: Text('Amount')),
-                                      DataColumn(label: Text('Status')),
-                                      DataColumn(label: Text('Paid')),
-                                    ],
-                                    rows: _payments.map(_paymentRow).toList(),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )),
-            ),
-          ],
+              const SizedBox(height: 16),
+              _summaryCards(),
+              const SizedBox(height: 16),
+              if (_loading)
+                const DayungPageSkeleton(
+                  layout: DayungSkeletonLayout.list,
+                  padding: EdgeInsets.all(8),
+                  itemCount: 3,
+                )
+              else if (_payments.isEmpty)
+                _emptyState()
+              else
+                _paymentTable(),
+            ],
+          ),
         ),
       ),
     );

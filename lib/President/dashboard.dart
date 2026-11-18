@@ -20,12 +20,14 @@ import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/pages/reports.dart' as reports;
 import 'package:capstone_app/shared/dayung_role_navigation_bar.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/utils/announcement_text.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/required_application_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 // Palette aligned with Secretary
@@ -551,7 +553,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: const Color(0xFF1E40AF),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.3),
@@ -1439,7 +1441,11 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
             SizedBox(
               height: 180,
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.dashboard,
+                      padding: EdgeInsets.all(8),
+                      itemCount: 2,
+                    )
                   : !hasUnits
                   ? const Center(child: Text('No managed Dayung units found.'))
                   : barLabels.isEmpty
@@ -1614,20 +1620,14 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: dayungSectionCardDecoration(context, radius: 18),
-        child: Row(
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                'Loading latest announcement…',
-                style: theme.textTheme.bodyLarge,
-              ),
-            ),
+            DayungSkeletonBlock(height: 18, width: 180),
+            SizedBox(height: 14),
+            DayungSkeletonBlock(height: 14),
+            SizedBox(height: 8),
+            DayungSkeletonBlock(height: 14, width: 240),
           ],
         ),
       );
@@ -1669,8 +1669,8 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
       );
     }
 
-    final title = (announcement!['title'] ?? '').toString();
-    final body = (announcement!['body'] ?? '').toString().trim();
+    final title = cleanAnnouncementTitle(announcement!['title']);
+    final body = cleanAnnouncementText(announcement!['body']);
     final createdAt = announcement!['created_at']?.toString();
     String dateStr = '';
     if (createdAt != null && createdAt.isNotEmpty) {

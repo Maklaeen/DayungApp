@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/providers/claim_tracking_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
@@ -41,6 +42,8 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   bool _submittingModalOpen = false;
   bool _bottomRefreshing = false;
   bool _navBarVisible = true;
+  bool _loadingClaims = true;
+  bool _hasLoadedClaims = false;
 
   // ignore: unused_field
   List<Map<String, dynamic>> _allClaims = [];
@@ -241,6 +244,9 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   }
 
   Future<void> _fetchClaims() async {
+    if (!_hasLoadedClaims) {
+      _safeSetState(() => _loadingClaims = true);
+    }
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
@@ -307,6 +313,9 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
         _pending = [];
         _history = [];
       });
+    } finally {
+      _hasLoadedClaims = true;
+      _safeSetState(() => _loadingClaims = false);
     }
   }
 
@@ -314,19 +323,20 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   String _displayStatus(String s) {
     // f(extended)
     final low = s.toLowerCase();
-    if (low == 'approved') return 'Approved ✓';
-    if (low == 'claimed') return 'Claimed ✓'; // already handled
+    if (low == 'approved') return 'Approved';
+    if (low == 'claimed') return 'Claimed';
     if (low == 'rejected') return 'Rejected';
     if (low == 'pending') return 'Pending';
     return s.isNotEmpty ? s[0].toUpperCase() + s.substring(1) : s;
   }
 
   Color _statusColor(String status) {
+    final colors = Theme.of(context).colorScheme;
     final low = status.toLowerCase();
-    if (low == 'approved' || low == 'claimed') return kAccent;
-    if (low == 'rejected') return kDanger;
+    if (low == 'approved' || low == 'claimed') return colors.primary;
+    if (low == 'rejected') return colors.error;
     if (low == 'pending') return kWarn;
-    return kSubtleText;
+    return colors.onSurfaceVariant;
   }
 
   IconData _statusIcon(String status) {
@@ -850,6 +860,8 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     final trackingList = _filteredTrackingList();
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 720;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
@@ -879,6 +891,50 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                                 isWide ? 24 : 16,
                                 0,
                               ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'My claims',
+                                          style: theme.textTheme.titleLarge
+                                              ?.copyWith(
+                                                color: colors.onSurface,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Track requests and review their status.',
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                                color: colors.onSurfaceVariant,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Refresh claims',
+                                    onPressed: _refresh,
+                                    icon: const Icon(Icons.refresh_rounded),
+                                    color: colors.primary,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                isWide ? 24 : 16,
+                                18,
+                                isWide ? 24 : 16,
+                                0,
+                              ),
                               child: _searchField(),
                             ),
                           ),
@@ -890,7 +946,11 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                                 isWide ? 24 : 16,
                                 12,
                               ),
-                              child: _buildTabShell(),
+                              child: _buildTabShell(
+                                pendingCount: ongoingList.length,
+                                historyCount: historyList.length,
+                                trackingCount: trackingList.length,
+                              ),
                             ),
                           ),
                         ],
@@ -917,8 +977,8 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
           right: isWide ? 24 : 0,
         ),
         child: FloatingActionButton.extended(
-          backgroundColor: kPrimaryDark,
-          foregroundColor: Colors.white,
+          backgroundColor: colors.primary,
+          foregroundColor: colors.onPrimary,
           elevation: 4,
           extendedPadding: const EdgeInsets.symmetric(
             horizontal: 22,
@@ -944,21 +1004,26 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     );
   }
 
-  Widget _buildTabShell() {
+  Widget _buildTabShell({
+    required int pendingCount,
+    required int historyCount,
+    required int trackingCount,
+  }) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: colors.surfaceContainerLow,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: colors.outlineVariant),
       ),
       child: TabBar(
         controller: _tabController,
         indicator: BoxDecoration(
-          color: Colors.white,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x12000000),
+              color: colors.shadow.withValues(alpha: 0.08),
               blurRadius: 10,
               offset: Offset(0, 4),
             ),
@@ -966,18 +1031,18 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
         ),
         dividerColor: Colors.transparent,
         indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: kPrimaryDark,
-        unselectedLabelColor: kSubText,
+        labelColor: colors.primary,
+        unselectedLabelColor: colors.onSurfaceVariant,
         padding: const EdgeInsets.all(4),
         labelStyle: const TextStyle(
           fontWeight: FontWeight.w800,
           fontFamily: 'Montserrat',
           fontSize: 12,
         ),
-        tabs: const [
-          Tab(text: 'Pending'),
-          Tab(text: 'History'),
-          Tab(text: 'Tracking'),
+        tabs: [
+          Tab(text: 'Pending ($pendingCount)'),
+          Tab(text: 'History ($historyCount)'),
+          Tab(text: 'Tracking ($trackingCount)'),
         ],
       ),
     );
@@ -1013,26 +1078,26 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   }
 
   Widget _searchField() {
+    final colors = Theme.of(context).colorScheme;
     return TextField(
       controller: _searchCtrl,
       onChanged: (value) {
         setState(() => _search = value.trim().toLowerCase());
       },
       style: const TextStyle(
-        color: kText,
         fontSize: 14,
         fontWeight: FontWeight.w600,
         fontFamily: 'OpenSans',
-      ),
+      ).copyWith(color: colors.onSurface),
       decoration: InputDecoration(
         hintText: 'Search by title, description, or claim status',
         hintStyle: TextStyle(
-          color: kSubText.withValues(alpha: 0.85),
+          color: colors.onSurfaceVariant.withValues(alpha: 0.85),
           fontSize: 14,
           fontWeight: FontWeight.w600,
           fontFamily: 'OpenSans',
         ),
-        prefixIcon: const Icon(Icons.search_rounded, color: kPrimaryDark),
+        prefixIcon: Icon(Icons.search_rounded, color: colors.primary),
         suffixIcon: _searchCtrl.text.isEmpty
             ? null
             : IconButton(
@@ -1040,17 +1105,17 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                   _searchCtrl.clear();
                   setState(() => _search = '');
                 },
-                icon: const Icon(Icons.close_rounded, color: kSubText),
+                icon: Icon(Icons.close_rounded, color: colors.onSurfaceVariant),
               ),
         filled: true,
-        fillColor: const Color(0xFFF8FAFC),
+        fillColor: colors.surfaceContainerLow,
         enabledBorder: OutlineInputBorder(
           borderRadius: const BorderRadius.all(Radius.circular(18)),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: BorderSide(color: colors.outlineVariant),
         ),
-        focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
-          borderSide: BorderSide(color: kPrimaryDark, width: 1.6),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(18)),
+          borderSide: BorderSide(color: colors.primary, width: 1.6),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -1061,6 +1126,13 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   }
 
   Widget _claimListView(List<Map<String, dynamic>> list, bool ongoing) {
+    if (_loadingClaims) {
+      return const DayungPageSkeleton(
+        layout: DayungSkeletonLayout.list,
+        padding: EdgeInsets.fromLTRB(16, 20, 16, 120),
+        itemCount: 2,
+      );
+    }
     if (list.isEmpty) {
       return _buildEmptyState(
         icon: ongoing ? Icons.hourglass_top_rounded : Icons.history_rounded,
@@ -1068,6 +1140,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
         message: ongoing
             ? 'Your active requests will appear here after submission.'
             : 'Completed or rejected claims will show up here.',
+        onSubmit: ongoing ? _openSubmitSheet : null,
       );
     }
 
@@ -1083,11 +1156,19 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   }
 
   Widget _trackingListView(List<Map<String, dynamic>> list) {
+    if (_loadingClaims) {
+      return const DayungPageSkeleton(
+        layout: DayungSkeletonLayout.list,
+        padding: EdgeInsets.fromLTRB(16, 20, 16, 120),
+        itemCount: 2,
+      );
+    }
     if (list.isEmpty) {
       return _buildEmptyState(
         icon: Icons.track_changes_rounded,
         title: 'No claims to track',
         message: 'Submit a claim to start tracking its progress here.',
+        onSubmit: _openSubmitSheet,
       );
     }
 
@@ -1105,6 +1186,9 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   Widget _claimsTable(List<Map<String, dynamic>> claims) {
     return RecordDataTable(
       minWidth: 900,
+      headingRowHeight: 52,
+      dataRowMinHeight: 60,
+      dataRowMaxHeight: 88,
       columnSpacing: 20,
       columns: const [
         DataColumn(label: Text('Claim')),
@@ -1138,9 +1222,29 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
             ),
             DataCell(Text(_formatDate(claim['date_submitted'])), onTap: onTap),
             DataCell(
-              Text(
-                _displayStatus(status),
-                style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_statusIcon(status), size: 16, color: color),
+                    const SizedBox(width: 6),
+                    Text(
+                      _displayStatus(status),
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               onTap: onTap,
             ),
@@ -1161,7 +1265,9 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     required IconData icon,
     required String title,
     required String message,
+    VoidCallback? onSubmit,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return _wrapWithRefreshAndNav(
       ListView(
         physics: const AlwaysScrollableScrollPhysics(
@@ -1169,54 +1275,67 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
         ),
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
         children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x12000000),
-                  blurRadius: 14,
-                  offset: Offset(0, 6),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: colors.outlineVariant),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colors.shadow.withValues(alpha: 0.06),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 68,
-                  height: 68,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(icon, size: 34, color: kPrimaryDark),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: colors.primaryContainer,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 30,
+                        color: colors.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    if (onSubmit != null) ...[
+                      const SizedBox(height: 20),
+                      FilledButton.icon(
+                        onPressed: onSubmit,
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Submit a claim'),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: kText,
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: kSubText,
-                    fontFamily: 'OpenSans',
-                    height: 1.45,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],

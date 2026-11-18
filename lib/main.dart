@@ -20,6 +20,7 @@ import 'package:capstone_app/Treasurer/dashboard.dart';
 import 'package:capstone_app/services/firebase_push_service.dart';
 import 'package:capstone_app/services/push_notification_service.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/dayung_theme.dart';
 import 'package:capstone_app/utils/network_error_dialog.dart';
 import 'config/app_config.dart';
@@ -427,6 +428,6 @@ class _AuthGateState extends State<_AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return const DayungLoadingScaffold(layout: DayungSkeletonLayout.dashboard);
   }
 }

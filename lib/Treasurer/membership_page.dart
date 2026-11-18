@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color _kPageBg = Color(0xFFF8FAFC);
@@ -394,7 +395,10 @@ class _MembershipPageState extends State<MembershipPage> {
                     const SizedBox(height: 16),
                     Expanded(
                       child: _loading
-                          ? const Center(child: CircularProgressIndicator())
+                          ? const DayungPageSkeleton(
+                              layout: DayungSkeletonLayout.list,
+                              padding: EdgeInsets.all(16),
+                            )
                           : _buildPaymentList(),
                     ),
                   ],

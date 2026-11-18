@@ -35,6 +35,7 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
   bool _updating = false;
   String _filter = 'Pending';
   String _search = '';
+  final TextEditingController _searchController = TextEditingController();
   String? _activeClaimId;
   List<Map<String, dynamic>> _claims = [];
   Map<String, Map<String, dynamic>> _userMap = {};
@@ -752,26 +753,52 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
 
   Widget _filterChip(String label) {
     final selected = _filter == label;
+    final colors = Theme.of(context).colorScheme;
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          if (_filter == label) return;
-          setState(() => _filter = label);
-          _loadClaims();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? kPrimary : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: selected ? kPrimary : kBorderColor),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : kSubText,
-              fontWeight: FontWeight.w700,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            if (_filter == label) return;
+            setState(() => _filter = label);
+            _loadClaims();
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              color: selected ? colors.primary : colors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? colors.primary : colors.outlineVariant,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _statusIcon(label),
+                  size: 16,
+                  color: selected ? colors.onPrimary : colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected
+                          ? colors.onPrimary
+                          : colors.onSurfaceVariant,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -780,165 +807,295 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Container(
       color: dayungPageBackground(context),
-      child: _loading
-          ? const DayungPageSkeleton(
-              layout: DayungSkeletonLayout.list,
-              itemCount: 5,
-            )
-          : RefreshIndicator(
-              onRefresh: _loadClaims,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: RefreshIndicator(
+        onRefresh: _loadClaims,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: dayungSectionCardDecoration(context, radius: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Claims Review',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: kText,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        // const Text(
-                        //   'Review filed claims, then approve with a contribution amount or reject them.',
-                        //   style: TextStyle(
-                        //     fontSize: 14,
-                        //     color: kSubText,
-                        //     fontWeight: FontWeight.w600,
-                        //   ),
-                        // ),
-                        const SizedBox(height: 16),
-                        Row(
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _filterChip('Pending'),
-                            const SizedBox(width: 8),
-                            _filterChip('Approved'),
-                            const SizedBox(width: 8),
-                            _filterChip('Rejected'),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Search claim, deceased, or member',
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            filled: true,
-                            fillColor: const Color(0xFFF8FAFC),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                          onChanged: (value) => setState(() => _search = value),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_filteredClaims.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: kBorderColor),
-                      ),
-                      child: const Column(
-                        children: [
-                          Icon(Icons.inbox_rounded, color: kSubText, size: 46),
-                          SizedBox(height: 14),
-                          Text(
-                            'No claims found',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: kText,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Try another filter or refresh this page.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 14, color: kSubText),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    RecordDataTable(
-                      minWidth: 850,
-                      columns: const [
-                        DataColumn(label: Text('Claim')),
-                        DataColumn(label: Text('Deceased')),
-                        DataColumn(label: Text('Filed by')),
-                        DataColumn(label: Text('Status')),
-                        DataColumn(label: Text('Submitted')),
-                        DataColumn(label: Text('Details')),
-                      ],
-                      rows: _filteredClaims.map((claim) {
-                        final status = (claim['status'] ?? '').toString();
-                        final claimId = '${claim['id'] ?? ''}';
-                        final active = _activeClaimId == claimId;
-                        return DataRow(
-                          onSelectChanged: (_) => _showClaimDetails(claim),
-                          cells: [
-                            DataCell(Text(_claimType(claim))),
-                            DataCell(Text(_deceasedName(claim))),
-                            DataCell(Text(_submittedBy(claim))),
-                            DataCell(
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _statusIcon(status),
-                                    size: 18,
-                                    color: _statusColor(status),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(status),
-                                ],
+                            Text(
+                              'Claims Review',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: colors.onSurface,
+                                fontFamily: 'Montserrat',
                               ),
                             ),
-                            DataCell(
-                              Text(_formatDate(claim['date_submitted'])),
-                            ),
-                            DataCell(
-                              _updating && active
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.chevron_right_rounded),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Review and manage member claims',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colors.onSurfaceVariant,
+                                fontFamily: 'OpenSans',
+                              ),
                             ),
                           ],
-                        );
-                      }).toList(),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Refresh claims',
+                        onPressed: _loading ? null : _loadClaims,
+                        icon: const Icon(Icons.refresh_rounded),
+                        style: IconButton.styleFrom(
+                          fixedSize: const Size(48, 48),
+                          backgroundColor: dayungSurface(context),
+                          foregroundColor: colors.primary,
+                          side: BorderSide(color: dayungBorder(context)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _filterChip('Pending'),
+                      const SizedBox(width: 8),
+                      _filterChip('Approved'),
+                      const SizedBox(width: 8),
+                      _filterChip('Rejected'),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _search = value),
+                    style: TextStyle(color: colors.onSurface, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Search claim, deceased, or member',
+                      hintStyle: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 14,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: colors.onSurfaceVariant,
+                      ),
+                      suffixIcon: _search.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _search = '');
+                              },
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                      filled: true,
+                      fillColor: dayungSurface(context),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: dayungBorder(context)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: dayungBorder(context)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: colors.primary,
+                          width: 1.5,
+                        ),
+                      ),
                     ),
+                  ),
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            if (_loading)
+              const DayungPageSkeleton(
+                layout: DayungSkeletonLayout.list,
+                padding: EdgeInsets.all(8),
+                itemCount: 3,
+              )
+            else if (_filteredClaims.isEmpty)
+              _emptyClaimsState()
+            else
+              _claimsTable(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyClaimsState() {
+    final colors = Theme.of(context).colorScheme;
+    final searching = _search.trim().isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: dayungSectionCardDecoration(context, radius: 18),
+      child: Column(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              searching ? Icons.search_off_rounded : Icons.inbox_rounded,
+              color: colors.onSurfaceVariant,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            searching ? 'No matching claims' : 'No $_filter claims',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: colors.onSurface,
+              fontFamily: 'Montserrat',
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            searching
+                ? 'Try another search term or clear your search.'
+                : 'Claims in this status will appear here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: colors.onSurfaceVariant),
+          ),
+          if (searching) ...[
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _search = '');
+              },
+              icon: const Icon(Icons.close_rounded),
+              label: const Text('Clear search'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _claimsTable() {
+    final colors = Theme.of(context).colorScheme;
+    return RecordDataTable(
+      minWidth: 850,
+      columnSpacing: 18,
+      horizontalMargin: 16,
+      headingRowHeight: 50,
+      dataRowMinHeight: 56,
+      dataRowMaxHeight: 76,
+      showCheckboxColumn: false,
+      headingTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamily: 'Montserrat',
+      ),
+      dataTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        fontFamily: 'OpenSans',
+      ),
+      columns: const [
+        DataColumn(label: Text('Claim')),
+        DataColumn(label: Text('Deceased')),
+        DataColumn(label: Text('Filed by')),
+        DataColumn(label: Text('Status')),
+        DataColumn(label: Text('Submitted')),
+        DataColumn(label: Text('Details')),
+      ],
+      rows: _filteredClaims.map((claim) {
+        final status = (claim['status'] ?? '').toString();
+        final claimId = '${claim['id'] ?? ''}';
+        final active = _activeClaimId == claimId;
+        void onTap() => _showClaimDetails(claim);
+
+        return DataRow(
+          cells: [
+            DataCell(Text(_claimType(claim)), onTap: onTap),
+            DataCell(Text(_deceasedName(claim)), onTap: onTap),
+            DataCell(Text(_submittedBy(claim)), onTap: onTap),
+            DataCell(
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _statusColor(status).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _statusIcon(status),
+                      size: 14,
+                      color: _statusColor(status),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        color: _statusColor(status),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              onTap: onTap,
+            ),
+            DataCell(Text(_formatDate(claim['date_submitted'])), onTap: onTap),
+            DataCell(
+              _updating && active
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(Icons.chevron_right_rounded, color: colors.primary),
+              onTap: onTap,
+            ),
+          ],
+        );
+      }).toList(),
     );
   }
 }

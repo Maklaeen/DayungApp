@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:intl/intl.dart';
 
@@ -1091,8 +1092,9 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
               ),
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _kPrimary),
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.all(16),
                     )
                   : _error != null
                   ? Center(

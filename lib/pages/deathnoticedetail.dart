@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:async';
 import 'package:capstone_app/shared/dayung_map_error_snackbar.dart';
 import 'package:capstone_app/shared/dayung_map_resize_handle.dart';
+import 'package:capstone_app/shared/dayung_map_attribution.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -88,7 +89,7 @@ class DeathNoticeDetail extends StatefulWidget {
             width: (media.width - 64).clamp(0, 1100),
             height: (media.height - 48).clamp(0, 900),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
               child: detail,
             ),
           ),
@@ -123,6 +124,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   double? _userLat;
   double? _userLng;
+  double _userHeading = 0;
   double? _distanceMeters;
   bool _locPermissionDenied = false;
 
@@ -131,6 +133,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   final MapController _webMapController = MapController();
   bool _styleLoaded = false;
   ml.Symbol? _vigilSymbol;
+  ml.Symbol? _userSymbol;
   ml.Circle? _vigilCircle;
   ml.Circle? _userCircle;
   ml.Line? _routeLine;
@@ -193,10 +196,13 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       );
       _userLat = pos.latitude;
       _userLng = pos.longitude;
+      if (pos.heading.isFinite && pos.heading >= 0) {
+        _userHeading = pos.heading;
+      }
       _computeDistance();
       _initialDistance ??= _distanceMeters;
       setState(() {});
-      await _updateUserCircle();
+      await _updateUserLocationMarker();
       await _fetchRoadRoute(); // initial route
       _startLiveLocation(); // begin streaming
     } catch (_) {
@@ -217,12 +223,13 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   void _onPositionUpdate(Position p) async {
     _userLat = p.latitude;
     _userLng = p.longitude;
+    if (p.heading.isFinite && p.heading >= 0) _userHeading = p.heading;
     _computeDistance();
     if (_initialDistance == null && _distanceMeters != null) {
       _initialDistance = _distanceMeters;
     }
     if (!mounted) return;
-    await _updateUserCircle();
+    await _updateUserLocationMarker();
     _updateRouteFade();
     if (_autoFollow &&
         _mapController != null &&
@@ -345,7 +352,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     _styleLoaded = true;
     await _ensureVigilMarker();
     await _ensureVigilCircle();
-    await _updateUserCircle();
+    await _updateUserLocationMarker();
     await _fetchRoadRoute();
   }
 
@@ -357,6 +364,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         geometry: ml.LatLng(_fLat!, _fLng!),
         iconImage: 'marker-15',
         iconSize: 1.6,
+        iconColor: '#10B981',
+        iconHaloColor: '#FFFFFF',
+        iconHaloWidth: 1.5,
       ),
     );
   }
@@ -384,7 +394,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     }
   }
 
-  Future<void> _updateUserCircle() async {
+  Future<void> _updateUserLocationMarker() async {
     if (!_styleLoaded || _mapController == null) return;
     if (_userLat == null || _userLng == null) {
       if (_userCircle != null) {
@@ -393,6 +403,12 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         } catch (_) {}
         _userCircle = null;
       }
+      if (_userSymbol != null) {
+        try {
+          await _mapController!.removeSymbol(_userSymbol!);
+        } catch (_) {}
+        _userSymbol = null;
+      }
       return;
     }
     final here = ml.LatLng(_userLat!, _userLng!);
@@ -400,11 +416,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       _userCircle = await _mapController!.addCircle(
         ml.CircleOptions(
           geometry: here,
-          circleRadius: 9.0,
-          circleColor: "#0D47A1",
-          circleStrokeColor: "#FFFFFF",
-          circleStrokeWidth: 2.0,
-          circleOpacity: 0.95,
+          circleRadius: 20.0,
+          circleColor: "#4285F4",
+          circleOpacity: 0.18,
         ),
       );
     } else {
@@ -412,6 +426,23 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         _userCircle!,
         ml.CircleOptions(geometry: here),
       );
+    }
+
+    final symbolOptions = ml.SymbolOptions(
+      geometry: here,
+      iconImage: 'triangle-15',
+      iconSize: 1.5,
+      iconRotate: _userHeading,
+      iconAnchor: 'center',
+      iconColor: '#4285F4',
+      iconHaloColor: '#FFFFFF',
+      iconHaloWidth: 2,
+      zIndex: 10,
+    );
+    if (_userSymbol == null) {
+      _userSymbol = await _mapController!.addSymbol(symbolOptions);
+    } else {
+      await _mapController!.updateSymbol(_userSymbol!, symbolOptions);
     }
   }
 
@@ -449,18 +480,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   void _stopFollowingOnMapGesture() {
     if (!_autoFollow || !mounted) return;
     setState(() => _autoFollow = false);
-  }
-
-  void _zoomMap(double delta) {
-    if (kIsWeb) {
-      final camera = _webMapController.camera;
-      _webMapController.move(camera.center, camera.zoom + delta);
-      return;
-    }
-    if (_mapController == null) return;
-    _mapController!.animateCamera(
-      delta > 0 ? ml.CameraUpdate.zoomIn() : ml.CameraUpdate.zoomOut(),
-    );
   }
 
   Widget _pillChip(String label, IconData icon, Color color) {
@@ -525,7 +544,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     );
   }
 
-  Widget _buildCompactMapControls() {
+  Widget _buildMapControls() {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -583,40 +602,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         color: selected ? const Color(0xFF0D47A1) : const Color(0xFF475569),
         size: 21,
       ),
-    );
-  }
-
-  Widget _buildDesktopMapControls() {
-    return Column(
-      children: [
-        _MapIconBtn(
-          tooltip: 'Zoom in',
-          icon: Icons.zoom_in_rounded,
-          onTap: () => _zoomMap(1),
-        ),
-        const SizedBox(height: 8),
-        _MapIconBtn(
-          tooltip: 'Zoom out',
-          icon: Icons.zoom_out_rounded,
-          onTap: () => _zoomMap(-1),
-        ),
-        const SizedBox(height: 8),
-        _MapIconBtn(
-          tooltip: 'Center on vigil',
-          icon: Icons.location_on_outlined,
-          onTap: _centerOnVigil,
-        ),
-        if (_userLat != null && _userLng != null) ...[
-          const SizedBox(height: 8),
-          _MapIconBtn(
-            tooltip: _autoFollow ? 'Stop following' : 'Follow my location',
-            icon: _autoFollow
-                ? Icons.my_location_rounded
-                : Icons.location_searching_rounded,
-            onTap: _toggleFollow,
-          ),
-        ],
-      ],
     );
   }
 
@@ -925,7 +910,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     final screenSize = MediaQuery.sizeOf(context);
     final screenHeight = screenSize.height;
     final isWide = screenSize.width >= 720;
-    final compactMapControls = screenSize.width < 600;
     final defaultMapHeight = (screenHeight * (isWide ? 0.58 : 0.40))
         .clamp(isWide ? 360.0 : 240.0, isWide ? 560.0 : 440.0)
         .toDouble();
@@ -1134,71 +1118,24 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                                           mapHeight: mapHeight,
                                         ),
                                       ),
-                                      if (compactMapControls)
-                                        Positioned(
-                                          left: 12,
-                                          right: 12,
-                                          bottom: 40,
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: Align(
-                                                  alignment:
-                                                      Alignment.centerLeft,
-                                                  child:
-                                                      _buildLocationStatusChip(),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              _buildCompactMapControls(),
-                                            ],
-                                          ),
-                                        )
-                                      else ...[
-                                        Positioned(
-                                          top: 12,
-                                          right: 12,
-                                          child: _buildDesktopMapControls(),
-                                        ),
-                                        Positioned(
-                                          left: 12,
-                                          bottom: 40,
-                                          child: _buildLocationStatusChip(),
-                                        ),
-                                        Positioned(
-                                          right: 12,
-                                          bottom: 40,
-                                          child: ElevatedButton.icon(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.white,
-                                              foregroundColor: const Color(
-                                                0xFF0D47A1,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 12,
-                                                  ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                              elevation: 3,
-                                            ),
-                                            onPressed: _openRouteInMaps,
-                                            icon: const Icon(
-                                              Icons.route_rounded,
-                                              size: 20,
-                                            ),
-                                            label: const Text(
-                                              'Route',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w700,
+                                      Positioned(
+                                        left: 12,
+                                        right: 12,
+                                        bottom: 40,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Align(
+                                                alignment: Alignment.centerLeft,
+                                                child:
+                                                    _buildLocationStatusChip(),
                                               ),
                                             ),
-                                          ),
+                                            const SizedBox(width: 8),
+                                            _buildMapControls(),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                       Positioned(
                                         bottom: 0,
                                         left: 0,
@@ -1283,6 +1220,11 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'capstone_app',
+              panBuffer: 0,
+              keepBuffer: 1,
+              tileUpdateTransformer: TileUpdateTransformers.debounce(
+                const Duration(milliseconds: 150),
+              ),
             ),
             CircleLayer(
               circles: [
@@ -1296,10 +1238,8 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                 if (_userLat != null && _userLng != null)
                   CircleMarker(
                     point: ll.LatLng(_userLat!, _userLng!),
-                    radius: 10,
-                    color: const Color(0xFF3B82F6),
-                    borderColor: Colors.white,
-                    borderStrokeWidth: 2,
+                    radius: 20,
+                    color: const Color(0xFF4285F4).withValues(alpha: 0.18),
                   ),
               ],
             ),
@@ -1317,41 +1257,55 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
               markers: [
                 Marker(
                   point: ll.LatLng(lat, lng),
-                  width: 52,
-                  height: 52,
-                  child: const Icon(
-                    Icons.location_on_rounded,
-                    color: Color(0xFF10B981),
-                    size: 42,
+                  width: 48,
+                  height: 48,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.22),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.location_on_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
                 ),
                 if (_userLat != null && _userLng != null)
                   Marker(
                     point: ll.LatLng(_userLat!, _userLng!),
-                    width: 34,
-                    height: 34,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.my_location_rounded,
-                        color: Color(0xFF3B82F6),
-                        size: 20,
+                    width: 44,
+                    height: 44,
+                    child: Transform.rotate(
+                      angle: _userHeading * pi / 180,
+                      child: const Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Icon(
+                            Icons.navigation_rounded,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                          Icon(
+                            Icons.navigation_rounded,
+                            color: Color(0xFF4285F4),
+                            size: 24,
+                          ),
+                        ],
                       ),
                     ),
                   ),
               ],
             ),
-            const RichAttributionWidget(
-              alignment: AttributionAlignment.bottomRight,
-              showFlutterMapAttribution: false,
-              attributions: [
-                TextSourceAttribution('OpenStreetMap contributors'),
-              ],
-            ),
+            const DayungMapAttribution(alignment: Alignment.bottomRight),
           ],
         ),
       );
@@ -1475,38 +1429,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _MapIconBtn extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _MapIconBtn({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.white,
-        shape: const CircleBorder(),
-        elevation: 2,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: Icon(icon, size: 21, color: const Color(0xFF1E40AF)),
-          ),
-        ),
       ),
     );
   }

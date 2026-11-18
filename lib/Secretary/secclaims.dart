@@ -10,6 +10,7 @@ import 'package:photo_view/photo_view.dart';
 import 'package:flutter/services.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 // Old palette (kept so old logic/widgets compile)
@@ -109,7 +110,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     _tabController = TabController(length: _tabs.length, vsync: this);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) return;
-      _fetchClaims(forUnitId: _lastUnitId, tabSwitch: true);
+      _fetchClaims(forUnitId: _lastUnitId);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final id = context.read<DayungUnitProvider>().currentUnitId;
@@ -156,7 +157,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           ? recordUnitId
           : int.tryParse('$recordUnitId');
       if (changedUnitId != unitId) return;
-      _fetchClaims(forUnitId: unitId, tabSwitch: true);
+      _fetchClaims(forUnitId: unitId);
     }
 
     _claimsChannel!
@@ -197,7 +198,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     });
   }
 
-  Future<void> _fetchClaims({int? forUnitId, bool tabSwitch = false}) async {
+  Future<void> _fetchClaims({int? forUnitId}) async {
     final unitId =
         forUnitId ??
         _lastUnitId ??
@@ -209,9 +210,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
     _lastUnitId = unitId;
 
-    if (!tabSwitch) {
-      if (mounted) setState(() => _loading = true);
-    }
+    if (mounted) setState(() => _loading = true);
 
     try {
       // Approved members of this unit
@@ -767,32 +766,93 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         children: [
           Column(
             children: [
-              // Header with search (new UI style)
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 50, 20, 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Claims',
+                            style: TextStyle(
+                              color: colors.onSurface,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Review and manage member claims',
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 13,
+                              fontFamily: 'OpenSans',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Refresh claims',
+                      onPressed: _loading
+                          ? null
+                          : () => _fetchClaims(forUnitId: _lastUnitId),
+                      icon: const Icon(Icons.refresh_rounded),
+                      style: IconButton.styleFrom(
+                        backgroundColor: dayungSurface(context),
+                        foregroundColor: colors.primary,
+                        side: BorderSide(color: dayungBorder(context)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                 child: _searchField(),
               ),
-              // Tab Bar (new UI style)
               Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                margin: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: dayungBorder(context)),
+                ),
                 child: TabBar(
                   controller: _tabController,
                   isScrollable: false,
                   tabAlignment: TabAlignment.fill,
                   labelStyle: const TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 10,
+                    fontSize: 13,
                     fontFamily: 'Montserrat',
                   ),
                   unselectedLabelStyle: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 10,
+                    fontSize: 13,
                     fontFamily: 'Montserrat',
                   ),
                   labelColor: colors.primary,
                   unselectedLabelColor: colors.onSurfaceVariant,
-                  indicator: UnderlineTabIndicator(
-                    borderSide: BorderSide(color: colors.primary, width: 2),
+                  dividerColor: Colors.transparent,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicator: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.shadow.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   tabs: _tabs.map((t) {
                     final active = t == currentStatus;
@@ -803,17 +863,17 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         children: [
                           Icon(
                             _statusIcon(t),
-                            size: 12,
+                            size: 16,
                             color: active
                                 ? colors.primary
                                 : colors.onSurfaceVariant,
                           ),
-                          const SizedBox(width: 2),
+                          const SizedBox(width: 8),
                           Flexible(
                             child: Text(
                               t,
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 13,
                                 fontWeight: active
                                     ? FontWeight.w700
                                     : FontWeight.w600,
@@ -872,99 +932,83 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               // List content
               Expanded(
                 child: _loading
-                    ? Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: dayungSurface(context),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: dayungBorder(context),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 15,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(
-                                color: colors.primary,
-                                strokeWidth: 3,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Loading claims...',
-                                style: TextStyle(
-                                  color: colors.onSurfaceVariant,
-                                  fontSize: 16,
-                                  fontFamily: 'OpenSans',
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                    ? const DayungPageSkeleton(
+                        layout: DayungSkeletonLayout.list,
+                        padding: EdgeInsets.fromLTRB(20, 8, 20, 20),
+                        itemCount: 3,
                       )
                     : (claims.isEmpty
                           ? SingleChildScrollView(
-                              child: Container(
-                                margin: const EdgeInsets.all(20),
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  color: dayungSurface(context),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: dayungBorder(context),
-                                    width: 1,
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 640,
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.05,
-                                      ),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 6),
+                                  child: Container(
+                                    margin: const EdgeInsets.all(20),
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: dayungSectionCardDecoration(
+                                      context,
                                     ),
-                                  ],
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      _statusIcon(currentStatus),
-                                      size: 48,
-                                      color: _statusColor(
-                                        currentStatus,
-                                      ).withValues(alpha: 0.6),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 64,
+                                          height: 64,
+                                          decoration: BoxDecoration(
+                                            color: _statusColor(
+                                              currentStatus,
+                                            ).withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            _statusIcon(currentStatus),
+                                            size: 30,
+                                            color: _statusColor(currentStatus),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'No $currentStatus claims',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: colors.onSurface,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          _search.trim().isEmpty
+                                              ? 'Claims in this status will appear here.'
+                                              : 'Try a different search term or clear your search.',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: colors.onSurfaceVariant,
+                                            fontFamily: 'OpenSans',
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        if (_search.trim().isNotEmpty) ...[
+                                          const SizedBox(height: 16),
+                                          TextButton.icon(
+                                            onPressed: () {
+                                              _searchCtrl.clear();
+                                              setState(() => _search = '');
+                                            },
+                                            icon: const Icon(
+                                              Icons.close_rounded,
+                                            ),
+                                            label: const Text('Clear search'),
+                                          ),
+                                        ],
+                                      ],
                                     ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      "No claims found",
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                        color: colors.onSurface,
-                                        fontFamily: 'Montserrat',
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      "No claims for the selected status in this Dayung",
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: colors.onSurfaceVariant,
-                                        fontFamily: 'OpenSans',
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             )
@@ -1077,7 +1121,24 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   Widget _claimsTable(List<Map<String, dynamic>> claims) {
     return RecordDataTable(
       minWidth: 1160,
-      columnSpacing: 20,
+      columnSpacing: 18,
+      horizontalMargin: 16,
+      headingRowHeight: 52,
+      dataRowMinHeight: 60,
+      dataRowMaxHeight: 82,
+      headingTextStyle: TextStyle(
+        color: Theme.of(context).colorScheme.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamily: 'Montserrat',
+      ),
+      dataTextStyle: TextStyle(
+        color: Theme.of(context).colorScheme.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        fontFamily: 'OpenSans',
+      ),
+      showCheckboxColumn: false,
       columns: const [
         DataColumn(label: Text('Claim')),
         DataColumn(label: Text('Claimant')),
@@ -1139,7 +1200,38 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               onTap: onTap,
             ),
             DataCell(Text(_formatDate(claim['date_submitted'])), onTap: onTap),
-            DataCell(Text(status.isEmpty ? '—' : status), onTap: onTap),
+            DataCell(
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _statusColor(status).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _statusIcon(status),
+                      size: 14,
+                      color: _statusColor(status),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      status.isEmpty ? '—' : status,
+                      style: TextStyle(
+                        color: _statusColor(status),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              onTap: onTap,
+            ),
           ],
         );
       }).toList(),

@@ -1,4 +1,5 @@
 import 'package:capstone_app/shared/treasurer_report_header.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -296,7 +297,13 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
                     _sectionTitle('COLLECTORS RECORDS'),
                     const SizedBox(height: 10),
                     if (_loading)
-                      const Center(child: CircularProgressIndicator())
+                      const SizedBox(
+                        height: 360,
+                        child: DayungPageSkeleton(
+                          layout: DayungSkeletonLayout.list,
+                          padding: EdgeInsets.all(8),
+                        ),
+                      )
                     else if (_error != null)
                       Container(
                         width: double.infinity,

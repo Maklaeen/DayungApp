@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
@@ -109,6 +110,59 @@ class _SecretaryContributionsPageState
     }).length;
   }
 
+  Widget _buildStatusSummaryCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color accent,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: dayungSectionCardDecoration(context, radius: 16),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: accent, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Widget _paymentShortcutCard() {
   //   return Container(
   //     margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -171,133 +225,72 @@ class _SecretaryContributionsPageState
         ),
         child: Column(
           children: [
-            // _paymentShortcutCard(),
-            // Stats Overview Cards (new UI)
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 14),
               child: Row(
                 children: [
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: dayungSectionCardDecoration(
-                        context,
-                        radius: 12,
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: kSuccess.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.check_circle_rounded,
-                              color: kSuccess,
-                              size: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Paid',
-                            style: TextStyle(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 10,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            '${_countByStatus('paid')}',
-                            style: TextStyle(
-                              color: colors.onSurface,
-                              fontSize: 14,
-                              fontFamily: 'Montserrat',
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Contribution history',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: colors.onSurface,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Review your payments and their status.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: colors.onSurfaceVariant),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: 'Refresh contributions',
+                    onPressed: _fetchContributions,
+                    icon: const Icon(Icons.refresh_rounded),
+                    color: colors.primary,
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: dayungSectionCardDecoration(
-                        context,
-                        radius: 12,
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: kPending.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.schedule_rounded,
-                              color: kPending,
-                              size: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Pending',
-                            style: TextStyle(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 10,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            '${_countByStatus('pending')}',
-                            style: TextStyle(
-                              color: colors.onSurface,
-                              fontSize: 14,
-                              fontFamily: 'Montserrat',
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
+                    child: _buildStatusSummaryCard(
+                      label: 'Paid',
+                      value: _loading ? '—' : '${_countByStatus('paid')}',
+                      icon: Icons.check_circle_rounded,
+                      accent: kSuccess,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatusSummaryCard(
+                      label: 'Pending',
+                      value: _loading ? '—' : '${_countByStatus('pending')}',
+                      icon: Icons.schedule_rounded,
+                      accent: kPending,
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 4),
             // Content
             Expanded(
               child: _loading
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: dayungSectionCardDecoration(context),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              color: colors.primary,
-                              strokeWidth: 3,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Loading contributions...',
-                              style: TextStyle(
-                                color: colors.onSurfaceVariant,
-                                fontSize: 16,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.all(16),
+                      itemCount: 3,
                     )
                   : (_payments.isEmpty
                         ? Center(
@@ -311,9 +304,9 @@ class _SecretaryContributionsPageState
                                   Icon(
                                     Icons.account_balance_wallet_rounded,
                                     size: 48,
-                                    color: colors.onSurfaceVariant,
+                                    color: colors.primary,
                                   ),
-                                  SizedBox(height: 16),
+                                  const SizedBox(height: 16),
                                   Text(
                                     'No contributions found',
                                     style: TextStyle(
@@ -324,15 +317,21 @@ class _SecretaryContributionsPageState
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
-                                  SizedBox(height: 8),
+                                  const SizedBox(height: 8),
                                   Text(
-                                    'No contributions have been made yet',
+                                    'Payments recorded for your account will appear here.',
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: colors.onSurfaceVariant,
                                       fontFamily: 'OpenSans',
                                     ),
                                     textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  OutlinedButton.icon(
+                                    onPressed: _fetchContributions,
+                                    icon: const Icon(Icons.refresh_rounded),
+                                    label: const Text('Refresh'),
                                   ),
                                 ],
                               ),
@@ -346,12 +345,17 @@ class _SecretaryContributionsPageState
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 children: [
                                   RecordDataTable(
-                                    minWidth: 620,
+                                    minWidth: 640,
+                                    headingRowHeight: 52,
+                                    dataRowMinHeight: 56,
+                                    dataRowMaxHeight: 78,
+                                    columnSpacing: 24,
+                                    horizontalMargin: 20,
                                     columns: const [
                                       DataColumn(label: Text('Contribution')),
                                       DataColumn(label: Text('Amount')),
                                       DataColumn(label: Text('Status')),
-                                      DataColumn(label: Text('Paid')),
+                                      DataColumn(label: Text('Paid at')),
                                     ],
                                     rows: _payments.map((p) {
                                       final userDeceasedId =
@@ -374,12 +378,67 @@ class _SecretaryContributionsPageState
                                               ?.toString()
                                               .toLowerCase() ==
                                           'paid';
+                                      final statusColor = paid
+                                          ? kPaid
+                                          : kPending;
                                       return DataRow(
                                         cells: [
-                                          DataCell(Text(userDeceased)),
-                                          DataCell(Text('₱${p['amount']}')),
                                           DataCell(
-                                            Text(paid ? 'PAID' : 'PENDING'),
+                                            Text(
+                                              userDeceased,
+                                              style: TextStyle(
+                                                color: colors.onSurface,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              '₱${p['amount']}',
+                                              style: TextStyle(
+                                                color: colors.onSurface,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 6,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: statusColor.withValues(
+                                                  alpha: 0.1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    paid
+                                                        ? Icons
+                                                              .check_circle_rounded
+                                                        : Icons
+                                                              .schedule_rounded,
+                                                    color: statusColor,
+                                                    size: 16,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    paid ? 'Paid' : 'Pending',
+                                                    style: TextStyle(
+                                                      color: statusColor,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
                                           DataCell(
                                             Text(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -209,8 +210,10 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                     child: _loading
-                        ? const Center(
-                            child: CircularProgressIndicator(color: _kPrimary),
+                        ? const DayungPageSkeleton(
+                            layout: DayungSkeletonLayout.list,
+                            padding: EdgeInsets.all(8),
+                            itemCount: 3,
                           )
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

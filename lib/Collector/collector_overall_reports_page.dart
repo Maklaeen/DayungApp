@@ -1,4 +1,5 @@
 import 'package:capstone_app/shared/treasurer_report_header.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -489,7 +490,10 @@ class _CollectorOverallReportsPageState
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.dashboard,
+                      padding: EdgeInsets.all(20),
+                    )
                   : _error != null
                   ? Center(
                       child: Padding(

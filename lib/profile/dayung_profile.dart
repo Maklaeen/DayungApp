@@ -153,26 +153,118 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
   }
 
   Future<void> _showChangeDayungConfirmation() async {
+    final currentDayungName = _currentDayungName?.trim();
+    final hasCurrentDayung =
+        currentDayungName != null && currentDayungName.isNotEmpty;
     final next = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Change Dayung?'),
-          content: Text(
-            _currentDayungName == null
-                ? 'You are about to choose a Dayung unit for this session.'
-                : 'You are about to switch away from ${_currentDayungName!}. Continue?',
+        final colors = Theme.of(dialogContext).colorScheme;
+        final cancelButton = OutlinedButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colors.onSurface,
+            minimumSize: const Size.fromHeight(44),
+            side: BorderSide(color: colors.outlineVariant),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+          child: const Text('Cancel'),
+        );
+        final continueButton = FilledButton.icon(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(44),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+          ),
+          icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+          label: const Text('Continue'),
+        );
+
+        return AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          constraints: const BoxConstraints(maxWidth: 460),
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          actionsAlignment: MainAxisAlignment.end,
+          actionsOverflowDirection: VerticalDirection.down,
+          actionsOverflowButtonSpacing: 10,
+          title: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.swap_horiz_rounded,
+                  color: colors.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Change Dayung?',
+                      style: Theme.of(dialogContext).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Please confirm before continuing.',
+                      style: Theme.of(dialogContext).textTheme.bodyMedium
+                          ?.copyWith(color: colors.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colors.outlineVariant.withValues(alpha: 0.65),
+              ),
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Continue'),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: colors.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    hasCurrentDayung
+                        ? 'You are about to switch away from $currentDayungName. You can choose a different Dayung unit next.'
+                        : 'You are about to choose a Dayung unit for this session.',
+                    style: Theme.of(dialogContext).textTheme.bodyMedium
+                        ?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          height: 1.45,
+                        ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+          actions: [cancelButton, continueButton],
         );
       },
     );
@@ -369,6 +461,22 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
         ],
       ),
       child: child,
+    );
+  }
+
+  ButtonStyle _quickActionButtonStyle(Color primaryColor, bool isWide) {
+    return OutlinedButton.styleFrom(
+      foregroundColor: primaryColor,
+      minimumSize: Size.fromHeight(isWide ? 42 : 50),
+      side: BorderSide(color: kSettingsBorder.withValues(alpha: 0.9)),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: isWide ? 8 : 14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(isWide ? 12 : 14),
+      ),
+      textStyle: const TextStyle(
+        fontWeight: FontWeight.w700,
+        fontFamily: 'Montserrat',
+      ),
     );
   }
 
@@ -588,47 +696,54 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                             ],
                           ),
                           const SizedBox(height: 14),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _changingDayung
-                                  ? null
-                                  : _showChangeDayungConfirmation,
-                              icon: _changingDayung
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
+                          Align(
+                            alignment: Alignment.center,
+                            child: SizedBox(
+                              width: isWide ? 320 : double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _changingDayung
+                                    ? null
+                                    : _showChangeDayungConfirmation,
+                                icon: _changingDayung
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Icon(
+                                        _changeDayungSuccess
+                                            ? Icons.check_circle
+                                            : Icons.swap_horiz_rounded,
                                       ),
-                                    )
-                                  : Icon(
-                                      _changeDayungSuccess
-                                          ? Icons.check_circle
-                                          : Icons.swap_horiz_rounded,
+                                label: Text(
+                                  _changingDayung
+                                      ? 'Changing...'
+                                      : (_changeDayungSuccess
+                                            ? 'Changed'
+                                            : 'Change Dayung'),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primaryColor,
+                                  foregroundColor: Colors.white,
+                                  minimumSize: Size.fromHeight(
+                                    isWide ? 44 : 52,
+                                  ),
+                                  elevation: 0,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: isWide ? 9 : 15,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      isWide ? 12 : 16,
                                     ),
-                              label: Text(
-                                _changingDayung
-                                    ? 'Changing...'
-                                    : (_changeDayungSuccess
-                                          ? 'Changed'
-                                          : 'Change Dayung'),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size.fromHeight(52),
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 15,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                textStyle: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontFamily: 'Montserrat',
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Montserrat',
+                                  ),
                                 ),
                               ),
                             ),
@@ -665,22 +780,9 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                                       onPressed: _openCurrentDayungMap,
                                       icon: const Icon(Icons.map_outlined),
                                       label: const Text('View on Map'),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: primaryColor,
-                                        minimumSize: const Size.fromHeight(52),
-                                        side: BorderSide(
-                                          color: kSettingsBorder.withValues(
-                                            alpha: 0.9,
-                                          ),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                        ),
+                                      style: _quickActionButtonStyle(
+                                        primaryColor,
+                                        isWide,
                                       ),
                                     ),
                                   ),
@@ -690,20 +792,9 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                                     onPressed: _applyForDayung,
                                     icon: const Icon(Icons.add_circle_outline),
                                     label: const Text('Finding a Dayung'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: primaryColor,
-                                      minimumSize: const Size.fromHeight(52),
-                                      side: BorderSide(
-                                        color: kSettingsBorder.withValues(
-                                          alpha: 0.9,
-                                        ),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
+                                    style: _quickActionButtonStyle(
+                                      primaryColor,
+                                      isWide,
                                     ),
                                   ),
                                 ),
@@ -754,28 +845,68 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                     ],
                     const SizedBox(height: 16),
                     _buildSectionCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _openPendingApplication,
-                              icon: const Icon(Icons.pending_actions_outlined),
-                              label: const Text('Pending Application'),
+                      child: isWide
+                          ? Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _openPendingApplication,
+                                    icon: const Icon(
+                                      Icons.pending_actions_outlined,
+                                    ),
+                                    label: const Text('Pending Application'),
+                                    style: _quickActionButtonStyle(
+                                      primaryColor,
+                                      isWide,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _openFullQuestionnaire,
+                                    icon: const Icon(Icons.quiz_outlined),
+                                    label: const Text('Dayung Recommendations'),
+                                    style: _quickActionButtonStyle(
+                                      primaryColor,
+                                      isWide,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _openPendingApplication,
+                                    icon: const Icon(
+                                      Icons.pending_actions_outlined,
+                                    ),
+                                    label: const Text('Pending Application'),
+                                    style: _quickActionButtonStyle(
+                                      primaryColor,
+                                      isWide,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _openFullQuestionnaire,
+                                    icon: const Icon(Icons.quiz_outlined),
+                                    label: const Text('Dayung Recommendations'),
+                                    style: _quickActionButtonStyle(
+                                      primaryColor,
+                                      isWide,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _openFullQuestionnaire,
-                              icon: const Icon(Icons.quiz_outlined),
-                              label: const Text('Dayung Recommendations'),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ],
                 ),

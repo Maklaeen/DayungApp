@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:photo_view/photo_view.dart';
 import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 const kReceiptsBg = Color(0xFFFAFAF7);
@@ -492,10 +493,10 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
                     topRight: Radius.circular(24),
                   ),
                   child: _loading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: kReceiptsAccent,
-                          ),
+                      ? const DayungPageSkeleton(
+                          layout: DayungSkeletonLayout.list,
+                          padding: EdgeInsets.all(20),
+                          itemCount: 3,
                         )
                       : _error != null
                       ? _buildErrorState()

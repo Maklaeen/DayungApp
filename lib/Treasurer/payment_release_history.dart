@@ -1,4 +1,5 @@
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -317,7 +318,14 @@ class _PaymentReleaseHistoryPageState extends State<PaymentReleaseHistoryPage> {
                     ),
                     const SizedBox(height: 20),
                     if (_loading)
-                      const Center(child: CircularProgressIndicator())
+                      const SizedBox(
+                        height: 320,
+                        child: DayungPageSkeleton(
+                          layout: DayungSkeletonLayout.list,
+                          padding: EdgeInsets.all(8),
+                          itemCount: 2,
+                        ),
+                      )
                     else if (_error != null)
                       Text(_error!, style: const TextStyle(color: Colors.red))
                     else if (_visibleReleases.isEmpty)

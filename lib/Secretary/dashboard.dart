@@ -630,6 +630,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         ),
       );
     }
+
   }
 
   Widget _buildModernHeader({bool showMenuButton = true}) {
@@ -852,7 +853,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
+            color: const Color(0xFF1E40AF),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: Colors.white.withValues(alpha: 0.3),
@@ -1786,5 +1787,4 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       ),
     );
   }
-
 }

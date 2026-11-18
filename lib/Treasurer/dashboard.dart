@@ -20,6 +20,7 @@ import 'package:capstone_app/Treasurer/treasurer_overall_reports.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
 import 'package:capstone_app/shared/dayung_role_navigation_bar.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -770,13 +771,15 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          _loading
+              ? const DayungSkeletonBlock(height: 28, width: 88)
+              : Text(
+                  value,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
         ],
       ),
     );
@@ -1258,9 +1261,13 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               ),
               const SizedBox(height: 12),
               if (_loading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Center(child: CircularProgressIndicator()),
+                const SizedBox(
+                  height: 300,
+                  child: DayungPageSkeleton(
+                    layout: DayungSkeletonLayout.list,
+                    padding: EdgeInsets.all(8),
+                    itemCount: 2,
+                  ),
                 )
               else if (_recentDeaths.isEmpty)
                 Text(
@@ -1824,9 +1831,13 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               ),
               const SizedBox(height: 12),
               if (_loading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CircularProgressIndicator()),
+                const SizedBox(
+                  height: 280,
+                  child: DayungPageSkeleton(
+                    layout: DayungSkeletonLayout.list,
+                    padding: EdgeInsets.all(8),
+                    itemCount: 2,
+                  ),
                 )
               else if (_recentCollections.isEmpty)
                 Text(
@@ -2232,7 +2243,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: const Color(0xFF1E40AF),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.3),

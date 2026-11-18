@@ -3,6 +3,7 @@ import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:capstone_app/Secretary/add_service_dialog.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -1197,7 +1198,10 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
             ),
             _loading
                 ? const Expanded(
-                    child: Center(child: CircularProgressIndicator()),
+                    child: DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.all(16),
+                    ),
                   )
                 : _error != null
                 ? Expanded(child: _buildErrorState())

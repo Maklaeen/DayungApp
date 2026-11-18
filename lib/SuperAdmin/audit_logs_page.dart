@@ -1,4 +1,5 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
@@ -74,7 +75,10 @@ class _SuperAdminAuditLogsPageState extends State<SuperAdminAuditLogsPage> {
         backgroundColor: superAdminBackground(context),
         body: SafeArea(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const DayungPageSkeleton(
+                  layout: DayungSkeletonLayout.list,
+                  padding: EdgeInsets.fromLTRB(20, 20, 20, 32),
+                )
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView(

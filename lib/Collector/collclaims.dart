@@ -5,17 +5,9 @@ import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Color palette (borrowed from memclaims.dart)
-const double kCardRadius = 18;
-const kBg = Color(0xFFFAFAF7);
-const kText = Color(0xFF1F2937);
-const kSubText = Color(0xFF4B5563);
 const kAccent = Color(0xFF0D47A1);
-const kPrimary = Color(0xFF0D47A1);
-const kPrimaryDark = Color(0xFF083366);
 const kWarn = Color(0xFFF57C00);
 const kDanger = Color(0xFFC62828);
-const kNeutralText = Color(0xFF1F2937);
 const kSubtleText = Color(0xFF4B5563);
 
 class CollectorClaimsPage extends StatefulWidget {
@@ -74,9 +66,9 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 60),
+        padding: const EdgeInsets.only(bottom: 96),
         child: FloatingActionButton.extended(
-          backgroundColor: kPrimaryDark,
+          backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           elevation: 4,
           extendedPadding: const EdgeInsets.symmetric(
@@ -84,11 +76,11 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
             vertical: 14,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
           ),
-          icon: const Icon(Icons.add_circle_outline_rounded),
+          icon: const Icon(Icons.add_rounded),
           label: const Text(
-            'Submit Claim',
+            'Submit claim',
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontFamily: 'Montserrat',
@@ -98,58 +90,58 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: dayungSurface(context),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(30),
+      body: Container(
+        color: dayungPageBackground(context),
+        child: _loading
+            ? const DayungPageSkeleton(
+                layout: DayungSkeletonLayout.list,
+                itemCount: 3,
+              )
+            : RefreshIndicator(
+                color: Theme.of(context).colorScheme.primary,
+                onRefresh: _load,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
-                  boxShadow: [dayungTopShadow(context)],
-                ),
-                child: _loading
-                    ? const DayungPageSkeleton(
-                        layout: DayungSkeletonLayout.dashboard,
-                        itemCount: 4,
-                      )
-                    : RefreshIndicator(
-                        color: kPrimary,
-                        onRefresh: _load,
-                        child: ListView(
-                          physics: const AlwaysScrollableScrollPhysics(
-                            parent: BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 180),
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'My claims',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 20,
+                              fontFamily: 'Montserrat',
+                            ),
                           ),
-                          padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
-                          children: [
-                            if (_myClaims.isNotEmpty)
-                              const Padding(
-                                padding: EdgeInsets.only(bottom: 12),
-                                child: Text(
-                                  'My Claims',
-                                  style: TextStyle(
-                                    color: kText,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 18,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                ),
-                              ),
-                            if (_myClaims.isNotEmpty) _claimsTable(),
-                            const SizedBox(height: 8),
-                            if (_myClaims.isEmpty)
-                              _emptyState('No claims yet for this unit'),
-                          ],
                         ),
-                      ),
+                        IconButton(
+                          tooltip: 'Refresh claims',
+                          onPressed: _loading ? null : _load,
+                          icon: const Icon(Icons.refresh_rounded),
+                          style: IconButton.styleFrom(
+                            fixedSize: const Size(48, 48),
+                            backgroundColor: dayungSurface(context),
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            side: BorderSide(color: dayungBorder(context)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    if (_myClaims.isEmpty) _emptyState() else _claimsTable(),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -178,34 +170,29 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
     if (result == true) await _load();
   }
 
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFF60A5FA)],
-        ),
-      ),
-      child: const Text(
-        'Claims',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 26,
-          fontWeight: FontWeight.w800,
-          fontFamily: 'Montserrat',
-        ),
-      ),
-    );
-  }
-
   // UI helpers
   Widget _claimsTable() {
+    final colors = Theme.of(context).colorScheme;
     return RecordDataTable(
-      minWidth: 960,
-      columnSpacing: 20,
+      minWidth: 760,
+      columnSpacing: 18,
+      horizontalMargin: 16,
+      headingRowHeight: 50,
+      dataRowMinHeight: 56,
+      dataRowMaxHeight: 76,
+      showCheckboxColumn: false,
+      headingTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamily: 'Montserrat',
+      ),
+      dataTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        fontFamily: 'OpenSans',
+      ),
       columns: const [
         DataColumn(label: Text('Claim')),
         DataColumn(label: Text('Description')),
@@ -215,6 +202,7 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
       rows: _myClaims.map((claim) {
         final status = (claim['status'] ?? '').toString();
         final color = _statusColor(status);
+        final description = (claim['description'] ?? '').toString().trim();
         return DataRow(
           cells: [
             DataCell(
@@ -226,18 +214,37 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
             ),
             DataCell(
               Text(
-                (claim['description'] ?? '').toString().trim().isEmpty
-                    ? '—'
-                    : (claim['description'] ?? '').toString().trim(),
-                maxLines: 3,
+                description.isEmpty ? '—' : description,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             DataCell(Text(_formatDate(claim['date_submitted']))),
             DataCell(
-              Text(
-                _displayStatus(status),
-                style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_statusIcon(status), size: 14, color: color),
+                    const SizedBox(width: 6),
+                    Text(
+                      _displayStatus(status),
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -246,20 +253,43 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
     );
   }
 
-  Widget _emptyState(String text) {
+  Widget _emptyState() {
+    final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kCardRadius),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
+      padding: const EdgeInsets.all(24),
+      decoration: dayungSectionCardDecoration(context, radius: 18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inbox, color: Colors.grey.shade500),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(text, style: TextStyle(color: Colors.grey.shade700)),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.inbox_outlined,
+              color: colors.onSurfaceVariant,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No claims yet',
+            style: TextStyle(
+              color: colors.onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Montserrat',
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Submit your first claim to get started.',
+            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -279,6 +309,21 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
     if (low == 'rejected') return kDanger;
     if (low == 'pending') return kWarn;
     return kSubtleText;
+  }
+
+  IconData _statusIcon(String s) {
+    switch (s.toLowerCase()) {
+      case 'approved':
+        return Icons.check_circle_rounded;
+      case 'claimed':
+        return Icons.task_alt_rounded;
+      case 'rejected':
+        return Icons.cancel_rounded;
+      case 'pending':
+        return Icons.schedule_rounded;
+      default:
+        return Icons.help_outline_rounded;
+    }
   }
 
   String _displayStatus(String s) {

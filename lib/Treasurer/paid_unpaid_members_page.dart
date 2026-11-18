@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color _kPageBg = Color(0xFFF8FAFC);
@@ -348,7 +349,11 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
 
   Widget _buildMemberList(List<PaymentMember> members) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const DayungPageSkeleton(
+        layout: DayungSkeletonLayout.list,
+        padding: EdgeInsets.all(16),
+        itemCount: 3,
+      );
     }
 
     if (_error != null) {

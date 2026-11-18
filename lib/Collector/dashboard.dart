@@ -13,6 +13,7 @@ import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
 import 'package:capstone_app/shared/dayung_role_navigation_bar.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -662,18 +663,22 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             ),
           ),
           const SizedBox(height: 14),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: MediaQuery.of(context).size.width < 840 ? 28 : 26,
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
-            ),
-          ),
+          _loading
+              ? const DayungSkeletonBlock(height: 32, width: 96)
+              : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: MediaQuery.of(context).size.width < 840
+                          ? 28
+                          : 26,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                ),
         ],
       ),
     );
@@ -1272,7 +1277,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
+            color: const Color(0xFF1E40AF),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: Colors.white.withValues(alpha: 0.3),

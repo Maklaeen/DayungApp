@@ -65,9 +65,6 @@ class _ProfilePageState extends State<ProfilePage>
   String sex = '';
   String email = '';
   String? dateOfBirth;
-  String? barangay;
-  String? city;
-  String? province;
   int? activeDayungUnitId;
   String? activeDayungName;
   String? activeApplicationStatus;
@@ -129,7 +126,7 @@ class _ProfilePageState extends State<ProfilePage>
       final response = await supabase
           .from('users')
           .select(
-            'dayung_unit_id, full_name, mobile_number, address, sex, email, dob, barangay, city, province, profile_url, birth_certificate_url, marriage_certificate_url, valid_id, proof_of_residency_url',
+            'dayung_unit_id, full_name, mobile_number, address, sex, email, dob, profile_url, birth_certificate_url, marriage_certificate_url, valid_id, proof_of_residency_url',
           )
           .eq('id', currentUser.id)
           .maybeSingle();
@@ -182,9 +179,6 @@ class _ProfilePageState extends State<ProfilePage>
           sex = '';
           email = currentUser.email ?? '';
           dateOfBirth = null;
-          barangay = null;
-          city = null;
-          province = null;
           activeDayungUnitId = null;
           activeDayungName = null;
           activeApplicationStatus = null;
@@ -206,9 +200,6 @@ class _ProfilePageState extends State<ProfilePage>
         email =
             (response['email'] as String?)?.trim() ?? currentUser.email ?? '';
         dateOfBirth = response['dob']?.toString();
-        barangay = (response['barangay'] as String?)?.trim();
-        city = (response['city'] as String?)?.trim();
-        province = (response['province'] as String?)?.trim();
         activeDayungUnitId = dayungId;
         activeApplicationStatus = activeApplication['status']?.toString();
         activeDayungName = dayungUnit?['name']?.toString();
@@ -262,17 +253,6 @@ class _ProfilePageState extends State<ProfilePage>
       'Dec',
     ];
     return '${months[parsed.month - 1]} ${parsed.day}, ${parsed.year}';
-  }
-
-  String _displayLocationSummary() {
-    final parts = [barangay, city, province]
-        .where((part) => part != null && part.trim().isNotEmpty)
-        .map((part) => part!.trim())
-        .toList();
-    if (parts.isNotEmpty) {
-      return parts.join(', ');
-    }
-    return address.isNotEmpty ? address : 'Not provided';
   }
 
   void _toggleEditingMode() {
@@ -1060,9 +1040,6 @@ class _ProfilePageState extends State<ProfilePage>
     final themeText = isDark ? Colors.white : kText;
     final themeSubText = isDark ? Colors.white70 : kSubText;
     final themeField = isDark ? const Color(0xFF23232A) : kSurface;
-    final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
-
     if (isLoading) {
       return DayungLoadingScaffold(
         layout: DayungSkeletonLayout.profile,
@@ -1073,45 +1050,91 @@ class _ProfilePageState extends State<ProfilePage>
     return Scaffold(
       backgroundColor: themeBg,
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildModernHeader(context, isWide),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  isWide ? 24 : 16,
-                  16,
-                  isWide ? 24 : 16,
-                  24,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: isWide ? 760 : double.infinity,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isWide = width > 700;
+            final useTwoColumns = width >= 1000;
+
+            return Column(
+              children: [
+                _buildModernHeader(context, isWide),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      isWide ? 24 : 16,
+                      16,
+                      isWide ? 24 : 16,
+                      24,
                     ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildProfileHero(themeCard, themeText, themeSubText),
-                          const SizedBox(height: 16),
-                          _buildProfileFields(
-                            themeCard,
-                            themeText,
-                            themeSubText,
-                            themeField,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildActionButtons(),
-                        ],
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: useTwoColumns
+                              ? 1120
+                              : isWide
+                              ? 760
+                              : double.infinity,
+                        ),
+                        child: Form(
+                          key: _formKey,
+                          child: useTwoColumns
+                              ? Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 5,
+                                      child: _buildProfileHero(
+                                        themeCard,
+                                        themeText,
+                                        themeSubText,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 20),
+                                    Expanded(
+                                      flex: 7,
+                                      child: Column(
+                                        children: [
+                                          _buildProfileFields(
+                                            themeCard,
+                                            themeText,
+                                            themeSubText,
+                                            themeField,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          _buildActionButtons(),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildProfileHero(
+                                      themeCard,
+                                      themeText,
+                                      themeSubText,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildProfileFields(
+                                      themeCard,
+                                      themeText,
+                                      themeSubText,
+                                      themeField,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildActionButtons(),
+                                  ],
+                                ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1300,26 +1323,14 @@ class _ProfilePageState extends State<ProfilePage>
               const SizedBox(width: 10),
               Expanded(
                 child: _buildSummaryCard(
-                  'Phone',
-                  mobileNumber.isNotEmpty
-                      ? _maskedMobileNumber()
-                      : 'Not provided',
-                  Icons.phone_rounded,
+                  'Dayung Unit',
+                  activeDayungName ?? 'No approved unit yet',
+                  Icons.badge_rounded,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          _buildSummaryRow(
-            Icons.badge_rounded,
-            'Dayung Unit',
-            activeDayungName ?? 'No approved unit yet',
-          ),
-          _buildSummaryRow(
-            Icons.home_rounded,
-            'Address',
-            _displayLocationSummary(),
-          ),
           _buildSummaryRow(
             Icons.cake_rounded,
             'Date of Birth',

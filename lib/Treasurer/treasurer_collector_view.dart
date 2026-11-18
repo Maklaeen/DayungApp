@@ -1,4 +1,5 @@
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
@@ -238,7 +239,10 @@ class _TreasurerCollectorListPageState
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.all(20),
+                    )
                   : _collectors.isEmpty
                   ? const Center(child: Text('No collectors found.'))
                   : ListView(
@@ -567,7 +571,10 @@ class _TreasurerCollectorDetailPageState
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.detail,
+                      padding: EdgeInsets.all(20),
+                    )
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         final isMobile = constraints.maxWidth < 840;

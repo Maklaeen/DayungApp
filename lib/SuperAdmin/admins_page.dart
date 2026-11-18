@@ -1,4 +1,5 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -255,7 +256,10 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
                   future: _dataFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const DayungPageSkeleton(
+                        layout: DayungSkeletonLayout.list,
+                        padding: EdgeInsets.all(20),
+                      );
                     }
 
                     if (snapshot.hasError || !snapshot.hasData) {

@@ -1,11 +1,13 @@
-import 'package:capstone_app/Providers/dayung_provider.dart';
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
+
+import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Color palette
 
@@ -331,6 +333,12 @@ class _MembersContributionHistoryState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final paidCount = _paidContributions
+        .where((contribution) => contribution['status'] == 'paid')
+        .length;
+    final unpaidCount = _paidContributions.length - paidCount;
     final visibleContributions = _paidContributions
         .where(
           (contribution) =>
@@ -371,38 +379,10 @@ class _MembersContributionHistoryState
       // ),
       body: SafeArea(
         child: _loadingPaid
-            ? Center(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade300, width: 1),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 15,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: kAccent, strokeWidth: 3),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Loading contributions...',
-                        style: TextStyle(
-                          color: kSubText,
-                          fontSize: 16,
-                          fontFamily: 'OpenSans',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            ? const DayungPageSkeleton(
+                layout: DayungSkeletonLayout.list,
+                padding: EdgeInsets.fromLTRB(16, 20, 16, 24),
+                itemCount: 3,
               )
             : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -411,17 +391,58 @@ class _MembersContributionHistoryState
                   vertical: 16,
                 ),
                 children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Contribution history',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                color: colors.onSurface,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Review payments for your Dayung unit.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Refresh contributions',
+                        onPressed: _fetchPaidContributions,
+                        icon: const Icon(Icons.refresh_rounded),
+                        color: colors.primary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      for (final option in const [
-                        ('all', 'All'),
-                        ('paid', 'Paid'),
-                        ('unpaid', 'Unpaid'),
+                      for (final option in [
+                        ('all', 'All', _paidContributions.length),
+                        ('paid', 'Paid', paidCount),
+                        ('unpaid', 'Unpaid', unpaidCount),
                       ])
                         ChoiceChip(
-                          label: Text(option.$2),
+                          label: Text('${option.$2} (${option.$3})'),
                           selected: _selectedStatus == option.$1,
+                          selectedColor: colors.primaryContainer,
+                          checkmarkColor: colors.primary,
+                          labelStyle: TextStyle(
+                            color: _selectedStatus == option.$1
+                                ? colors.onPrimaryContainer
+                                : colors.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                           onSelected: (_) {
                             setState(() => _selectedStatus = option.$1);
                           },
@@ -497,9 +518,14 @@ class _MembersContributionHistoryState
                   else
                     RecordDataTable(
                       minWidth: 640,
+                      headingRowHeight: 52,
+                      dataRowMinHeight: 56,
+                      dataRowMaxHeight: 72,
+                      columnSpacing: 28,
+                      horizontalMargin: 20,
                       columns: const [
                         DataColumn(label: Text('Amount')),
-                        DataColumn(label: Text('For deceased')),
+                        DataColumn(label: Text('Contribution for')),
                         DataColumn(label: Text('Status')),
                         DataColumn(label: Text('Date')),
                       ],
@@ -509,39 +535,53 @@ class _MembersContributionHistoryState
                             contrib['userdeceased'] ?? 'Unknown';
                         final date = _fmtDate(contrib['date'] ?? '');
                         final isPaid = contrib['status'] == 'paid';
-                        final statusColor = isPaid ? kAccent : kWarn;
+                        final statusColor = isPaid
+                            ? colors.primary
+                            : colors.error;
 
                         return DataRow(
                           cells: [
                             DataCell(
                               Text(
                                 '₱${amount.toStringAsFixed(2)}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontWeight: FontWeight.bold,
-                                  color: kText,
+                                  color: colors.onSurface,
                                 ),
                               ),
                             ),
-                            DataCell(Text('For: $userDeceasedId')),
+                            DataCell(Text('$userDeceasedId')),
                             DataCell(
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isPaid ? Icons.check_circle : Icons.pending,
-                                    color: statusColor,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    isPaid ? 'Paid' : 'Unpaid',
-                                    style: TextStyle(
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isPaid
+                                          ? Icons.check_circle_rounded
+                                          : Icons.schedule_rounded,
                                       color: statusColor,
-                                      fontWeight: FontWeight.w600,
+                                      size: 16,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      isPaid ? 'Paid' : 'Unpaid',
+                                      style: TextStyle(
+                                        color: statusColor,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             DataCell(Text(date)),

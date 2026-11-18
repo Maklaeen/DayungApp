@@ -3,6 +3,32 @@ import 'package:flutter/material.dart';
 
 enum DayungSkeletonLayout { list, detail, dashboard, profile }
 
+class DayungSkeletonBlock extends StatelessWidget {
+  final double height;
+  final double? width;
+  final double borderRadius;
+
+  const DayungSkeletonBlock({
+    super.key,
+    required this.height,
+    this.width,
+    this.borderRadius = 8,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF3A3D45) : const Color(0xFFE9EEF5),
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    );
+  }
+}
+
 class DayungPageSkeleton extends StatefulWidget {
   final DayungSkeletonLayout layout;
   final EdgeInsetsGeometry padding;

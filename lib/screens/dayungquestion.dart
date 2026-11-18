@@ -5,9 +5,11 @@ import 'dart:math';
 
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:capstone_app/shared/dayung_map_error_snackbar.dart';
+import 'package:capstone_app/shared/dayung_map_attribution.dart';
 import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/utils/dayung_service_tags.dart';
 import 'package:capstone_app/utils/dayung_similarity.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
@@ -714,7 +716,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   Widget _buildBody(BuildContext context, bool isWide) {
     if (isLoading) {
-      return const Center(child: CircularProgressIndicator(color: kPrimary));
+      return const DayungPageSkeleton(
+        layout: DayungSkeletonLayout.detail,
+        padding: EdgeInsets.all(20),
+      );
     }
 
     final userVector = _generatePreferenceVector();
@@ -984,7 +989,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFEAF7F1),
-                                    borderRadius: BorderRadius.circular(20),
+                                    borderRadius: BorderRadius.circular(24),
                                   ),
                                   child: Text(
                                     '${matchPercentage.toStringAsFixed(0)}% match',
@@ -1252,21 +1257,52 @@ class DayungMapPreview extends StatelessWidget {
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'capstone_app',
+                panBuffer: 0,
+                keepBuffer: 1,
+                tileUpdateTransformer: TileUpdateTransformers.debounce(
+                  const Duration(milliseconds: 150),
+                ),
+              ),
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: ll.LatLng(latitude, longitude),
+                    radius: 26,
+                    color: kAccent.withValues(alpha: 0.20),
+                    borderColor: kAccent,
+                    borderStrokeWidth: 2,
+                  ),
+                ],
               ),
               MarkerLayer(
                 markers: [
                   Marker(
                     point: ll.LatLng(latitude, longitude),
-                    width: 36,
-                    height: 36,
-                    child: const Icon(
-                      Icons.location_on_rounded,
-                      color: kAccent,
-                      size: 32,
+                    width: 48,
+                    height: 48,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: kAccent,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.22),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.apartment_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
                   ),
                 ],
               ),
+              const DayungMapAttribution(alignment: Alignment.bottomLeft),
             ],
           ),
         ),
@@ -1276,7 +1312,7 @@ class DayungMapPreview extends StatelessWidget {
     return SizedBox(
       height: 120,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: ml.MapLibreMap(
           styleString:
               'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',
@@ -1286,11 +1322,25 @@ class DayungMapPreview extends StatelessWidget {
           ),
           onMapCreated: (ml.MapLibreMapController? controller) async {
             if (controller == null) return;
+            await controller.addCircle(
+              ml.CircleOptions(
+                geometry: ml.LatLng(latitude, longitude),
+                circleRadius: 26,
+                circleColor: '#10B981',
+                circleOpacity: 0.20,
+                circleStrokeColor: '#10B981',
+                circleStrokeWidth: 2,
+              ),
+            );
             await controller.addSymbol(
               ml.SymbolOptions(
                 geometry: ml.LatLng(latitude, longitude),
-                iconImage: "marker-15",
-                iconSize: 1.4,
+                iconImage: 'building-15',
+                iconSize: 1.25,
+                iconColor: '#2E7D32',
+                iconHaloColor: '#FFFFFF',
+                iconHaloWidth: 2,
+                zIndex: 5,
               ),
             );
           },

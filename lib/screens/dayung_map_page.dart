@@ -8,6 +8,7 @@ import 'package:capstone_app/config/app_config.dart';
 import 'package:capstone_app/pages/apply_membership.dart';
 import 'package:capstone_app/shared/dayung_map_error_snackbar.dart';
 import 'package:capstone_app/shared/dayung_map_resize_handle.dart';
+import 'package:capstone_app/shared/dayung_map_attribution.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -197,12 +198,13 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
     compassStream = FlutterCompass.events?.listen((event) {
       final heading = event.heading;
-      if (!mounted || heading == null || heading.isNaN) return;
+      if (!mounted || heading == null || !heading.isFinite) return;
       final now = DateTime.now().millisecondsSinceEpoch;
       if (now - _lastCompassUpdateMs > 300 &&
           (_compassHeading == null || (heading - _compassHeading!).abs() > 6)) {
         _lastCompassUpdateMs = now;
         setState(() => _compassHeading = heading);
+        unawaited(_updateUserMarker());
       }
     });
     _initLocation();
@@ -253,8 +255,12 @@ class _DayungMapPageState extends State<DayungMapPage> {
     _dayungSymbol ??= await _mlController!.addSymbol(
       ml.SymbolOptions(
         geometry: ml.LatLng(lat, lng),
-        iconImage: 'marker-15',
-        iconSize: 1.6,
+        iconImage: 'building-15',
+        iconSize: 1.25,
+        iconColor: '#2E7D32',
+        iconHaloColor: '#FFFFFF',
+        iconHaloWidth: 2,
+        zIndex: 5,
       ),
     );
   }
@@ -402,11 +408,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
           "user-point",
           "user-circle",
           const ml.CircleLayerProperties(
-            circleRadius: 10,
-            circleColor: "#0D47A1",
-            circleOpacity: 0.95,
-            circleStrokeColor: "#FFFFFF",
-            circleStrokeWidth: 2.0,
+            circleRadius: 20,
+            circleColor: "#4285F4",
+            circleOpacity: 0.18,
           ),
         );
         _addedUserLayer = true;
@@ -416,11 +420,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
         await _mlController!.setLayerProperties(
           "user-circle",
           const ml.CircleLayerProperties(
-            circleRadius: 10,
-            circleColor: "#0D47A1",
-            circleOpacity: 0.95,
-            circleStrokeColor: "#FFFFFF",
-            circleStrokeWidth: 2.0,
+            circleRadius: 20,
+            circleColor: "#4285F4",
+            circleOpacity: 0.18,
           ),
         );
       } catch (_) {}
@@ -429,9 +431,32 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
   Future<void> _updateUserMarker() async {
     if (!_styleLoaded || _mlController == null) return;
-    if (_userSymbol != null) {
-      await _mlController!.removeSymbol(_userSymbol!);
-      _userSymbol = null;
+    if (_pos == null) {
+      if (_userSymbol != null) {
+        await _mlController!.removeSymbol(_userSymbol!);
+        _userSymbol = null;
+      }
+      return;
+    }
+
+    final positionHeading = _pos!.heading;
+    final heading =
+        _compassHeading ?? (positionHeading.isFinite ? positionHeading : 0.0);
+    final options = ml.SymbolOptions(
+      geometry: ml.LatLng(_pos!.latitude, _pos!.longitude),
+      iconImage: 'triangle-15',
+      iconSize: 1.5,
+      iconRotate: heading,
+      iconAnchor: 'center',
+      iconColor: '#4285F4',
+      iconHaloColor: '#FFFFFF',
+      iconHaloWidth: 2,
+      zIndex: 10,
+    );
+    if (_userSymbol == null) {
+      _userSymbol = await _mlController!.addSymbol(options);
+    } else {
+      await _mlController!.updateSymbol(_userSymbol!, options);
     }
   }
 
@@ -656,109 +681,237 @@ class _DayungMapPageState extends State<DayungMapPage> {
   }
 
   void _showDirectionModeSheet() {
-    showModalBottomSheet(
+    showDialog<void>(
       context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      useSafeArea: true,
-      constraints: const BoxConstraints(maxHeight: 420),
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      barrierDismissible: true,
       builder: (ctx) {
         NavMode? temp = _selectedMode;
         return StatefulBuilder(
           builder: (ctx, setM) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Select Travel Mode',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 12,
-                    children: NavMode.values.map((m) {
-                      final active = temp == m;
-                      return ChoiceChip(
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(m.icon, size: 16),
-                            const SizedBox(width: 6),
-                            Text(m.label),
-                          ],
-                        ),
-                        selected: active,
-                        onSelected: (_) async {
-                          if (active) {
-                            setM(() => temp = null);
-                            if (!mounted) return;
-                            setState(() {
-                              _selectedMode = null;
-                              _routePoints = [];
-                              _etaMinutes = null;
-                            });
-                            await _updateRouteOnMap();
-                            return;
-                          }
-
-                          setM(() => temp = m);
-                          setState(() => _selectedMode = temp);
-
-                          if (_pos == null) {
-                            await _initLocation();
-                            if (_pos == null) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('No current location.'),
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
+              backgroundColor: Colors.white,
+              elevation: 20,
+              shadowColor: const Color(0x330F172A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: kPrimary.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(
+                              Icons.alt_route_rounded,
+                              color: kPrimaryDark,
+                              size: 25,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Plan your route',
+                                  style: TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Montserrat',
+                                    color: kNeutralText,
                                   ),
-                                );
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Choose how you want to travel',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: kSubtleText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            onPressed: () => Navigator.pop(ctx),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFF3F4F6),
+                            ),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 19,
+                              color: kSubtleText,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'TRAVEL MODE',
+                        style: TextStyle(
+                          color: kSubtleText,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: NavMode.values.map((mode) {
+                          final active = temp == mode;
+                          return ChoiceChip(
+                            selected: active,
+                            showCheckmark: false,
+                            selectedColor: kPrimary.withValues(alpha: 0.10),
+                            backgroundColor: const Color(0xFFF8FAFC),
+                            side: BorderSide(
+                              color: active
+                                  ? kPrimary.withValues(alpha: 0.55)
+                                  : const Color(0xFFE5E7EB),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            label: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  mode.icon,
+                                  size: 17,
+                                  color: active ? kPrimaryDark : kNeutralText,
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  mode.label,
+                                  style: TextStyle(
+                                    color: active ? kPrimaryDark : kNeutralText,
+                                    fontSize: 12,
+                                    fontWeight: active
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                                if (active) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 15,
+                                    color: kPrimary,
+                                  ),
+                                ],
+                              ],
+                            ),
+                            onSelected: (_) async {
+                              if (active) {
+                                setM(() => temp = null);
+                                if (!mounted) return;
+                                setState(() {
+                                  _selectedMode = null;
+                                  _routePoints = [];
+                                  _etaMinutes = null;
+                                });
+                                await _updateRouteOnMap();
+                                return;
                               }
-                              return;
-                            }
-                          }
 
-                          final profile = _orsProfileFor(temp!);
-                          await _fetchRoute(mode: profile);
-                          await _updateRouteOnMap();
-                          if (mounted) _fitToRoute();
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.open_in_new),
-                      label: const Text('Open Google Maps'),
-                      onPressed: temp == null
-                          ? null
-                          : () {
-                              Navigator.pop(ctx);
-                              _openExternalMaps(temp!);
+                              setM(() => temp = mode);
+                              setState(() => _selectedMode = mode);
+
+                              if (_pos == null) {
+                                await _initLocation();
+                                if (_pos == null) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('No current location.'),
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+                              }
+
+                              await _fetchRoute(mode: _orsProfileFor(mode));
+                              await _updateRouteOnMap();
+                              if (mounted) _fitToRoute();
                             },
-                    ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Icon(
+                            temp == null
+                                ? Icons.info_outline_rounded
+                                : Icons.check_circle_outline_rounded,
+                            size: 18,
+                            color: temp == null ? kSubtleText : kAccent,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              temp == null
+                                  ? 'Choose a mode to preview your route.'
+                                  : 'Route preview fetched.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: kSubtleText,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.open_in_new_rounded, size: 19),
+                          label: const Text(
+                            'Open in Google Maps',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kPrimaryDark,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFFE5E7EB),
+                            disabledForegroundColor: kSubtleText,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            elevation: 0,
+                          ),
+                          onPressed: temp == null
+                              ? null
+                              : () {
+                                  Navigator.pop(ctx);
+                                  _openExternalMaps(temp!);
+                                },
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    temp == null
-                        ? 'Pick a mode to preview route and ETA.'
-                        : 'Route preview fetched.',
-                    style: const TextStyle(fontSize: 11, color: kSubtleText),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                ),
               ),
             );
           },
@@ -990,26 +1143,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
           color: kPrimaryDark,
         ),
     ];
-    final mapControlButtons = <Widget>[
-      _fabIcon(icon: Icons.route, onTap: _showDirectionModeSheet),
-      _fabIcon(icon: Icons.flag_outlined, onTap: _centerOnDayung),
-      if (_pos != null) _fabIcon(icon: Icons.my_location, onTap: _centerOnUser),
-    ];
-    final mapControls = compactMapControls
-        ? _buildCompactMapControls()
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (
-                var index = 0;
-                index < mapControlButtons.length;
-                index++
-              ) ...[
-                if (index > 0) const SizedBox(height: 10),
-                mapControlButtons[index],
-              ],
-            ],
-          );
+    final mapControls = _buildCompactMapControls();
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -1042,21 +1176,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
                         //   attributionButtonMargins: const Point(12, 12),
                         //   logoViewMargins: const Point(12, 12),
                         // ),
-                        Container(
-                          height: 140,
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Color(0xD91E40AF), Color(0x003B82F6)],
-                            ),
-                          ),
-                        ),
                         Positioned(
                           top: MediaQuery.of(context).padding.top + 12,
-                          left: 16,
-                          right: 16,
-                          child: _buildTopOverlay(),
+                          left: 18,
+                          child: _buildBackButton(),
                         ),
                         if (compactMapControls)
                           Positioned(
@@ -1085,13 +1208,13 @@ class _DayungMapPageState extends State<DayungMapPage> {
                           if (!_loadingLoc && !_permissionDenied)
                             Positioned(
                               right: 16,
-                              top: MediaQuery.of(context).padding.top + 82,
+                              bottom: 16,
                               child: mapControls,
                             ),
                           Positioned(
                             left: 16,
                             bottom: 16,
-                            right: 16,
+                            right: 168,
                             child: Wrap(
                               spacing: 10,
                               runSpacing: 10,
@@ -1126,89 +1249,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
     );
   }
 
-  Widget _buildTopOverlay() {
-    final title = (widget.dayung['name'] ?? 'Dayung Location').toString();
-    final address = _address(widget.dayung);
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 18, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xB31E40AF),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          IconButton(
-            tooltip: 'Back',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            onPressed: () => Navigator.of(context).maybePop(),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.2),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(13),
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
-              ),
-            ),
-            icon: const Icon(Icons.arrow_back_rounded, size: 24),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Dayung Map',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Montserrat',
-                    letterSpacing: 0.25,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    fontFamily: 'Montserrat',
-                    height: 1.15,
-                  ),
-                ),
-                if (address.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    address,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.86),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'OpenSans',
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+  Widget _buildBackButton() {
+    return Material(
+      color: Colors.white,
+      elevation: 6,
+      shadowColor: Colors.black.withValues(alpha: 0.2),
+      shape: const CircleBorder(),
+      child: IconButton(
+        tooltip: 'Back',
+        onPressed: () => Navigator.of(context).maybePop(),
+        icon: const Icon(Icons.arrow_back_rounded, color: kNeutralText),
       ),
     );
   }
@@ -1967,39 +2017,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
     );
   }
 
-  Widget _fabIcon({
-    required IconData icon,
-    required VoidCallback onTap,
-    double size = 64,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: SizedBox(
-          width: size,
-          height: size,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: kPrimaryDark),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildCompactMapControls() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -2069,6 +2086,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'capstone_app',
+          panBuffer: 0,
+          keepBuffer: 1,
+          tileUpdateTransformer: TileUpdateTransformers.debounce(
+            const Duration(milliseconds: 150),
+          ),
         ),
         CircleLayer(
           circles: [
@@ -2082,10 +2104,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
             if (_pos != null)
               CircleMarker(
                 point: ll.LatLng(_pos!.latitude, _pos!.longitude),
-                radius: 10,
-                color: kPrimary,
-                borderColor: Colors.white,
-                borderStrokeWidth: 2,
+                radius: 20,
+                color: const Color(0xFF4285F4).withValues(alpha: 0.18),
               ),
           ],
         ),
@@ -2099,38 +2119,60 @@ class _DayungMapPageState extends State<DayungMapPage> {
           markers: [
             Marker(
               point: ll.LatLng(lat, lng),
-              width: 52,
-              height: 52,
-              child: const Icon(
-                Icons.location_on_rounded,
-                color: kAccent,
-                size: 42,
+              width: 48,
+              height: 48,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: kAccent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.apartment_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
             ),
             if (_pos != null)
               Marker(
                 point: ll.LatLng(_pos!.latitude, _pos!.longitude),
-                width: 34,
-                height: 34,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  child: const Icon(
-                    Icons.my_location_rounded,
-                    color: kPrimary,
-                    size: 20,
+                width: 44,
+                height: 44,
+                child: Transform.rotate(
+                  angle:
+                      (_compassHeading ??
+                          (_pos!.heading.isFinite ? _pos!.heading : 0.0)) *
+                      pi /
+                      180,
+                  child: const Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(
+                        Icons.navigation_rounded,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                      Icon(
+                        Icons.navigation_rounded,
+                        color: Color(0xFF4285F4),
+                        size: 24,
+                      ),
+                    ],
                   ),
                 ),
               ),
           ],
         ),
-        const RichAttributionWidget(
-          alignment: AttributionAlignment.bottomLeft,
-          showFlutterMapAttribution: false,
-          attributions: [TextSourceAttribution('OpenStreetMap contributors')],
+        const DayungMapAttribution(
+          alignment: Alignment.bottomLeft,
         ),
       ],
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 
@@ -481,8 +482,10 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
             ),
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _kPrimary),
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      padding: EdgeInsets.all(16),
+                      itemCount: 3,
                     )
                   : _error != null
                   ? Center(

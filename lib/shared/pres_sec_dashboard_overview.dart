@@ -1,6 +1,7 @@
 import 'package:capstone_app/shared/collectors_manage_page.dart';
 import 'package:capstone_app/shared/removed_members_page.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -297,12 +298,11 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Center(
-          child: CircularProgressIndicator(
-            color: Theme.of(context).colorScheme.primary,
-          ),
+      return const SizedBox(
+        height: 420,
+        child: DayungPageSkeleton(
+          layout: DayungSkeletonLayout.dashboard,
+          padding: EdgeInsets.all(12),
         ),
       );
     }

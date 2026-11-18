@@ -1,4 +1,5 @@
 import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
@@ -645,9 +646,13 @@ class _TreasurerOverallReportsPageState
 
   Widget _mobileMembers() {
     if (_loadingMembers) {
-      return const Padding(
-        padding: EdgeInsets.all(32),
-        child: Center(child: CircularProgressIndicator()),
+      return const SizedBox(
+        height: 360,
+        child: DayungPageSkeleton(
+          layout: DayungSkeletonLayout.list,
+          padding: EdgeInsets.all(8),
+          itemCount: 3,
+        ),
       );
     }
 
@@ -1093,7 +1098,14 @@ class _TreasurerOverallReportsPageState
           border: Border.all(color: const Color(0xFF9CA3AF)),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Center(child: CircularProgressIndicator()),
+        child: const SizedBox(
+          height: 340,
+          child: DayungPageSkeleton(
+            layout: DayungSkeletonLayout.list,
+            padding: EdgeInsets.all(8),
+            itemCount: 3,
+          ),
+        ),
       );
     }
 

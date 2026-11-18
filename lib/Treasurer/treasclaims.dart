@@ -108,19 +108,43 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
       appBar: AppBar(
         backgroundColor: dayungPageBackground(context),
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Claims',
-          style: TextStyle(color: kText, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh claims',
+            onPressed: _loading ? null : _load,
+            icon: const Icon(Icons.refresh_rounded),
+            style: IconButton.styleFrom(
+              fixedSize: const Size(52, 52),
+              backgroundColor: dayungSurface(context),
+              foregroundColor: Theme.of(context).colorScheme.primary,
+              side: BorderSide(color: dayungBorder(context)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 60),
+        padding: const EdgeInsets.only(bottom: 88),
         child: FloatingActionButton.extended(
           heroTag: 'submitClaimFab',
-          icon: const Icon(Icons.add),
-          label: const Text('Submit Claim'),
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Submit claim'),
           backgroundColor: kPrimary,
           foregroundColor: Colors.white,
+          elevation: 3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           onPressed: () {
             showModalBottomSheet(
               context: context,
@@ -146,51 +170,84 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: _loading
           ? const DayungPageSkeleton(
-              layout: DayungSkeletonLayout.dashboard,
-              itemCount: 4,
+              layout: DayungSkeletonLayout.list,
+              itemCount: 3,
             )
           : RefreshIndicator(
-              color: kPrimary,
+              color: Theme.of(context).colorScheme.primary,
               onRefresh: _load,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: BouncingScrollPhysics(),
                 ),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 180),
                 children: [
-                  const Text(
-                    'My Claims',
-                    style: TextStyle(
-                      color: kPrimaryDark,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 24,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'My claims',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${_myClaims.length} total',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const Text(
-                    'Only your own claims are shown here.',
-                    style: TextStyle(
-                      color: kSubtleText,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _chip('Pending', _myPending, kWarn),
-                      _chip('Approved', _myApproved, kAccent),
-                      _chip('Rejected', _myRejected, kDanger),
-                      _chip('Claimed', _myClaimed, kAccent),
-                      _chip('Total', _myClaims.length, kPrimary),
+                      _chip(
+                        'Pending',
+                        _myPending,
+                        kWarn,
+                        Icons.schedule_rounded,
+                      ),
+                      _chip(
+                        'Approved',
+                        _myApproved,
+                        kAccent,
+                        Icons.check_circle_rounded,
+                      ),
+                      _chip(
+                        'Rejected',
+                        _myRejected,
+                        kDanger,
+                        Icons.cancel_rounded,
+                      ),
+                      _chip(
+                        'Claimed',
+                        _myClaimed,
+                        kAccent,
+                        Icons.task_alt_rounded,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 18),
-                  if (_myClaims.isEmpty)
-                    _emptyState('You have not submitted any claims yet')
-                  else
-                    _claimsTable(),
+                  if (_myClaims.isEmpty) _emptyState() else _claimsTable(),
                 ],
               ),
             ),
@@ -198,24 +255,63 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
   }
 
   // UI helpers
-  Widget _chip(String label, int count, Color color) {
+  Widget _chip(String label, int count, Color color, IconData icon) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      child: Text(
-        '$label: $count',
-        style: TextStyle(color: color, fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$count',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _claimsTable() {
+    final colors = Theme.of(context).colorScheme;
     return RecordDataTable(
       minWidth: 720,
+      columnSpacing: 18,
+      horizontalMargin: 16,
+      headingRowHeight: 50,
+      dataRowMinHeight: 56,
+      dataRowMaxHeight: 76,
+      showCheckboxColumn: false,
+      headingTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        fontFamily: 'Montserrat',
+      ),
+      dataTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        fontFamily: 'OpenSans',
+      ),
       columns: const [
         DataColumn(label: Text('Claim')),
         DataColumn(label: Text('Description')),
@@ -247,9 +343,30 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
               Text(submitted.isEmpty ? '—' : submitted.split('T').first),
             ),
             DataCell(
-              Text(
-                _displayStatus(status),
-                style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_statusIcon(status), size: 14, color: color),
+                    const SizedBox(width: 6),
+                    Text(
+                      _displayStatus(status),
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -258,20 +375,36 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
     );
   }
 
-  Widget _emptyState(String text) {
+  Widget _emptyState() {
+    final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kCardRadius),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
+      padding: const EdgeInsets.all(24),
+      decoration: dayungSectionCardDecoration(context, radius: 18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inbox, color: Colors.grey.shade500),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(text, style: TextStyle(color: Colors.grey.shade700)),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.inbox_outlined,
+              color: colors.onSurfaceVariant,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No claims yet',
+            style: TextStyle(
+              color: colors.onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Montserrat',
+            ),
           ),
         ],
       ),

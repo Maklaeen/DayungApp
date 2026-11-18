@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1310,18 +1311,9 @@ class _SuperAdminAccessGuardState extends State<SuperAdminAccessGuard> {
           return Scaffold(
             backgroundColor: themeBg,
             body: const SafeArea(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text(
-                      'Checking SuperAdmin access...',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ],
-                ),
+              child: DayungPageSkeleton(
+                layout: DayungSkeletonLayout.detail,
+                padding: EdgeInsets.all(24),
               ),
             ),
           );

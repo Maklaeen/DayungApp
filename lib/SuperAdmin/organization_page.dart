@@ -1,6 +1,8 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:capstone_app/shared/dayung_map_error_snackbar.dart';
 import 'package:capstone_app/shared/dayung_map_resize_handle.dart';
+import 'package:capstone_app/shared/dayung_map_attribution.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -164,10 +166,12 @@ class _SuperAdminOrganizationPageState
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: CircularProgressIndicator(),
+                          return const SizedBox(
+                            height: 320,
+                            child: DayungPageSkeleton(
+                              layout: DayungSkeletonLayout.list,
+                              padding: EdgeInsets.all(8),
+                              itemCount: 2,
                             ),
                           );
                         }
@@ -601,58 +605,6 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
     }
   }
 
-  void _zoomMap(double delta) {
-    final camera = _mapController.camera;
-    _mapController.move(camera.center, camera.zoom + delta);
-  }
-
-  Widget _buildMapControls() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _mapControlButton(
-            icon: Icons.zoom_in_rounded,
-            tooltip: 'Zoom in',
-            onTap: () => _zoomMap(1),
-          ),
-          _mapControlButton(
-            icon: Icons.zoom_out_rounded,
-            tooltip: 'Zoom out',
-            onTap: () => _zoomMap(-1),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _mapControlButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return IconButton(
-      onPressed: onTap,
-      tooltip: tooltip,
-      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-      padding: EdgeInsets.zero,
-      icon: Icon(icon, color: const Color(0xFF1E40AF), size: 21),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.sizeOf(context).height;
@@ -675,7 +627,7 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
             SizedBox(
               height: mapHeight,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(24),
                 child: Stack(
                   children: [
                     FlutterMap(
@@ -684,8 +636,7 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
                         initialCenter: _selected,
                         initialZoom: 15,
                         interactionOptions: const InteractionOptions(
-                          flags:
-                              InteractiveFlag.all & ~InteractiveFlag.rotate,
+                          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                         ),
                         onTap: (_, point) => setState(() => _selected = point),
                       ),
@@ -694,6 +645,24 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
                           urlTemplate:
                               'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'capstone_app',
+                          panBuffer: 0,
+                          keepBuffer: 1,
+                          tileUpdateTransformer: TileUpdateTransformers.debounce(
+                            const Duration(milliseconds: 150),
+                          ),
+                        ),
+                        CircleLayer(
+                          circles: [
+                            CircleMarker(
+                              point: _selected,
+                              radius: 26,
+                              color: const Color(
+                                0xFF10B981,
+                              ).withValues(alpha: 0.20),
+                              borderColor: const Color(0xFF10B981),
+                              borderStrokeWidth: 2,
+                            ),
+                          ],
                         ),
                         MarkerLayer(
                           markers: [
@@ -701,31 +670,41 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
                               point: _selected,
                               width: 48,
                               height: 48,
-                              child: const Icon(
-                                Icons.location_on_rounded,
-                                color: Color(0xFF10B981),
-                                size: 42,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.22,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.apartment_rounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        const RichAttributionWidget(
-                          alignment: AttributionAlignment.bottomRight,
-                          showFlutterMapAttribution: false,
-                          attributions: [
-                            TextSourceAttribution('OpenStreetMap contributors'),
-                          ],
+                        const DayungMapAttribution(
+                          alignment: Alignment.bottomLeft,
                         ),
                       ],
                     ),
                     Positioned(
-                      bottom: 12,
-                      right: 12,
-                      child: _buildMapControls(),
-                    ),
-                    Positioned(
                       left: 12,
-                      bottom: 12,
+                      top: 12,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,

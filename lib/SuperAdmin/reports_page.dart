@@ -1,4 +1,5 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 
 class SuperAdminReportsPage extends StatefulWidget {
@@ -115,7 +116,10 @@ class _SuperAdminReportsPageState extends State<SuperAdminReportsPage> {
         backgroundColor: superAdminBackground(context),
         body: SafeArea(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const DayungPageSkeleton(
+                  layout: DayungSkeletonLayout.dashboard,
+                  padding: EdgeInsets.fromLTRB(20, 20, 20, 32),
+                )
               : _error != null
               ? _ErrorState(message: _error!, onRetry: _load)
               : RefreshIndicator(
